@@ -1,6 +1,6 @@
 /**
  * Motor de Cálculo para Finanzas de Pareja
- * Fondo Común Proporcional (60%) y Remanente para FCI
+ * Fondo Común Proporcional (60%) + Saldo Arrastrado + FCI + Cierre Mensual
  */
 
 export interface MemberContribution {
@@ -14,26 +14,21 @@ export interface MemberContribution {
 
 export interface PoolSummary {
   totalSalaries: number;
-  totalCommittedPool: number; // 60% de ambos
+  salaryPool: number; // 60% de ambos sueldos
+  carriedOverBalance: number; // Saldo no invertido arrastrado del mes anterior
+  totalAvailablePool: number; // salaryPool + carriedOverBalance
   totalExpenses: number;
-  remainingPool: number; // totalCommittedPool - totalExpenses (Remanente para FCI)
-  burnRatePct: number; // (totalExpenses / totalCommittedPool) * 100
+  investedInFCI: number; // Monto que ya fue transferido/marcado como invertido al FCI
+  remainingPool: number; // Saldo disponible libre del mes (totalAvailablePool - totalExpenses - investedInFCI)
+  burnRatePct: number; // % del fondo consumido por gastos + inversiones
   memberBalances: Array<{
     userId: string;
     name: string;
     committedAmount: number;
     outOfPocketPaid: number;
-    netBalance: number; // outOfPocketPaid - committedAmount (positivo = pagó de más, negativo = debe)
-    fciQuotaSharePct: number; // % que le corresponde del FCI generado
+    netBalance: number; // outOfPocketPaid - committedAmount
+    fciQuotaSharePct: number; // % que le corresponde de ahorros/FCI
   }>;
-  settlementSuggestion: {
-    fromUserId?: string;
-    fromUserName?: string;
-    toUserId?: string;
-    toUserName?: string;
-    amount: number;
-    explanation: string;
-  };
 }
 
 export function calculateMonthlyPool(
@@ -44,7 +39,9 @@ export function calculateMonthlyPool(
     contributionPct?: number;
     outOfPocketPaid: number;
   }>,
-  poolExpensesPaidFromCommonFund: number = 0
+  poolExpensesPaidFromCommonFund: number = 0,
+  carriedOverBalance: number = 0,
+  investedInFCI: number = 0
 ): PoolSummary {
   const memberContributions: MemberContribution[] = members.map((m) => {
     const pct = m.contributionPct ?? 0.60;
@@ -59,19 +56,26 @@ export function calculateMonthlyPool(
   });
 
   const totalSalaries = memberContributions.reduce((acc, m) => acc + m.salary, 0);
-  const totalCommittedPool = memberContributions.reduce((acc, m) => acc + m.committedAmount, 0);
+  const salaryPool = memberContributions.reduce((acc, m) => acc + m.committedAmount, 0);
   
+  // Fondo disponible total = 60% de este mes + saldo a favor no invertido del mes anterior
+  const totalAvailablePool = salaryPool + Math.max(0, carriedOverBalance);
+
   const totalOutOfPocket = memberContributions.reduce((acc, m) => acc + m.outOfPocketPaid, 0);
   const totalExpenses = totalOutOfPocket + poolExpensesPaidFromCommonFund;
 
-  const remainingPool = Math.max(0, totalCommittedPool - totalExpenses);
-  const burnRatePct = totalCommittedPool > 0 ? (totalExpenses / totalCommittedPool) * 100 : 0;
+  // Si ya se invirtió en FCI, ese dinero ya NO está como saldo disponible del mes
+  const remainingPool = Math.max(0, totalAvailablePool - totalExpenses - investedInFCI);
+
+  // Tasa de uso del fondo (gastos + lo ya invertido)
+  const totalCommittedOrSpent = totalExpenses + investedInFCI;
+  const burnRatePct = totalAvailablePool > 0 ? (totalCommittedOrSpent / totalAvailablePool) * 100 : 0;
 
   // Calculamos balances individuales
   const memberBalances = memberContributions.map((m) => {
     const netBalance = m.outOfPocketPaid - m.committedAmount;
     const fciQuotaSharePct =
-      totalCommittedPool > 0 ? (m.committedAmount / totalCommittedPool) * 100 : 50;
+      salaryPool > 0 ? (m.committedAmount / salaryPool) * 100 : 50;
 
     return {
       userId: m.userId,
@@ -83,56 +87,15 @@ export function calculateMonthlyPool(
     };
   });
 
-  // Cálculo de compensación si son 2 personas
-  let settlementSuggestion: PoolSummary["settlementSuggestion"] = {
-    amount: 0,
-    explanation: "Las cuentas están niveladas.",
-  };
-
-  if (memberBalances.length === 2) {
-    const [userA, userB] = memberBalances;
-
-    // Si los gastos no superan el fondo, cada uno aporta proporcional al gasto real
-    // Proporción de gasto real que le toca a cada uno:
-    const shareA = totalCommittedPool > 0 ? userA.committedAmount / totalCommittedPool : 0.5;
-    const shareB = totalCommittedPool > 0 ? userB.committedAmount / totalCommittedPool : 0.5;
-
-    const shouldHavePaidA = totalExpenses * shareA;
-    const shouldHavePaidB = totalExpenses * shareB;
-
-    const diffA = userA.outOfPocketPaid - shouldHavePaidA;
-
-    if (diffA > 1) {
-      // A pagó más de su cuota real del gasto
-      settlementSuggestion = {
-        fromUserId: userB.userId,
-        fromUserName: userB.name,
-        toUserId: userA.userId,
-        toUserName: userA.name,
-        amount: Math.round(diffA),
-        explanation: `${userB.name} le transfiere $${Math.round(diffA).toLocaleString("es-AR")} a ${userA.name} para nivelar los gastos del mes al 60% proporcional.`,
-      };
-    } else if (diffA < -1) {
-      // B pagó más de su cuota real del gasto
-      const diffB = Math.abs(diffA);
-      settlementSuggestion = {
-        fromUserId: userA.userId,
-        fromUserName: userA.name,
-        toUserId: userB.userId,
-        toUserName: userB.name,
-        amount: Math.round(diffB),
-        explanation: `${userA.name} le transfiere $${Math.round(diffB).toLocaleString("es-AR")} a ${userB.name} para nivelar los gastos del mes al 60% proporcional.`,
-      };
-    }
-  }
-
   return {
     totalSalaries,
-    totalCommittedPool,
+    salaryPool,
+    carriedOverBalance,
+    totalAvailablePool,
     totalExpenses,
+    investedInFCI,
     remainingPool,
     burnRatePct,
     memberBalances,
-    settlementSuggestion,
   };
 }

@@ -16,7 +16,7 @@ interface MonthlyAnalyticsViewProps {
   monthName: string;
   year: number;
   totalSpent: number;
-  totalCommittedPool: number;
+  totalAvailablePool: number;
   remainingPool: number;
   burnRatePct: number;
   expenses: ExpenseItem[];
@@ -27,7 +27,7 @@ export function MonthlyAnalyticsView({
   monthName,
   year,
   totalSpent,
-  totalCommittedPool,
+  totalAvailablePool,
   remainingPool,
   burnRatePct,
   expenses,

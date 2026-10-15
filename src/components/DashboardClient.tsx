@@ -18,6 +18,10 @@ import {
   CreditCard,
   BarChart3,
   Repeat,
+  Lock,
+  Unlock,
+  Check,
+  X,
 } from "./ui/icons";
 import { CategoryIcon } from "./ui/icons";
 import { QuickExpenseModal } from "./QuickExpenseModal";
@@ -25,7 +29,7 @@ import { SalaryConfigModal } from "./SalaryConfigModal";
 import { FCIInvestModal } from "./FCIInvestModal";
 import { MonthlyAnalyticsView } from "./MonthlyAnalyticsView";
 import { InstallmentsManagerView } from "./InstallmentsManagerView";
-import { deleteExpenseAction } from "@/app/actions";
+import { deleteExpenseAction, closeMonthAction, reopenMonthAction } from "@/app/actions";
 
 interface ExpenseItem {
   id: string;
@@ -49,13 +53,19 @@ interface DashboardClientProps {
       id: string;
       year: number;
       month: number;
+      status: string;
+      carriedOverBalance: number;
+      closedAt?: Date | string | null;
       incomes: Array<{ userId: string; amount: number; contributionPct: number; targetPoolAmount: number }>;
       expenses: ExpenseItem[];
       investmentTransfer: { id: string; amount: number } | null;
     };
     poolSummary: {
       totalSalaries: number;
-      totalCommittedPool: number;
+      salaryPool: number;
+      carriedOverBalance: number;
+      totalAvailablePool: number;
+      investedInFCI: number;
       totalExpenses: number;
       remainingPool: number;
       burnRatePct: number;
@@ -67,14 +77,6 @@ interface DashboardClientProps {
         netBalance: number;
         fciQuotaSharePct: number;
       }>;
-      settlementSuggestion: {
-        fromUserId?: string;
-        fromUserName?: string;
-        toUserId?: string;
-        toUserName?: string;
-        amount: number;
-        explanation: string;
-      };
     };
     investmentFund: {
       id: string;
@@ -118,7 +120,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
   const [isFCIModalOpen, setIsFCIModalOpen] = useState(false);
+  const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
+  const [isProcessingClose, setIsProcessingClose] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const isClosed = period.status === "CLOSED";
+  const nextMonthNumber = currentMonth === 12 ? 1 : currentMonth + 1;
+  const nextMonthYear = currentMonth === 12 ? currentYear + 1 : currentYear;
+  const nextMonthName = MONTH_NAMES[nextMonthNumber - 1];
 
   // Navegación de meses
   const handlePrevMonth = () => {
@@ -140,6 +149,35 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         await deleteExpenseAction(id);
       } finally {
         setDeletingId(null);
+      }
+    }
+  };
+
+  const handleCloseMonth = async () => {
+    setIsProcessingClose(true);
+    try {
+      await closeMonthAction(period.id);
+      setIsCloseModalOpen(false);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error al cerrar el mes");
+    } finally {
+      setIsProcessingClose(false);
+    }
+  };
+
+  const handleReopenMonth = async () => {
+    if (
+      confirm(
+        "¿Reabrir este mes? Si se trasladó saldo remanente al mes siguiente, será restablecido si dicho mes sigue abierto."
+      )
+    ) {
+      setIsProcessingClose(true);
+      try {
+        await reopenMonthAction(period.id);
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : "Error al reabrir el mes");
+      } finally {
+        setIsProcessingClose(false);
       }
     }
   };
@@ -182,8 +220,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <span className="text-xs font-bold text-white px-1 tracking-tight">
+            <span className="text-xs font-bold text-white px-1 tracking-tight flex items-center gap-1">
               {monthLabel} {currentYear}
+              {isClosed && <Lock className="w-3 h-3 text-amber-400" />}
             </span>
 
             <button
@@ -195,10 +234,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setIsExpenseModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-600/25 active:scale-95 transition duration-150 border border-blue-400/20"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-600/25 active:scale-95 transition duration-150 border border-blue-400/20"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Gasto</span>
@@ -206,11 +245,32 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
             <button
               onClick={() => setIsSalaryModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900/90 border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition duration-150"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-zinc-900/90 border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition duration-150"
+              title="Configurar Sueldos"
             >
               <Settings className="w-3.5 h-3.5 text-blue-400" />
-              <span>Sueldos</span>
             </button>
+
+            {isClosed ? (
+              <button
+                onClick={handleReopenMonth}
+                disabled={isProcessingClose}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-xs font-semibold text-amber-300 hover:bg-amber-500/25 active:scale-95 transition duration-150 disabled:opacity-50"
+                title="Reabrir mes"
+              >
+                <Unlock className="w-3.5 h-3.5" />
+                <span>Reabrir</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsCloseModalOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-zinc-900/90 border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition duration-150"
+                title="Cerrar mes"
+              >
+                <Lock className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Cerrar</span>
+              </button>
+            )}
           </div>
         </header>
 
@@ -226,25 +286,48 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   <Wallet className="w-3.5 h-3.5 text-blue-400" />
                   Presupuesto Común (60%)
                 </span>
-                <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/[0.08] text-white font-bold border border-white/[0.12] tabular-nums">
-                  {Math.round(poolSummary.burnRatePct)}% gastado
-                </span>
+                <div className="flex items-center gap-2">
+                  {isClosed && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                      Cerrado
+                    </span>
+                  )}
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/[0.08] text-white font-bold border border-white/[0.12] tabular-nums">
+                    {Math.round(poolSummary.burnRatePct)}% gastado
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-baseline justify-between mb-4">
+              <div className="flex items-baseline justify-between mb-2">
                 <div>
-                  <span className="text-[11px] font-medium text-zinc-300 block mb-0.5">Gastado:</span>
+                  <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">Gastado:</span>
                   <span className="text-3xl font-extrabold text-white tracking-tight font-mono tabular-nums">
                     ${Math.round(poolSummary.totalExpenses).toLocaleString("es-AR")}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[11px] font-medium text-zinc-300 block mb-0.5">Fondo (60%):</span>
-                  <span className="text-base font-bold text-zinc-200 font-mono tabular-nums">
-                    ${Math.round(poolSummary.totalCommittedPool).toLocaleString("es-AR")}
+                  <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">Fondo Disponible:</span>
+                  <span className="text-base font-bold text-zinc-100 font-mono tabular-nums">
+                    ${Math.round(poolSummary.totalAvailablePool).toLocaleString("es-AR")}
                   </span>
                 </div>
               </div>
+
+              {/* Sub-desglose si hay saldo arrastrado o invertido */}
+              {(poolSummary.carriedOverBalance > 0 || poolSummary.investedInFCI > 0) && (
+                <div className="flex flex-wrap items-center gap-1.5 mb-3 text-[10px] font-medium">
+                  {poolSummary.carriedOverBalance > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 font-mono tabular-nums">
+                      +${Math.round(poolSummary.carriedOverBalance).toLocaleString("es-AR")} mes anterior
+                    </span>
+                  )}
+                  {poolSummary.investedInFCI > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-mono tabular-nums">
+                      -${Math.round(poolSummary.investedInFCI).toLocaleString("es-AR")} invertido en FCI
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Barra de Progreso SuperDesign */}
               <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden mb-4 p-0.5 border border-white/[0.08]">
@@ -255,28 +338,53 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
 
               {/* Banner Remanente para Invertir en FCI */}
-              <div
-                onClick={() => setIsFCIModalOpen(true)}
-                className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    <PiggyBank className="w-4 h-4" />
+              {poolSummary.investedInFCI > 0 && poolSummary.remainingPool === 0 ? (
+                <div
+                  onClick={() => setIsFCIModalOpen(true)}
+                  className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <Check className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
+                        Excedente Invertido en FCI
+                      </span>
+                      <span className="text-base font-bold text-white font-mono tabular-nums">
+                        ${Math.round(poolSummary.investedInFCI).toLocaleString("es-AR")} asignados
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
-                      Remanente para FCI
-                    </span>
-                    <span className="text-lg font-bold text-white font-mono tabular-nums">
-                      ${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")}
-                    </span>
+                  <div className="flex items-center gap-1 text-xs text-emerald-300 font-semibold group-hover:translate-x-0.5 transition-transform">
+                    <span>Ver FCI</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-emerald-300 font-bold group-hover:translate-x-0.5 transition-transform">
-                  <span>Invertir</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+              ) : (
+                <div
+                  onClick={() => setIsFCIModalOpen(true)}
+                  className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <PiggyBank className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
+                        Remanente para FCI
+                      </span>
+                      <span className="text-lg font-bold text-white font-mono tabular-nums">
+                        ${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-emerald-300 font-bold group-hover:translate-x-0.5 transition-transform">
+                    <span>Invertir</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </div>
                 </div>
-              </div>
+              )}
             </section>
 
             {/* Balances de Bolsillo (Agus & Pareja) */}
@@ -286,7 +394,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 Desembolsos de Bolsillo
               </h2>
 
-              <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="grid grid-cols-2 gap-3">
                 {/* User A (Agus) */}
                 <div className="bg-blue-950/30 border border-blue-500/30 rounded-2xl p-3.5 shadow-sm">
                   <div className="flex items-center justify-between">
@@ -319,23 +427,6 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   </span>
                 </div>
               </div>
-
-              {/* Compensación Sugerida */}
-              {poolSummary.settlementSuggestion.amount > 0 ? (
-                <div className="bg-blue-950/40 border border-blue-500/40 rounded-2xl p-3.5 text-xs text-blue-100 flex items-start gap-2.5 shadow-sm">
-                  <Sparkles className="w-4 h-4 text-blue-300 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold block text-blue-300">Nivelación sugerida:</span>
-                    <p className="mt-0.5 text-zinc-200 leading-relaxed">
-                      {poolSummary.settlementSuggestion.explanation}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-zinc-300 font-medium text-center py-1">
-                  Gastos nivelados proporcionalmente al 60% este mes.
-                </div>
-              )}
             </section>
 
             {/* Lista de Gastos */}
@@ -425,7 +516,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             monthName={monthLabel}
             year={currentYear}
             totalSpent={poolSummary.totalExpenses}
-            totalCommittedPool={poolSummary.totalCommittedPool}
+            totalAvailablePool={poolSummary.totalAvailablePool}
             remainingPool={poolSummary.remainingPool}
             burnRatePct={poolSummary.burnRatePct}
             expenses={period.expenses}
@@ -645,6 +736,110 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         userABalance={{ name: userA.name, quotaPct: userA.fciQuotaSharePct }}
         userBBalance={{ name: userB.name, quotaPct: userB.fciQuotaSharePct }}
       />
+
+      {/* Modal de Confirmación de Cierre Mensual */}
+      {isCloseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-md super-card rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white tracking-tight">Cierre Mensual</h2>
+                  <p className="text-xs text-zinc-400">{monthLabel} {currentYear}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCloseModalOpen(false)}
+                className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Resumen del Período */}
+            <div className="mt-4 space-y-3">
+              <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 space-y-2.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-zinc-400 font-medium">Presupuesto Disponible:</span>
+                  <span className="font-bold text-white font-mono tabular-nums">
+                    ${Math.round(poolSummary.totalAvailablePool).toLocaleString("es-AR")}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-zinc-400 font-medium">Total Gastos Imputados:</span>
+                  <span className="font-bold text-rose-300 font-mono tabular-nums">
+                    -${Math.round(poolSummary.totalExpenses).toLocaleString("es-AR")}
+                  </span>
+                </div>
+                {poolSummary.investedInFCI > 0 && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400 font-medium">Invertido en FCI:</span>
+                    <span className="font-bold text-emerald-400 font-mono tabular-nums">
+                      -${Math.round(poolSummary.investedInFCI).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                )}
+                <div className="border-t border-white/[0.08] pt-2 flex justify-between items-center">
+                  <span className="text-xs font-bold text-zinc-200">Remanente no invertido:</span>
+                  <span className="text-base font-extrabold text-white font-mono tabular-nums">
+                    ${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Explicación del Traspaso de Saldo */}
+              {poolSummary.remainingPool > 0 ? (
+                <div className="bg-blue-950/40 border border-blue-500/30 rounded-2xl p-4 text-xs text-blue-100 flex items-start gap-3 shadow-sm">
+                  <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="font-bold text-blue-300 block">Pase automático de saldo</span>
+                    <p className="text-zinc-200 leading-relaxed">
+                      El saldo remanente de{" "}
+                      <strong className="text-white font-mono tabular-nums">
+                        ${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")}
+                      </strong>{" "}
+                      se trasladará automáticamente como saldo disponible inicial a{" "}
+                      <strong className="text-blue-300">{nextMonthName} {nextMonthYear}</strong>.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-zinc-900/60 border border-white/[0.08] rounded-2xl p-4 text-xs text-zinc-300 flex items-start gap-3">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    No hay remanente libre para trasladar. Todo el presupuesto fue consumido o invertido en el FCI. {nextMonthName} iniciará con sueldos nuevos.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Botones de Acción */}
+            <div className="mt-5 space-y-2">
+              <button
+                onClick={handleCloseMonth}
+                disabled={isProcessingClose}
+                className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-amber-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-amber-400/20"
+              >
+                <Lock className="w-4 h-4" />
+                <span>
+                  {isProcessingClose ? "Cerrando período..." : `Confirmar Cierre de ${monthLabel}`}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setIsCloseModalOpen(false)}
+                disabled={isProcessingClose}
+                className="w-full py-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-medium text-xs active:scale-[0.98] transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

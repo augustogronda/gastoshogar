@@ -119,7 +119,15 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     };
   });
 
-  const poolSummary = calculateMonthlyPool(engineMembers, poolFundExpenses);
+  const investedInFCI = period.investmentTransfer ? period.investmentTransfer.amount : 0;
+  const carriedOver = period.carriedOverBalance || 0;
+
+  const poolSummary = calculateMonthlyPool(
+    engineMembers,
+    poolFundExpenses,
+    carriedOver,
+    investedInFCI
+  );
 
   // Obtener Fondo de Inversión
   const investmentFund = await prisma.investmentFund.findFirst({
@@ -273,7 +281,9 @@ export async function transferSurplusToFCIAction(periodId: string, fundId: strin
   if (!period) throw new Error("Período no encontrado");
   if (period.investmentTransfer) throw new Error("El remanente de este mes ya fue transferido");
 
-  const totalPool = period.incomes.reduce((acc, i) => acc + i.targetPoolAmount, 0);
+  const totalPool =
+    period.incomes.reduce((acc, i) => acc + i.targetPoolAmount, 0) +
+    (period.carriedOverBalance || 0);
   const totalSpent = period.expenses.reduce((acc, e) => acc + e.amount, 0);
   const surplus = Math.max(0, totalPool - totalSpent);
 
@@ -311,6 +321,126 @@ export async function transferSurplusToFCIAction(periodId: string, fundId: strin
 
   revalidatePath("/");
   return { success: true, surplus };
+}
+
+export async function closeMonthAction(periodId: string) {
+  const period = await prisma.monthlyPeriod.findUnique({
+    where: { id: periodId },
+    include: {
+      incomes: true,
+      expenses: true,
+      investmentTransfer: true,
+    },
+  });
+
+  if (!period) throw new Error("Período no encontrado");
+
+  // Calcular el remanente no invertido
+  const totalPool =
+    period.incomes.reduce((acc, i) => acc + i.targetPoolAmount, 0) +
+    (period.carriedOverBalance || 0);
+  const totalSpent = period.expenses.reduce((acc, e) => acc + e.amount, 0);
+  const invested = period.investmentTransfer ? period.investmentTransfer.amount : 0;
+
+  // Si no se marcó como invertido, este saldo se pasa al mes siguiente
+  const uninvestedSurplus = Math.max(0, totalPool - totalSpent - invested);
+
+  // Marcar período actual como cerrado
+  await prisma.monthlyPeriod.update({
+    where: { id: periodId },
+    data: {
+      status: "CLOSED",
+      closedAt: new Date(),
+    },
+  });
+
+  // Mes siguiente
+  const nextMonth = period.month === 12 ? 1 : period.month + 1;
+  const nextYear = period.month === 12 ? period.year + 1 : period.year;
+
+  // Buscar o crear el siguiente período
+  const nextPeriod = await prisma.monthlyPeriod.findUnique({
+    where: {
+      householdId_year_month: {
+        householdId: period.householdId,
+        year: nextYear,
+        month: nextMonth,
+      },
+    },
+  });
+
+  if (nextPeriod) {
+    // Si ya existe, actualizamos el saldo arrastrado
+    await prisma.monthlyPeriod.update({
+      where: { id: nextPeriod.id },
+      data: {
+        carriedOverBalance: uninvestedSurplus,
+      },
+    });
+  } else {
+    // Si aún no existe, lo creamos heredando los sueldos del período actual y con el saldo arrastrado
+    await prisma.monthlyPeriod.create({
+      data: {
+        householdId: period.householdId,
+        year: nextYear,
+        month: nextMonth,
+        carriedOverBalance: uninvestedSurplus,
+        incomes: {
+          create: period.incomes.map((i) => ({
+            userId: i.userId,
+            amount: i.amount,
+            contributionPct: i.contributionPct,
+            targetPoolAmount: i.targetPoolAmount,
+          })),
+        },
+      },
+    });
+  }
+
+  revalidatePath("/");
+  return { success: true, uninvestedSurplus };
+}
+
+export async function reopenMonthAction(periodId: string) {
+  const period = await prisma.monthlyPeriod.findUnique({
+    where: { id: periodId },
+  });
+
+  if (!period) throw new Error("Período no encontrado");
+
+  await prisma.monthlyPeriod.update({
+    where: { id: periodId },
+    data: {
+      status: "OPEN",
+      closedAt: null,
+    },
+  });
+
+  // Mes siguiente: si estaba abierto, quitamos el saldo arrastrado para recalcular
+  const nextMonth = period.month === 12 ? 1 : period.month + 1;
+  const nextYear = period.month === 12 ? period.year + 1 : period.year;
+
+  const nextPeriod = await prisma.monthlyPeriod.findUnique({
+    where: {
+      householdId_year_month: {
+        householdId: period.householdId,
+        year: nextYear,
+        month: nextMonth,
+      },
+    },
+  });
+
+  if (nextPeriod && nextPeriod.status === "OPEN") {
+    await prisma.monthlyPeriod.update({
+      where: { id: nextPeriod.id },
+      data: {
+        carriedOverBalance: 0,
+      },
+    });
+  }
+
+  revalidatePath("/");
+  return { success: true };
 }
 
 export async function updateFCIValueAction(fundId: string, newValue: number) {

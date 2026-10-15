@@ -39,6 +39,8 @@ model MonthlyPeriod {
   year               Int
   month              Int                     // 1 al 12
   status             String                  @default("OPEN") // OPEN, CLOSED
+  carriedOverBalance Float                   @default(0)      // Saldo arrastrado del mes anterior (no invertido)
+  closedAt           DateTime?               // Fecha en que se cerró el mes
   householdId        String
   household          Household               @relation(fields: [householdId], references: [id])
   incomes            Income[]

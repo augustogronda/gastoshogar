@@ -34,6 +34,8 @@ import {
   AlertCircle,
   Receipt,
   Copy,
+  Lock,
+  Unlock,
 } from "lucide-react";
 
 export const CategoryIcon = ({
@@ -111,4 +113,6 @@ export {
   AlertCircle,
   Receipt,
   Copy,
+  Lock,
+  Unlock,
 };
