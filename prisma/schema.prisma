@@ -81,6 +81,9 @@ model Category {
   recurringExpenses RecurringExpense[]
   personalExpenses  PersonalExpense[]
   personalRecurring PersonalRecurringExpense[]
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @default(now()) @updatedAt
+  lastUsedAt        DateTime?
 }
 
 model Expense {

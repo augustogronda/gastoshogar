@@ -40,46 +40,187 @@ import {
   Edit3,
   UserCheck,
   Smile,
+  Coffee,
+  Shirt,
+  Dumbbell,
+  Plane,
+  Gift,
+  Dog,
+  Laptop,
+  Film,
+  Book,
+  Smartphone,
+  Music,
+  Shield,
+  Baby,
 } from "lucide-react";
+
+export const CATEGORY_ICON_OPTIONS = [
+  { id: "ShoppingCart", label: "Super / Compras", icon: ShoppingCart },
+  { id: "Home", label: "Alquiler / Casa", icon: Home },
+  { id: "Zap", label: "Servicios / Luz", icon: Zap },
+  { id: "Utensils", label: "Salidas / Comida", icon: Utensils },
+  { id: "Coffee", label: "Café / Desayunos", icon: Coffee },
+  { id: "HeartPulse", label: "Salud / Farmacia", icon: HeartPulse },
+  { id: "Car", label: "Auto / Nafta", icon: Car },
+  { id: "Wrench", label: "Mantenimiento", icon: Wrench },
+  { id: "Shirt", label: "Ropa / Moda", icon: Shirt },
+  { id: "Dumbbell", label: "Gym / Deporte", icon: Dumbbell },
+  { id: "Dog", label: "Mascotas / Vet", icon: Dog },
+  { id: "Plane", label: "Viajes / Vacaciones", icon: Plane },
+  { id: "Gift", label: "Regalos / Fiestas", icon: Gift },
+  { id: "Laptop", label: "Tecnología", icon: Laptop },
+  { id: "Film", label: "Cine / Streaming", icon: Film },
+  { id: "Smartphone", label: "Celular / Apps", icon: Smartphone },
+  { id: "Music", label: "Música / Recitales", icon: Music },
+  { id: "Book", label: "Cursos / Libros", icon: Book },
+  { id: "Baby", label: "Bebé / Niños", icon: Baby },
+  { id: "Sparkles", label: "Cuidado / Belleza", icon: Sparkles },
+  { id: "PiggyBank", label: "Ahorro / Fondo", icon: PiggyBank },
+  { id: "Tag", label: "Varios", icon: Tag },
+];
+
+export const CATEGORY_COLOR_OPTIONS = [
+  { id: "#10b981", label: "Esmeralda", bg: "bg-emerald-500" },
+  { id: "#3b82f6", label: "Azul", bg: "bg-blue-500" },
+  { id: "#6366f1", label: "Índigo", bg: "bg-indigo-500" },
+  { id: "#8b5cf6", label: "Púrpura", bg: "bg-purple-500" },
+  { id: "#ec4899", label: "Rosa", bg: "bg-pink-500" },
+  { id: "#f43f5e", label: "Rojo", bg: "bg-rose-500" },
+  { id: "#f59e0b", label: "Ámbar", bg: "bg-amber-500" },
+  { id: "#06b6d4", label: "Cian", bg: "bg-cyan-500" },
+  { id: "#14b8a6", label: "Teal", bg: "bg-teal-500" },
+  { id: "#64748b", label: "Pizarra", bg: "bg-slate-500" },
+];
+
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  shoppingcart: ShoppingCart,
+  home: Home,
+  zap: Zap,
+  utensils: Utensils,
+  heartpulse: HeartPulse,
+  car: Car,
+  wrench: Wrench,
+  tag: Tag,
+  coffee: Coffee,
+  shirt: Shirt,
+  dumbbell: Dumbbell,
+  plane: Plane,
+  gift: Gift,
+  dog: Dog,
+  laptop: Laptop,
+  film: Film,
+  book: Book,
+  smartphone: Smartphone,
+  music: Music,
+  sparkles: Sparkles,
+  piggybank: PiggyBank,
+  creditcard: CreditCard,
+  shield: Shield,
+  smile: Smile,
+  baby: Baby,
+};
+
+const NAME_MAP: Record<string, string> = {
+  supermercado: "shoppingcart",
+  compras: "shoppingcart",
+  alquiler: "home",
+  "alquiler & expensas": "home",
+  vivienda: "home",
+  casa: "home",
+  servicios: "zap",
+  "servicios (luz, gas, wifi)": "zap",
+  luz: "zap",
+  gas: "zap",
+  wifi: "zap",
+  salidas: "utensils",
+  "salidas & delivery": "utensils",
+  delivery: "utensils",
+  restaurante: "utensils",
+  comida: "utensils",
+  farmacia: "heartpulse",
+  "farmacia & salud": "heartpulse",
+  salud: "heartpulse",
+  medico: "heartpulse",
+  remedios: "heartpulse",
+  transporte: "car",
+  "transporte & combustible": "car",
+  nafta: "car",
+  combustible: "car",
+  auto: "car",
+  uber: "car",
+  hogar: "wrench",
+  "hogar & arreglos": "wrench",
+  mantenimiento: "wrench",
+  arreglos: "wrench",
+  cafe: "coffee",
+  cafeteria: "coffee",
+  desayuno: "coffee",
+  ropa: "shirt",
+  indumentaria: "shirt",
+  zapatillas: "shirt",
+  gym: "dumbbell",
+  gimnasio: "dumbbell",
+  deporte: "dumbbell",
+  fitness: "dumbbell",
+  viajes: "plane",
+  vacaciones: "plane",
+  vuelo: "plane",
+  hotel: "plane",
+  regalo: "gift",
+  regalos: "gift",
+  cumpleaños: "gift",
+  mascota: "dog",
+  mascotas: "dog",
+  perro: "dog",
+  gato: "dog",
+  veterinaria: "dog",
+  tecnologia: "laptop",
+  computacion: "laptop",
+  streaming: "film",
+  cine: "film",
+  netflix: "film",
+  educacion: "book",
+  curso: "book",
+  cursos: "book",
+  libros: "book",
+  celular: "smartphone",
+  telefono: "smartphone",
+  musica: "music",
+  spotify: "music",
+  recitales: "music",
+  belleza: "sparkles",
+  peluqueria: "sparkles",
+  skincare: "sparkles",
+  bebe: "baby",
+  hijos: "baby",
+  niños: "baby",
+  ahorro: "piggybank",
+  inversion: "piggybank",
+  seguro: "shield",
+  seguros: "shield",
+  varios: "tag",
+};
 
 export const CategoryIcon = ({
   name,
+  icon,
   className = "w-5 h-5",
 }: {
   name?: string | null;
+  icon?: string | null;
   className?: string;
 }) => {
-  switch (name?.toLowerCase()) {
-    case "shoppingcart":
-    case "supermercado":
-      return <ShoppingCart className={className} />;
-    case "home":
-    case "alquiler & expensas":
-    case "alquiler":
-      return <Home className={className} />;
-    case "zap":
-    case "servicios (luz, gas, wifi)":
-    case "servicios":
-      return <Zap className={className} />;
-    case "utensils":
-    case "salidas & delivery":
-    case "salidas":
-      return <Utensils className={className} />;
-    case "heartpulse":
-    case "farmacia & salud":
-    case "farmacia":
-      return <HeartPulse className={className} />;
-    case "car":
-    case "transporte & combustible":
-    case "transporte":
-      return <Car className={className} />;
-    case "wrench":
-    case "hogar & arreglos":
-    case "mantenimiento":
-      return <Wrench className={className} />;
-    default:
-      return <Tag className={className} />;
-  }
+  const iconKey = (icon || "").toLowerCase().trim();
+  const nameKey = (name || "").toLowerCase().trim();
+
+  const IconComponent =
+    ICON_MAP[iconKey] ||
+    ICON_MAP[nameKey] ||
+    ICON_MAP[NAME_MAP[nameKey]] ||
+    Tag;
+
+  return <IconComponent className={className} />;
 };
 
 export {
@@ -123,4 +264,17 @@ export {
   Edit3,
   UserCheck,
   Smile,
+  Coffee,
+  Shirt,
+  Dumbbell,
+  Plane,
+  Gift,
+  Dog,
+  Laptop,
+  Film,
+  Book,
+  Smartphone,
+  Music,
+  Shield,
+  Baby,
 };

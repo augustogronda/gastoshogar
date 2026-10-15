@@ -292,11 +292,43 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     };
   }
 
+  // Backfill inicial para categorías preexistentes sin lastUsedAt
+  const uninitializedCategories = await prisma.category.findMany({
+    where: { householdId: household.id, lastUsedAt: null },
+    include: {
+      expenses: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
+      personalExpenses: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
+    },
+  });
+
+  for (const cat of uninitializedCategories) {
+    const dates: Date[] = [];
+    if (cat.expenses[0]?.date) dates.push(new Date(cat.expenses[0].date));
+    if (cat.personalExpenses[0]?.date) dates.push(new Date(cat.personalExpenses[0].date));
+    const mostRecent = dates.length > 0
+      ? new Date(Math.max(...dates.map((d) => d.getTime())))
+      : (cat.createdAt || new Date());
+
+    await prisma.category.update({
+      where: { id: cat.id },
+      data: { lastUsedAt: mostRecent },
+    });
+  }
+
+  // Categorías ordenadas por uso reciente primero (las más nuevas o recién usadas al principio)
+  const sortedCategories = await prisma.category.findMany({
+    where: { householdId: household.id },
+    orderBy: [
+      { lastUsedAt: "desc" },
+      { createdAt: "desc" },
+    ],
+  });
+
   return {
     household,
     users: household.users,
     currentUser,
-    categories: household.categories,
+    categories: sortedCategories,
     period,
     poolSummary,
     investmentFund,
@@ -305,6 +337,18 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     currentYear: year,
     currentMonth: month,
   };
+}
+
+async function touchCategory(categoryId?: string | null) {
+  if (!categoryId) return;
+  try {
+    await prisma.category.update({
+      where: { id: categoryId },
+      data: { lastUsedAt: new Date() },
+    });
+  } catch (err) {
+    console.error("Error touching category:", err);
+  }
 }
 
 export async function addExpenseAction(data: {
@@ -339,6 +383,8 @@ export async function addExpenseAction(data: {
       date: data.date ? new Date(data.date) : new Date(),
     },
   });
+
+  await touchCategory(data.categoryId);
 
   revalidatePath("/");
   return { success: true };
@@ -379,6 +425,8 @@ export async function updateExpenseAction(data: {
     },
   });
 
+  await touchCategory(data.categoryId);
+
   revalidatePath("/");
   return { success: true };
 }
@@ -402,6 +450,8 @@ export async function duplicateExpenseAction(expenseId: string) {
       date: new Date(),
     },
   });
+
+  await touchCategory(existing.categoryId);
 
   revalidatePath("/");
   return { success: true };
@@ -671,6 +721,8 @@ export async function createRecurringExpenseAction(data: {
       notes: data.notes,
     },
   });
+
+  await touchCategory(data.categoryId);
 
   revalidatePath("/");
   return { success: true };
