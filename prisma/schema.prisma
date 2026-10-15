@@ -1,0 +1,127 @@
+// Prisma Schema para Finanzas de Pareja (Fondo Común 60% + FCI)
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Household {
+  id              String          @id @default(cuid())
+  name            String          @default("Nuestro Hogar")
+  currency        String          @default("ARS")
+  defaultRate     Float           @default(0.60) // 60% por defecto
+  createdAt       DateTime        @default(now())
+  users           User[]
+  periods         MonthlyPeriod[]
+  categories      Category[]
+  investments     InvestmentFund[]
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  name          String
+  avatarColor   String       @default("#3b82f6")
+  householdId   String
+  household     Household    @relation(fields: [householdId], references: [id])
+  incomes       Income[]
+  expensesPaid  Expense[]    @relation("ExpensePayer")
+  createdAt     DateTime     @default(now())
+}
+
+model MonthlyPeriod {
+  id                 String                  @id @default(cuid())
+  year               Int
+  month              Int                     // 1 al 12
+  status             String                  @default("OPEN") // OPEN, CLOSED
+  householdId        String
+  household          Household               @relation(fields: [householdId], references: [id])
+  incomes            Income[]
+  expenses           Expense[]
+  settlement         Settlement?
+  investmentTransfer InvestmentContribution?
+  createdAt          DateTime                @default(now())
+
+  @@unique([householdId, year, month])
+}
+
+model Income {
+  id               String        @id @default(cuid())
+  amount           Float         // Sueldo neto mensual percibido
+  contributionPct  Float         @default(0.60) // 60%
+  targetPoolAmount Float         // amount * contributionPct
+  userId           String
+  user             User          @relation(fields: [userId], references: [id])
+  periodId         String
+  period           MonthlyPeriod @relation(fields: [periodId], references: [id])
+  createdAt        DateTime      @default(now())
+
+  @@unique([userId, periodId])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    // Supermercado, Alquiler, Salidas, etc.
+  icon        String?   // Lucide icon name
+  color       String?   // Hex
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id])
+  expenses    Expense[]
+}
+
+model Expense {
+  id             String        @id @default(cuid())
+  title          String
+  amount         Float
+  date           DateTime      @default(now())
+  paidById       String
+  paidBy         User          @relation("ExpensePayer", fields: [paidById], references: [id])
+  isFromPoolFund Boolean       @default(false)
+  categoryId     String
+  category       Category      @relation(fields: [categoryId], references: [id])
+  periodId       String
+  period         MonthlyPeriod @relation(fields: [periodId], references: [id])
+  notes          String?
+  createdAt      DateTime      @default(now())
+}
+
+model Settlement {
+  id             String        @id @default(cuid())
+  periodId       String        @unique
+  period         MonthlyPeriod @relation(fields: [periodId], references: [id])
+  totalPool      Float         // Aportes totales 60%
+  totalSpent     Float         // Gastos totales del mes
+  surplus        Float         // Remanente (totalPool - totalSpent)
+  netBalanceA    Float         // Balance de bolsillo persona A
+  netBalanceB    Float         // Balance de bolsillo persona B
+  transferAmount Float         // Monto de compensación entre ambos
+  payerId        String?
+  receiverId     String?
+  settledAt      DateTime?
+}
+
+// Fondo Común de Inversión (FCI) para los remanentes
+model InvestmentFund {
+  id            String                   @id @default(cuid())
+  householdId   String
+  household     Household                @relation(fields: [householdId], references: [id])
+  name          String                   @default("FCI Ahorro Pareja")
+  currentValue  Float                    @default(0)
+  contributions InvestmentContribution[]
+  updatedAt     DateTime                 @updatedAt
+}
+
+model InvestmentContribution {
+  id         String         @id @default(cuid())
+  fundId     String
+  fund       InvestmentFund @relation(fields: [fundId], references: [id])
+  periodId   String         @unique
+  period     MonthlyPeriod  @relation(fields: [periodId], references: [id])
+  amount     Float          // Monto del remanente invertido
+  userAQuota Float          // Cuota atribuible a A
+  userBQuota Float          // Cuota atribuible a B
+  investedAt DateTime       @default(now())
+}
