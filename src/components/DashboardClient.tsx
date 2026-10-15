@@ -85,6 +85,11 @@ const MONTH_NAMES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 ];
 
+const SHORT_MONTHS = [
+  "ene", "feb", "mar", "abr", "may", "jun",
+  "jul", "ago", "sep", "oct", "nov", "dic"
+];
+
 export function DashboardClient({ initialData }: DashboardClientProps) {
   const { household, users, categories, period, poolSummary, investmentFund, currentYear, currentMonth } = initialData;
 
@@ -301,10 +306,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             <div className="space-y-2">
               {period.expenses.map((exp) => {
                 const dateObj = new Date(exp.date);
-                const dateStr = dateObj.toLocaleDateString("es-AR", {
-                  day: "numeric",
-                  month: "short",
-                });
+                const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
 
                 return (
                   <div
