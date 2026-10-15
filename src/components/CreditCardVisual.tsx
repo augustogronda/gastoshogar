@@ -4,6 +4,11 @@ import React from "react";
 import { Check, Clock, Calendar, AlertCircle } from "./ui/icons";
 import { BANK_THEMES } from "@/lib/cards-service";
 
+const SHORT_MONTHS_ES = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
+];
+
 interface CreditCardVisualProps {
   bank: string;
   brand: string;
@@ -13,6 +18,7 @@ interface CreditCardVisualProps {
   statementAmountUsd?: number;
   closingDate?: Date | string | null;
   dueDate?: Date | string | null;
+  periodMonth?: number;
   isPaid: boolean;
   onEdit?: () => void;
   onTogglePaid?: () => void;
@@ -28,6 +34,7 @@ export function CreditCardVisual({
   statementAmountUsd,
   closingDate,
   dueDate,
+  periodMonth,
   isPaid,
   onEdit,
   onTogglePaid,
@@ -49,8 +56,28 @@ export function CreditCardVisual({
   const closingStr = formatShortDate(closingDate);
   const dueStr = formatShortDate(dueDate);
 
-  // Calcular si está vencida
-  const isOverdue = !isPaid && dueDate && new Date(dueDate).getTime() < Date.now();
+  // Detectar si vence en el mes siguiente al del resumen
+  const dueDateObj = dueDate ? new Date(dueDate) : null;
+  const closeDateObj = closingDate ? new Date(closingDate) : null;
+  const dueMonthIdx =
+    dueDateObj && !isNaN(dueDateObj.getTime()) ? dueDateObj.getUTCMonth() : null;
+  const baseMonthIdx = periodMonth
+    ? periodMonth - 1
+    : closeDateObj && !isNaN(closeDateObj.getTime())
+    ? closeDateObj.getUTCMonth()
+    : null;
+
+  const isDueNextMonth =
+    dueMonthIdx !== null && baseMonthIdx !== null && dueMonthIdx !== baseMonthIdx;
+
+  const dueMonthLabel = dueMonthIdx !== null ? SHORT_MONTHS_ES[dueMonthIdx] : "";
+
+  // Calcular si está vencida (comparando fin del día de vencimiento)
+  const isOverdue =
+    !isPaid &&
+    dueDateObj &&
+    !isNaN(dueDateObj.getTime()) &&
+    dueDateObj.getTime() + 12 * 3600 * 1000 < Date.now();
 
   return (
     <div className="relative group w-full select-none">
@@ -73,6 +100,11 @@ export function CreditCardVisual({
             <span className="text-base font-black tracking-tight drop-shadow-md">
               {bank}
             </span>
+            {upperBrand === "VISA" && bank !== "Mercado Pago" && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/15 text-white/90 font-bold uppercase tracking-wider">
+                Principal
+              </span>
+            )}
           </div>
 
           {/* Logo de Marca (VISA / MASTERCARD / AMEX) */}
@@ -101,7 +133,7 @@ export function CreditCardVisual({
           </div>
         </div>
 
-        {/* Fila Central: Chip Dorado EMV + Contactless Waves */}
+        {/* Fila Central: Chip Dorado EMV + Contactless Waves + Estado */}
         <div className="flex items-center justify-between mb-5 relative z-10">
           <div className="flex items-center gap-2">
             {/* Chip EMV Dorado */}
@@ -124,7 +156,7 @@ export function CreditCardVisual({
             </svg>
           </div>
 
-          {/* Badge de Estado: Pagada o Pendiente */}
+          {/* Badge de Estado: Pagada / Vencida / Vence Próx. Mes / Pendiente */}
           <div>
             {isPaid ? (
               <span className="px-2.5 py-1 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/50 text-[10px] font-extrabold tracking-wider uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
@@ -135,6 +167,11 @@ export function CreditCardVisual({
               <span className="px-2.5 py-1 rounded-full bg-rose-500/40 text-rose-200 border border-rose-400/60 text-[10px] font-extrabold tracking-wider uppercase flex items-center gap-1 shadow-sm backdrop-blur-md animate-pulse">
                 <AlertCircle className="w-3 h-3" />
                 <span>VENCIDA</span>
+              </span>
+            ) : isDueNextMonth ? (
+              <span className="px-2.5 py-1 rounded-full bg-purple-500/35 text-purple-100 border border-purple-300/50 text-[10px] font-extrabold tracking-wider uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
+                <Calendar className="w-3 h-3 text-purple-200" />
+                <span>VENCE EN {dueMonthLabel.toUpperCase()}</span>
               </span>
             ) : (
               <span className="px-2.5 py-1 rounded-full bg-black/40 text-zinc-300 border border-white/20 text-[10px] font-bold tracking-wider uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
@@ -152,7 +189,7 @@ export function CreditCardVisual({
           </span>
         </div>
 
-        {/* Fila Inferior: Titular + Fechas (Cierre / Vence) + Monto */}
+        {/* Fila Inferior: Titular + Fechas (Cierre / Vence) */}
         <div className="flex items-end justify-between relative z-10 pt-1 border-t border-white/[0.12]">
           <div>
             <span className="text-[9px] uppercase tracking-wider text-white/60 block">
@@ -176,15 +213,26 @@ export function CreditCardVisual({
 
             <div>
               <span className="text-[9px] uppercase tracking-wider text-white/60 block">
-                Vence
+                {isDueNextMonth ? `Vence (${dueMonthLabel})` : "Vence"}
               </span>
-              <span
-                className={`text-xs font-mono font-bold ${
-                  isOverdue ? "text-rose-300 underline" : "text-white"
-                }`}
-              >
-                {dueStr}
-              </span>
+              <div className="flex items-center justify-end gap-1">
+                <span
+                  className={`text-xs font-mono font-bold ${
+                    isOverdue
+                      ? "text-rose-300 underline"
+                      : isDueNextMonth
+                      ? "text-purple-100"
+                      : "text-white"
+                  }`}
+                >
+                  {dueStr}
+                </span>
+                {isDueNextMonth && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-purple-500/40 text-purple-100 font-bold border border-purple-300/40">
+                    Próx. mes
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

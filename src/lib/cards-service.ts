@@ -31,6 +31,12 @@ export const BANK_THEMES: Record<string, BankTheme> = {
     accentColor: "#004481",
     chipColor: "from-amber-200 to-yellow-500",
   },
+  "Mercado Pago": {
+    name: "Mercado Pago",
+    gradient: "from-sky-500 via-blue-600 to-zinc-950",
+    accentColor: "#009ee3",
+    chipColor: "from-amber-200 to-yellow-500",
+  },
   Otro: {
     name: "Otro Banco",
     gradient: "from-zinc-700 via-zinc-800 to-zinc-950",
@@ -57,6 +63,7 @@ export const DEFAULT_USER_CARDS: Record<
     { bank: "Galicia", brand: "AMEX", colorTheme: "Galicia", defaultClosingDay: 20, defaultDueDay: 6 },
     { bank: "BBVA", brand: "VISA", colorTheme: "BBVA", defaultClosingDay: 24, defaultDueDay: 8 },
     { bank: "BBVA", brand: "MASTERCARD", colorTheme: "BBVA", defaultClosingDay: 24, defaultDueDay: 8 },
+    { bank: "Mercado Pago", brand: "MASTERCARD", colorTheme: "Mercado Pago", defaultClosingDay: 24, defaultDueDay: 6 },
   ],
   // Agustina / Agus
   agus: [
@@ -64,7 +71,14 @@ export const DEFAULT_USER_CARDS: Record<
     { bank: "Galicia", brand: "AMEX", colorTheme: "Galicia", defaultClosingDay: 20, defaultDueDay: 6 },
     { bank: "BBVA", brand: "VISA", colorTheme: "BBVA", defaultClosingDay: 24, defaultDueDay: 8 },
     { bank: "BBVA", brand: "MASTERCARD", colorTheme: "BBVA", defaultClosingDay: 24, defaultDueDay: 8 },
+    { bank: "Mercado Pago", brand: "MASTERCARD", colorTheme: "Mercado Pago", defaultClosingDay: 24, defaultDueDay: 6 },
   ],
+};
+
+const BRAND_PRIORITY: Record<string, number> = {
+  VISA: 1,
+  MASTERCARD: 2,
+  AMEX: 3,
 };
 
 const verifiedCardsUsers = new Set<string>();
@@ -80,31 +94,36 @@ export function invalidateCardsCache(userId?: string) {
 export async function ensureDefaultCardsForUser(userId: string, userName: string) {
   if (verifiedCardsUsers.has(userId)) return;
 
-  const existingCount = await prisma.personalCreditCard.count({
+  const existingCards = await prisma.personalCreditCard.findMany({
     where: { userId },
+    select: { bank: true, brand: true },
   });
-
-  if (existingCount > 0) {
-    verifiedCardsUsers.add(userId);
-    return;
-  }
 
   const normalized = userName.toLowerCase();
   const isAgus = normalized.includes("agus") && !normalized.includes("august");
   const defaults = isAgus ? DEFAULT_USER_CARDS.agus : DEFAULT_USER_CARDS.augusto;
 
   for (const c of defaults) {
-    await prisma.personalCreditCard.create({
-      data: {
-        userId,
-        bank: c.bank,
-        brand: c.brand,
-        colorTheme: c.colorTheme,
-        defaultClosingDay: c.defaultClosingDay,
-        defaultDueDay: c.defaultDueDay,
-      },
-    });
+    const alreadyExists = existingCards.some(
+      (ex) =>
+        ex.bank.toLowerCase() === c.bank.toLowerCase() &&
+        ex.brand.toUpperCase() === c.brand.toUpperCase()
+    );
+    if (!alreadyExists) {
+      await prisma.personalCreditCard.create({
+        data: {
+          userId,
+          bank: c.bank,
+          brand: c.brand,
+          colorTheme: c.colorTheme,
+          defaultClosingDay: c.defaultClosingDay,
+          defaultDueDay: c.defaultDueDay,
+        },
+      });
+    }
   }
+
+  verifiedCardsUsers.add(userId);
 }
 
 export async function getCardsForUserAndMonth(
@@ -113,7 +132,7 @@ export async function getCardsForUserAndMonth(
   year: number,
   month: number
 ) {
-  // Asegurar que existan las tarjetas por defecto si es la primera vez
+  // Asegurar que existan las tarjetas por defecto (incluyendo nuevas agregadas como Mercado Pago)
   await ensureDefaultCardsForUser(userId, userName);
 
   const cards = await prisma.personalCreditCard.findMany({
@@ -135,7 +154,6 @@ export async function getCardsForUserAndMonth(
     },
     orderBy: [
       { bank: "asc" },
-      { brand: "asc" },
     ],
   });
 
@@ -203,6 +221,15 @@ export async function getCardsForUserAndMonth(
       };
     })
   );
+
+  // Ordenar por banco y dentro de cada banco poner siempre VISA primero (principal)
+  cardsWithMonthData.sort((a, b) => {
+    const bankCmp = a.bank.localeCompare(b.bank, "es");
+    if (bankCmp !== 0) return bankCmp;
+    const prioA = BRAND_PRIORITY[a.brand.toUpperCase()] ?? 99;
+    const prioB = BRAND_PRIORITY[b.brand.toUpperCase()] ?? 99;
+    return prioA - prioB;
+  });
 
   let totalStatementArs = 0;
   let totalPaidArs = 0;

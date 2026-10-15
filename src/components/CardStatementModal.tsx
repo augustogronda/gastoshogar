@@ -24,6 +24,16 @@ interface CardStatementModalProps {
       isPaid: boolean;
     };
   } | null;
+  onOptimisticSave?: (
+    cardId: string,
+    updatedFields: {
+      statementAmount: number;
+      statementAmountUsd: number;
+      closingDate: string | null;
+      dueDate: string | null;
+      notes: string | null;
+    }
+  ) => void;
   onSaved?: () => void;
 }
 
@@ -31,6 +41,7 @@ export function CardStatementModal({
   isOpen,
   onClose,
   cardData,
+  onOptimisticSave,
   onSaved,
 }: CardStatementModalProps) {
   const [statementAmount, setStatementAmount] = useState("");
@@ -68,17 +79,53 @@ export function CardStatementModal({
     }
   }, [cardData, isOpen]);
 
+  if (!isOpen || !cardData) return null;
+
+  // Verificar si el vencimiento seleccionado cae en el mes siguiente
+  const isDueInFollowingMonth = (() => {
+    if (!dueDate) return false;
+    const parts = dueDate.split("-");
+    if (parts.length !== 3) return false;
+    const dueMonthNum = parseInt(parts[1], 10);
+    return dueMonthNum !== cardData.period.month;
+  })();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cardData) return;
 
     setErrorMsg(null);
-    setIsSubmitting(true);
+    const cleanAmount = parseFloat(statementAmount.replace(",", ".")) || 0;
+    const cleanAmountUsd = parseFloat(statementAmountUsd.replace(",", ".")) || 0;
 
+    // Convertir YYYY-MM-DD a ISO UTC mediodía para que la vista optimista sea inmediata y exacta
+    const toMiddayIso = (val: string) => {
+      if (!val) return null;
+      const parts = val.split("-");
+      if (parts.length === 3) {
+        return new Date(
+          Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0)
+        ).toISOString();
+      }
+      return val;
+    };
+
+    // 1. Actualización optimista instantánea (0ms)
+    if (onOptimisticSave) {
+      onOptimisticSave(cardData.id, {
+        statementAmount: cleanAmount,
+        statementAmountUsd: cleanAmountUsd,
+        closingDate: toMiddayIso(closingDate),
+        dueDate: toMiddayIso(dueDate),
+        notes: notes.trim() || null,
+      });
+    }
+
+    // Cerrar modal de inmediato para máxima fluidez visual
+    onClose();
+
+    // 2. Persistir en segundo plano en el servidor
     try {
-      const cleanAmount = parseFloat(statementAmount.replace(",", ".")) || 0;
-      const cleanAmountUsd = parseFloat(statementAmountUsd.replace(",", ".")) || 0;
-
       await updateCardStatementAction({
         cardMonthlyPeriodId: cardData.period.id,
         statementAmount: cleanAmount,
@@ -87,17 +134,11 @@ export function CardStatementModal({
         dueDate: dueDate || null,
         notes: notes.trim() || null,
       });
-
       if (onSaved) onSaved();
-      onClose();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : "Error al guardar resumen.");
-    } finally {
-      setIsSubmitting(false);
+      console.error("Error guardando resumen de tarjeta:", err);
     }
   };
-
-  if (!isOpen || !cardData) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
@@ -118,6 +159,7 @@ export function CardStatementModal({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
           >
@@ -191,6 +233,16 @@ export function CardStatementModal({
             </div>
           </div>
 
+          {/* Indicador si vence el próximo mes */}
+          {isDueInFollowingMonth && (
+            <div className="p-2.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-200 text-xs flex items-center gap-2">
+              <Calendar className="w-4 h-4 shrink-0 text-purple-300" />
+              <span>
+                Esta tarjeta cierra este mes pero <strong>vence el próximo mes</strong>.
+              </span>
+            </div>
+          )}
+
           {/* Notas */}
           <div>
             <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
@@ -228,7 +280,7 @@ export function CardStatementModal({
               className="flex-1 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white shadow-lg shadow-purple-600/30 active:scale-95 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               <Check className="w-4 h-4" />
-              <span>{isSubmitting ? "Guardando..." : "Guardar Resumen"}</span>
+              <span>Guardar Resumen</span>
             </button>
           </div>
         </form>
