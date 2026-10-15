@@ -29,6 +29,7 @@ import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
 import { PersonalCardsView } from "./PersonalCardsView";
 import {
   deletePersonalExpenseAction,
+  deletePersonalRecurringExpenseAction,
   applyPersonalRecurringExpenseAction,
   unapplyPersonalRecurringExpenseAction,
   closePersonalMonthAction,
@@ -64,6 +65,12 @@ interface PersonalRecurringItem {
   startMonth: number;
   categoryId?: string | null;
   category?: Category | null;
+  creditCardId?: string | null;
+  creditCard?: {
+    id: string;
+    bank: string;
+    brand: string;
+  } | null;
   installmentNumber: number;
   isApplicableThisMonth: boolean;
   alreadyApplied: boolean;
@@ -623,7 +630,7 @@ export function PersonalDashboardView({
             <div>
               <h2 className="text-xs font-bold text-white">Tarjetas & Fijos Personales</h2>
               <p className="text-[10px] text-zinc-400">
-                Tus compras en cuotas y suscripciones privadas
+                Asocialas a una tarjeta para que se incluyan al abrir un nuevo resumen
               </p>
             </div>
             <button
@@ -651,14 +658,14 @@ export function PersonalDashboardView({
                   className="super-card-subtle rounded-2xl p-3.5 flex items-center justify-between border border-white/[0.08]"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300">
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0">
                       <CreditCard className="w-4 h-4" />
                     </div>
                     <div>
                       <span className="text-sm font-semibold text-white block">
                         {rec.title}
                       </span>
-                      <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-400 font-medium">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-xs text-zinc-400 font-medium">
                         {rec.totalInstallments ? (
                           <span className="font-mono text-purple-300 font-bold">
                             Cuota {rec.installmentNumber}/{rec.totalInstallments}
@@ -670,12 +677,21 @@ export function PersonalDashboardView({
                         <span className="font-mono tabular-nums font-bold text-white">
                           ${Math.round(rec.installmentAmount).toLocaleString("es-AR")}
                         </span>
+                        {rec.creditCard && (
+                          <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-200 border border-pink-500/30 text-[10px] font-bold">
+                            💳 {rec.creditCard.bank} {rec.creditCard.brand}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div>
-                    {rec.alreadyApplied ? (
+                  <div className="flex items-center gap-1.5">
+                    {rec.creditCard ? (
+                      <span className="px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-200 border border-purple-500/30 text-[10px] font-bold">
+                        En Tarjeta
+                      </span>
+                    ) : rec.alreadyApplied ? (
                       <button
                         onClick={() => rec.appliedExpenseId && handleUnapplyRecurring(rec.appliedExpenseId)}
                         disabled={isProcessing}
@@ -693,6 +709,24 @@ export function PersonalDashboardView({
                         Imputar Mes
                       </button>
                     )}
+
+                    <button
+                      onClick={async () => {
+                        if (confirm(`¿Eliminar la cuota/fijo "${rec.title}"?`)) {
+                          setIsProcessing(true);
+                          try {
+                            await deletePersonalRecurringExpenseAction(rec.id);
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        }
+                      }}
+                      disabled={isProcessing}
+                      className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 active:scale-90 transition"
+                      title="Eliminar cuota/fijo"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -758,6 +792,7 @@ export function PersonalDashboardView({
         currentYear={currentYear}
         currentMonth={currentMonth}
         categories={categories}
+        cards={cardsData?.cards || []}
       />
 
       {/* Modal de Cierre Mensual Personal */}

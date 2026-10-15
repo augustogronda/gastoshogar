@@ -1,12 +1,19 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, CreditCard, Repeat, CategoryIcon } from "./ui/icons";
+import { X, CreditCard, Repeat } from "./ui/icons";
 import { createPersonalRecurringExpenseAction } from "@/app/actions";
 
 interface Category {
   id: string;
   name: string;
+}
+
+interface CreditCardOption {
+  id: string;
+  bank: string;
+  brand: string;
+  lastDigits?: string | null;
 }
 
 interface PersonalRecurringModalProps {
@@ -17,6 +24,7 @@ interface PersonalRecurringModalProps {
   currentYear: number;
   currentMonth: number;
   categories: Category[];
+  cards?: CreditCardOption[];
 }
 
 export function PersonalRecurringModal({
@@ -27,6 +35,7 @@ export function PersonalRecurringModal({
   currentYear,
   currentMonth,
   categories,
+  cards = [],
 }: PersonalRecurringModalProps) {
   const [title, setTitle] = useState("");
   const [installmentAmount, setInstallmentAmount] = useState("");
@@ -35,6 +44,7 @@ export function PersonalRecurringModal({
   const [startYear, setStartYear] = useState(currentYear.toString());
   const [startMonth, setStartMonth] = useState(currentMonth.toString());
   const [categoryId, setCategoryId] = useState(categories[0]?.id || "");
+  const [creditCardId, setCreditCardId] = useState("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -58,11 +68,13 @@ export function PersonalRecurringModal({
         startYear: parseInt(startYear),
         startMonth: parseInt(startMonth),
         categoryId: categoryId || undefined,
+        creditCardId: creditCardId || null,
         notes: notes || undefined,
       });
 
       setTitle("");
       setInstallmentAmount("");
+      setCreditCardId("");
       setNotes("");
       onClose();
     } catch (err: unknown) {
@@ -161,6 +173,35 @@ export function PersonalRecurringModal({
               />
             </div>
           </div>
+
+          {/* Asociar a una Tarjeta de Crédito */}
+          {cards.length > 0 && (
+            <div>
+              <label className="text-[11px] font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Asociar a Tarjeta de Crédito (Opcional)</span>
+              </label>
+              <select
+                value={creditCardId}
+                onChange={(e) => setCreditCardId(e.target.value)}
+                className="w-full bg-purple-500/10 border border-purple-500/30 rounded-2xl py-2.5 px-3 text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="" className="bg-zinc-900 text-zinc-400">
+                  Sin asociar a tarjeta (imputar manualmente)
+                </option>
+                {cards.map((card) => (
+                  <option key={card.id} value={card.id} className="bg-zinc-900 text-white">
+                    💳 {card.bank} {card.brand}{card.lastDigits ? ` (•••• ${card.lastDigits})` : ""}
+                  </option>
+                ))}
+              </select>
+              {creditCardId && (
+                <p className="text-[10px] text-purple-300/90 mt-1">
+                  Se incluirá automáticamente al abrir cada nuevo resumen de esta tarjeta.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Cantidad de cuotas si aplica */}
           {isInstallmentPlan && (

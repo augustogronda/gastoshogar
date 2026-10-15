@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CreditCard, Check, Clock, Sparkles, Calendar } from "./ui/icons";
+import { CreditCard, Check, Sparkles, Calendar } from "./ui/icons";
 import { CreditCardVisual } from "./CreditCardVisual";
 import { CardStatementModal } from "./CardStatementModal";
-import { toggleCardPaidAction } from "@/app/actions";
+import { toggleCardPaidAction, advanceCardToNextSummaryAction } from "@/app/actions";
 
 const MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -27,6 +27,15 @@ interface PersonalCardsViewProps {
       colorTheme?: string | null;
       defaultClosingDay?: number | null;
       defaultDueDay?: number | null;
+      linkedInstallments?: Array<{
+        id: string;
+        title: string;
+        installmentAmount?: number;
+        amount?: number;
+        installmentNumber: number;
+        totalInstallments?: number | null;
+      }>;
+      linkedInstallmentsTotal?: number;
       period: {
         id: string;
         year: number;
@@ -52,11 +61,7 @@ interface PersonalCardsViewProps {
 }
 
 export function PersonalCardsView({
-  userId,
   userName,
-  year,
-  month,
-  monthName,
   cardsData,
 }: PersonalCardsViewProps) {
   const [localCards, setLocalCards] = useState(cardsData?.cards || []);
@@ -76,12 +81,14 @@ export function PersonalCardsView({
     setFeedbackToast(msg);
     setTimeout(() => {
       setFeedbackToast((prev) => (prev === msg ? null : prev));
-    }, 2600);
+    }, 3000);
   };
 
-  // Cálculo dinámico e instantáneo a partir de localCards
-  const nextMonthNum = month === 12 ? 1 : month + 1;
-  const nextMonthName = MONTH_NAMES[nextMonthNum - 1];
+  const now = new Date();
+  const currentCalendarMonth = now.getMonth() + 1;
+  const currentCalendarMonthName = MONTH_NAMES[currentCalendarMonth - 1];
+  const nextCalendarMonth = currentCalendarMonth === 12 ? 1 : currentCalendarMonth + 1;
+  const nextCalendarMonthName = MONTH_NAMES[nextCalendarMonth - 1];
 
   let totalStatementArs = 0;
   let totalPaidArs = 0;
@@ -101,11 +108,13 @@ export function PersonalCardsView({
       totalPendingArs += amt;
     }
 
-    // Separar las que vencen este mes vs las que vencen el mes siguiente
+    // Separar según el mes en que vence cada resumen activo
     if (c.period.dueDate) {
       const dueDateObj = new Date(c.period.dueDate);
-      const dueM = !isNaN(dueDateObj.getTime()) ? dueDateObj.getUTCMonth() + 1 : month;
-      if (dueM !== month) {
+      const dueM = !isNaN(dueDateObj.getTime())
+        ? dueDateObj.getUTCMonth() + 1
+        : currentCalendarMonth;
+      if (dueM !== currentCalendarMonth) {
         dueNextMonthArs += amt;
       } else {
         dueThisMonthArs += amt;
@@ -138,8 +147,8 @@ export function PersonalCardsView({
 
     showToast(
       nextIsPaid
-        ? `✓ ${cardItem.bank} ${cardItem.brand} marcada como Pagada`
-        : `✓ ${cardItem.bank} ${cardItem.brand} marcada como Pendiente`
+        ? `✓ ${cardItem.bank} ${cardItem.brand} pagada (impactado en cuenta de ${currentCalendarMonthName})`
+        : `✓ ${cardItem.bank} ${cardItem.brand} desmarcada como pagada`
     );
 
     // 2. Sincronización en servidor en segundo plano
@@ -153,6 +162,53 @@ export function PersonalCardsView({
       // Revertir en caso de error
       setLocalCards(previousCards);
       alert(err instanceof Error ? err.message : "Error al actualizar estado de pago");
+    } finally {
+      setProcessingCardId(null);
+    }
+  };
+
+  // Cerrar el resumen actual y abrir el siguiente resumen desde $0 (o con cuotas asociadas)
+  const handleAdvanceNextSummary = async (cardItem: any) => {
+    const linkedCount = cardItem.linkedInstallments?.length || 0;
+    const confirmMsg =
+      linkedCount > 0
+        ? `¿Cerrar el resumen actual de ${cardItem.bank} ${cardItem.brand} y abrir el siguiente resumen?\n\nSe avanzarán las fechas de cierre/vencimiento 1 mes y se incluirán automáticamente las ${linkedCount} cuota(s)/fijo(s) asociados.`
+        : `¿Cerrar el resumen actual de ${cardItem.bank} ${cardItem.brand} y abrir el siguiente resumen en $0?\n\nSe avanzarán las fechas de cierre y vencimiento al próximo ciclo.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setProcessingCardId(cardItem.id);
+    try {
+      const res = await advanceCardToNextSummaryAction({
+        cardId: cardItem.id,
+        currentPeriodId: cardItem.period.id,
+      });
+
+      if (res.success && res.newPeriod) {
+        setLocalCards((prev) =>
+          prev.map((c) =>
+            c.id === cardItem.id
+              ? {
+                  ...c,
+                  linkedInstallments: res.linkedInstallments,
+                  linkedInstallmentsTotal: res.linkedInstallmentsTotal,
+                  period: {
+                    ...res.newPeriod,
+                  },
+                }
+              : c
+          )
+        );
+
+        const nextAmt = Math.round(res.newPeriod.statementAmount || 0).toLocaleString("es-AR");
+        showToast(
+          res.linkedInstallments.length > 0
+            ? `✓ Nuevo resumen abierto con ${res.linkedInstallments.length} cuota(s) ($${nextAmt})`
+            : `✓ Nuevo resumen de ${cardItem.bank} ${cardItem.brand} abierto en $0`
+        );
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error al abrir el siguiente resumen");
     } finally {
       setProcessingCardId(null);
     }
@@ -193,18 +249,18 @@ export function PersonalCardsView({
     <div className="space-y-4 animate-fade-in relative">
       {/* Toast flotante de confirmación instantánea */}
       {feedbackToast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-emerald-600/95 text-white text-xs font-bold shadow-xl shadow-emerald-950/50 border border-emerald-400/40 backdrop-blur-md flex items-center gap-2 animate-fade-in">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-emerald-600/95 text-white text-xs font-bold shadow-xl shadow-emerald-950/50 border border-emerald-400/40 backdrop-blur-md flex items-center gap-2 animate-fade-in whitespace-nowrap">
           <Check className="w-3.5 h-3.5 stroke-[3]" />
           <span>{feedbackToast}</span>
         </div>
       )}
 
-      {/* Tarjeta Resumen de Deuda y Estado del Mes */}
+      {/* Tarjeta Resumen de Resúmenes Activos (Independientes del mes calendario) */}
       <section className="super-card rounded-3xl p-5 relative overflow-hidden">
         <div className="flex items-center justify-between mb-3">
           <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
             <CreditCard className="w-4 h-4 text-purple-400" />
-            Resumen de Tarjetas • {monthName} {year}
+            Resúmenes Activos de Tarjetas
           </span>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.08] text-zinc-300 font-bold border border-white/[0.1]">
             {paidCount}/{localCards.length} Pagadas
@@ -214,7 +270,7 @@ export function PersonalCardsView({
         <div className="flex items-baseline justify-between mb-3">
           <div>
             <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">
-              Total Resúmenes del Mes:
+              Total Resúmenes en Curso:
             </span>
             <span className="text-3xl font-black text-white tracking-tight font-mono tabular-nums">
               ${Math.round(totalStatementArs).toLocaleString("es-AR")}
@@ -251,12 +307,12 @@ export function PersonalCardsView({
           </div>
         </div>
 
-        {/* Separación Clara: Vencimientos de este mes vs Próximo mes */}
+        {/* Separación Clara por mes de vencimiento */}
         <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2">
           <div className="flex items-center justify-between text-xs px-1">
             <span className="text-zinc-400 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-400" />
-              Vencen en {monthName}:
+              Vencen en {currentCalendarMonthName}:
             </span>
             <span className="font-mono font-bold text-zinc-200 tabular-nums">
               ${Math.round(dueThisMonthArs).toLocaleString("es-AR")}
@@ -267,7 +323,7 @@ export function PersonalCardsView({
             <div className="flex items-center justify-between text-xs bg-purple-500/15 border border-purple-500/30 px-3 py-2 rounded-2xl">
               <span className="text-purple-200 flex items-center gap-1.5 font-medium">
                 <Calendar className="w-3.5 h-3.5 text-purple-300" />
-                <span>Vencen en {nextMonthName} (Próx. mes):</span>
+                <span>Vencen en {nextCalendarMonthName} / otro mes:</span>
               </span>
               <span className="font-mono font-extrabold text-purple-100 tabular-nums">
                 ${Math.round(dueNextMonthArs).toLocaleString("es-AR")}
@@ -276,11 +332,11 @@ export function PersonalCardsView({
           )}
         </div>
 
-        {/* Aviso informativo de gasto automático */}
+        {/* Aviso informativo de independencia y pago */}
         <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-start gap-2 text-[11px] text-zinc-400 leading-relaxed">
           <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
           <span>
-            Al marcar una tarjeta como <strong className="text-emerald-300">Pagada</strong>, se registrará automáticamente como gasto en tu presupuesto.
+            Cada tarjeta mantiene su <strong className="text-zinc-200">resumen actual independiente</strong>. Al tocar <strong className="text-emerald-300">Pagar</strong> se descuenta en el mes de la fecha de pago, y con <strong className="text-purple-300">Siguiente Resumen</strong> cerrás el ciclo actual y abrís uno nuevo con sus cuotas asociadas.
           </span>
         </div>
       </section>
@@ -292,7 +348,7 @@ export function PersonalCardsView({
             Tus Tarjetas ({localCards.length}) • Visa Principal Primero
           </h2>
           <span className="text-[10px] text-zinc-500">
-            Tocá Editar para cargar el resumen
+            Ciclo propio por tarjeta
           </span>
         </div>
 
@@ -314,13 +370,17 @@ export function PersonalCardsView({
                 statementAmountUsd={card.period.statementAmountUsd}
                 closingDate={card.period.closingDate}
                 dueDate={card.period.dueDate}
-                periodMonth={month}
+                periodMonth={card.period.month}
+                periodYear={card.period.year}
                 isPaid={card.period.isPaid}
+                linkedInstallments={card.linkedInstallments}
+                linkedInstallmentsTotal={card.linkedInstallmentsTotal}
                 onEdit={() => {
                   setSelectedCardForEdit(card);
                   setIsModalOpen(true);
                 }}
                 onTogglePaid={() => handleTogglePaid(card)}
+                onNextSummary={() => handleAdvanceNextSummary(card)}
                 isProcessing={processingCardId === card.id}
               />
             ))}

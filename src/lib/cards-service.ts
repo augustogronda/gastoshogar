@@ -126,30 +126,77 @@ export async function ensureDefaultCardsForUser(userId: string, userName: string
   verifiedCardsUsers.add(userId);
 }
 
+export function computeApplicableCardInstallments(
+  recurringExpenses: Array<{
+    id: string;
+    title: string;
+    installmentAmount: number;
+    totalInstallments: number | null;
+    startYear: number;
+    startMonth: number;
+    isActive: boolean;
+  }>,
+  targetYear: number,
+  targetMonth: number
+) {
+  const items: Array<{
+    id: string;
+    title: string;
+    installmentAmount: number;
+    installmentNumber: number;
+    totalInstallments: number | null;
+  }> = [];
+  let totalAmount = 0;
+
+  for (const rec of recurringExpenses) {
+    if (!rec.isActive) continue;
+    const monthsElapsed = (targetYear - rec.startYear) * 12 + (targetMonth - rec.startMonth);
+    const installmentNumber = monthsElapsed + 1;
+    const isApplicable =
+      monthsElapsed >= 0 &&
+      (!rec.totalInstallments || installmentNumber <= rec.totalInstallments);
+
+    if (isApplicable) {
+      items.push({
+        id: rec.id,
+        title: rec.title,
+        installmentAmount: rec.installmentAmount,
+        installmentNumber,
+        totalInstallments: rec.totalInstallments,
+      });
+      totalAmount += rec.installmentAmount;
+    }
+  }
+
+  return { items, totalAmount };
+}
+
 export async function getCardsForUserAndMonth(
   userId: string,
   userName: string,
-  year: number,
-  month: number
+  _year?: number,
+  _month?: number
 ) {
-  // Asegurar que existan las tarjetas por defecto (incluyendo nuevas agregadas como Mercado Pago)
+  // Asegurar que existan las tarjetas por defecto (incluyendo Mercado Pago)
   await ensureDefaultCardsForUser(userId, userName);
 
+  const now = new Date();
+  const defaultYear = now.getFullYear();
+  const defaultMonth = now.getMonth() + 1;
+
+  // Traer tarjetas con su último resumen activo (independiente del mes seleccionado arriba) y sus cuotas asociadas
   const cards = await prisma.personalCreditCard.findMany({
     where: { userId },
     include: {
       periods: {
-        where: {
-          OR: [
-            { year, month },
-            { year: { lt: year } },
-            { year, month: { lt: month } },
-          ],
-        },
         orderBy: [
           { year: "desc" },
           { month: "desc" },
         ],
+        take: 2,
+      },
+      recurringExpenses: {
+        where: { isActive: true },
       },
     },
     orderBy: [
@@ -157,67 +204,70 @@ export async function getCardsForUserAndMonth(
     ],
   });
 
-  // Para cada tarjeta, asegurar que tenga el registro del mes usando el mes anterior como base
   const cardsWithMonthData = await Promise.all(
     cards.map(async (c) => {
-      let currentPeriod = c.periods.find((p) => p.year === year && p.month === month);
-      const prevPeriod = c.periods.find(
-        (p) => p.year < year || (p.year === year && p.month < month)
-      );
+      // El resumen activo de la tarjeta es siempre el más reciente (periods[0])
+      let activePeriod = c.periods[0];
 
-      if (!currentPeriod) {
-        let closingDay = c.defaultClosingDay || 20;
-        let dueDay = c.defaultDueDay || 5;
-        let dueMonthOffset = dueDay < closingDay ? 1 : 0;
+      if (!activePeriod) {
+        const closingDay = c.defaultClosingDay || 20;
+        const dueDay = c.defaultDueDay || 5;
+        const dueMonthOffset = dueDay < closingDay ? 1 : 0;
 
-        if (prevPeriod) {
-          if (prevPeriod.closingDate) {
-            const prevClose = new Date(prevPeriod.closingDate);
-            closingDay = prevClose.getUTCDate();
-          }
-          if (prevPeriod.dueDate) {
-            const prevDue = new Date(prevPeriod.dueDate);
-            dueDay = prevDue.getUTCDate();
-            if (prevPeriod.closingDate) {
-              const prevClose = new Date(prevPeriod.closingDate);
-              const diff =
-                (prevDue.getUTCFullYear() - prevClose.getUTCFullYear()) * 12 +
-                (prevDue.getUTCMonth() - prevClose.getUTCMonth());
-              dueMonthOffset = Math.max(0, diff);
-            }
-          }
-        }
-
-        // Fecha de cierre tentativa para este mes
-        const maxCloseDays = new Date(year, month, 0).getDate();
+        const maxCloseDays = new Date(defaultYear, defaultMonth, 0).getDate();
         const validCloseDay = Math.min(closingDay, maxCloseDays);
-        const closingDate = new Date(Date.UTC(year, month - 1, validCloseDay, 12, 0, 0));
+        const closingDate = new Date(Date.UTC(defaultYear, defaultMonth - 1, validCloseDay, 12, 0, 0));
 
-        // Fecha de vencimiento tentativa
-        const targetDueMonthIndex = (month - 1) + dueMonthOffset;
-        const targetDueYear = year + Math.floor(targetDueMonthIndex / 12);
-        const targetDueMonth = (targetDueMonthIndex % 12 + 12) % 12;
+        const targetDueMonthIndex = (defaultMonth - 1) + dueMonthOffset;
+        const targetDueYear = defaultYear + Math.floor(targetDueMonthIndex / 12);
+        const targetDueMonth = ((targetDueMonthIndex % 12) + 12) % 12;
         const maxDueDays = new Date(targetDueYear, targetDueMonth + 1, 0).getDate();
         const validDueDay = Math.min(dueDay, maxDueDays);
         const dueDate = new Date(Date.UTC(targetDueYear, targetDueMonth, validDueDay, 12, 0, 0));
 
-        currentPeriod = await prisma.cardMonthlyPeriod.create({
+        const { items: instItems, totalAmount: instTotal } = computeApplicableCardInstallments(
+          c.recurringExpenses || [],
+          defaultYear,
+          defaultMonth
+        );
+
+        activePeriod = await prisma.cardMonthlyPeriod.create({
           data: {
             cardId: c.id,
-            year,
-            month,
+            year: defaultYear,
+            month: defaultMonth,
             closingDate,
             dueDate,
-            statementAmount: 0,
+            statementAmount: instTotal,
             statementAmountUsd: 0,
             isPaid: false,
+            notes:
+              instItems.length > 0
+                ? "Cuotas incluidas: " +
+                  instItems
+                    .map((i) =>
+                      i.totalInstallments
+                        ? `${i.title} (${i.installmentNumber}/${i.totalInstallments})`
+                        : i.title
+                    )
+                    .join(", ")
+                : null,
           },
         });
       }
 
+      const { items: linkedInstallments, totalAmount: linkedInstallmentsTotal } =
+        computeApplicableCardInstallments(
+          c.recurringExpenses || [],
+          activePeriod.year,
+          activePeriod.month
+        );
+
       return {
         ...c,
-        period: currentPeriod,
+        period: activePeriod,
+        linkedInstallments,
+        linkedInstallmentsTotal,
       };
     })
   );

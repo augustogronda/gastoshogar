@@ -1,7 +1,7 @@
 {
-  "version": "1.4.0",
-  "build": 2026101506,
-  "releasedAt": "2026-10-15T22:55:00Z",
-  "title": "Mercado Pago Crédito, Prioridad Visa & UI Instantánea",
-  "description": "Tarjeta Mercado Pago Crédito agregada, ordenamiento con Visa principal arriba por banco, desglose visual de vencimientos a próximo mes y actualizaciones optimistas en 0ms."
+  "version": "1.5.0",
+  "build": 2026101507,
+  "releasedAt": "2026-10-15T23:15:00Z",
+  "title": "Ciclos de Tarjeta Independientes, Siguiente Resumen & Cuotas Asociadas",
+  "description": "Tarjetas independientes del mes calendario, impacto en cuenta por fecha de pago, botón Siguiente Resumen y asociación de cuotas/fijos a tarjetas."
 }

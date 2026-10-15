@@ -219,19 +219,21 @@ model PersonalExpense {
 }
 
 model PersonalRecurringExpense {
-  id                String    @id @default(cuid())
+  id                String              @id @default(cuid())
   userId            String
-  user              User      @relation(fields: [userId], references: [id])
+  user              User                @relation(fields: [userId], references: [id])
   title             String
-  installmentAmount Float     // Monto mensual de la cuota o servicio personal
-  totalInstallments Int?      // ej: 6 cuotas. Null si es recurrente mensual fijo
+  installmentAmount Float               // Monto mensual de la cuota o servicio personal
+  totalInstallments Int?                // ej: 6 cuotas. Null si es recurrente mensual fijo
   startYear         Int
   startMonth        Int
   categoryId        String?
-  category          Category? @relation(fields: [categoryId], references: [id])
-  isActive          Boolean   @default(true)
+  category          Category?           @relation(fields: [categoryId], references: [id])
+  creditCardId      String?
+  creditCard        PersonalCreditCard? @relation(fields: [creditCardId], references: [id])
+  isActive          Boolean             @default(true)
   notes             String?
-  createdAt         DateTime  @default(now())
+  createdAt         DateTime            @default(now())
 }
 
 model PersonalInvestment {
@@ -271,19 +273,20 @@ model SharedInvestment {
 }
 
 model PersonalCreditCard {
-  id                String              @id @default(cuid())
+  id                String                     @id @default(cuid())
   userId            String
-  user              User                @relation(fields: [userId], references: [id])
-  bank              String              // "Santander", "Galicia", "BBVA", etc.
-  brand             String              // "VISA", "AMEX", "MASTERCARD"
-  lastDigits        String?             // ej: "4821"
-  colorTheme        String?             // red, orange, blue, purple, dark
-  defaultClosingDay Int?                // ej: día 22 del mes
-  defaultDueDay     Int?                // ej: día 5 del mes siguiente
+  user              User                       @relation(fields: [userId], references: [id])
+  bank              String                     // "Santander", "Galicia", "BBVA", etc.
+  brand             String                     // "VISA", "AMEX", "MASTERCARD"
+  lastDigits        String?                    // ej: "4821"
+  colorTheme        String?                    // red, orange, blue, purple, dark
+  defaultClosingDay Int?                       // ej: día 22 del mes
+  defaultDueDay     Int?                       // ej: día 5 del mes siguiente
   notes             String?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
   periods           CardMonthlyPeriod[]
+  recurringExpenses PersonalRecurringExpense[]
 
   @@index([userId])
 }

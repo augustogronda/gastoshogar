@@ -15,7 +15,11 @@ import {
   POPULAR_ARGENTINA_ASSETS,
   invalidatePortfolioCache,
 } from "@/lib/investments-service";
-import { getCardsForUserAndMonth, invalidateCardsCache } from "@/lib/cards-service";
+import {
+  getCardsForUserAndMonth,
+  invalidateCardsCache,
+  computeApplicableCardInstallments,
+} from "@/lib/cards-service";
 
 let categoriesBackfilled = false;
 
@@ -319,6 +323,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       },
       include: {
         category: true,
+        creditCard: true,
       },
       orderBy: {
         createdAt: "desc",
@@ -1259,13 +1264,14 @@ export async function createPersonalRecurringExpenseAction(data: {
   startYear: number;
   startMonth: number;
   categoryId?: string;
+  creditCardId?: string | null;
   notes?: string;
 }) {
   if (!data.title || data.installmentAmount <= 0) {
     throw new Error("Datos de cuota personal inválidos");
   }
 
-  await prisma.personalRecurringExpense.create({
+  const created = await prisma.personalRecurringExpense.create({
     data: {
       userId: data.userId,
       title: data.title,
@@ -1274,10 +1280,37 @@ export async function createPersonalRecurringExpenseAction(data: {
       startYear: data.startYear,
       startMonth: data.startMonth,
       categoryId: data.categoryId,
+      creditCardId: data.creditCardId || null,
       notes: data.notes,
       isActive: true,
     },
   });
+
+  // Si se asoció a una tarjeta de crédito, sumar al resumen actual abierto si corresponde a su período
+  if (data.creditCardId) {
+    const latestPeriod = await prisma.cardMonthlyPeriod.findFirst({
+      where: { cardId: data.creditCardId },
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+    });
+
+    if (latestPeriod && !latestPeriod.isPaid) {
+      const { totalAmount } = computeApplicableCardInstallments(
+        [created],
+        latestPeriod.year,
+        latestPeriod.month
+      );
+      if (totalAmount > 0) {
+        await prisma.cardMonthlyPeriod.update({
+          where: { id: latestPeriod.id },
+          data: {
+            statementAmount: {
+              increment: totalAmount,
+            },
+          },
+        });
+      }
+    }
+  }
 
   await touchCategory(data.categoryId);
 
@@ -1930,8 +1963,11 @@ export async function toggleCardPaidAction(data: {
   if (!period) throw new Error("Período de tarjeta no encontrado.");
 
   if (data.isPaid) {
-    // Marcar como pagada y registrar como gasto personal en el mes
+    // Marcar como pagada y registrar como gasto personal en la cuenta del mes de la fecha de pago
     const household = await ensureDefaultHousehold();
+    const paymentDate = new Date();
+    const paymentYear = paymentDate.getFullYear();
+    const paymentMonth = paymentDate.getMonth() + 1;
 
     // Buscar o crear categoría "Tarjetas"
     let tarjetasCat = await prisma.category.findFirst({
@@ -1948,7 +1984,7 @@ export async function toggleCardPaidAction(data: {
           icon: "CreditCard",
           color: "#6366f1",
           householdId: household.id,
-          lastUsedAt: new Date(),
+          lastUsedAt: paymentDate,
         },
       });
     }
@@ -1962,13 +1998,13 @@ export async function toggleCardPaidAction(data: {
       const createdExpense = await prisma.personalExpense.create({
         data: {
           userId: period.card.userId,
-          year: period.year,
-          month: period.month,
+          year: paymentYear,
+          month: paymentMonth,
           title,
           amount,
           categoryId: tarjetasCat.id,
-          date: period.dueDate ? new Date(period.dueDate) : new Date(),
-          notes: `Resumen ${period.card.bank} ${period.card.brand} (${period.month}/${period.year})`,
+          date: paymentDate,
+          notes: `Resumen ${period.card.bank} ${period.card.brand} (Pagado el ${paymentDate.toLocaleDateString("es-AR")})`,
         },
       });
       linkedExpenseId = createdExpense.id;
@@ -1979,7 +2015,7 @@ export async function toggleCardPaidAction(data: {
       where: { id: period.id },
       data: {
         isPaid: true,
-        paidAt: new Date(),
+        paidAt: paymentDate,
         linkedExpenseId,
       },
     });
@@ -2007,6 +2043,133 @@ export async function toggleCardPaidAction(data: {
 
   revalidatePath("/");
   return { success: true };
+}
+
+export async function advanceCardToNextSummaryAction(data: {
+  cardId: string;
+  currentPeriodId: string;
+}) {
+  const card = await prisma.personalCreditCard.findUnique({
+    where: { id: data.cardId },
+    include: {
+      recurringExpenses: {
+        where: { isActive: true },
+      },
+    },
+  });
+
+  if (!card) throw new Error("Tarjeta no encontrada.");
+
+  const currentPeriod = await prisma.cardMonthlyPeriod.findUnique({
+    where: { id: data.currentPeriodId },
+  });
+
+  if (!currentPeriod) throw new Error("Resumen actual no encontrado.");
+
+  const nextMonth = currentPeriod.month === 12 ? 1 : currentPeriod.month + 1;
+  const nextYear = currentPeriod.month === 12 ? currentPeriod.year + 1 : currentPeriod.year;
+
+  // Proyectar fecha de cierre (+1 mes respecto al resumen que se cierra)
+  let nextClosingDate: Date;
+  if (currentPeriod.closingDate) {
+    const prevClose = new Date(currentPeriod.closingDate);
+    const closeDay = prevClose.getUTCDate();
+    const targetCloseMonthIdx = prevClose.getUTCMonth() + 1;
+    const targetCloseYear = prevClose.getUTCFullYear() + Math.floor(targetCloseMonthIdx / 12);
+    const targetCloseMonth = ((targetCloseMonthIdx % 12) + 12) % 12;
+    const maxClose = new Date(targetCloseYear, targetCloseMonth + 1, 0).getDate();
+    nextClosingDate = new Date(
+      Date.UTC(targetCloseYear, targetCloseMonth, Math.min(closeDay, maxClose), 12, 0, 0)
+    );
+  } else {
+    const closeDay = card.defaultClosingDay || 24;
+    const maxClose = new Date(nextYear, nextMonth, 0).getDate();
+    nextClosingDate = new Date(
+      Date.UTC(nextYear, nextMonth - 1, Math.min(closeDay, maxClose), 12, 0, 0)
+    );
+  }
+
+  // Proyectar fecha de vencimiento (+1 mes respecto al vencimiento del resumen que se cierra)
+  let nextDueDate: Date;
+  if (currentPeriod.dueDate) {
+    const prevDue = new Date(currentPeriod.dueDate);
+    const dueDay = prevDue.getUTCDate();
+    const targetDueMonthIdx = prevDue.getUTCMonth() + 1;
+    const targetDueYear = prevDue.getUTCFullYear() + Math.floor(targetDueMonthIdx / 12);
+    const targetDueMonth = ((targetDueMonthIdx % 12) + 12) % 12;
+    const maxDue = new Date(targetDueYear, targetDueMonth + 1, 0).getDate();
+    nextDueDate = new Date(
+      Date.UTC(targetDueYear, targetDueMonth, Math.min(dueDay, maxDue), 12, 0, 0)
+    );
+  } else {
+    const dueDay = card.defaultDueDay || 5;
+    const closeDay = card.defaultClosingDay || 24;
+    const dueMonthOffset = dueDay < closeDay ? 1 : 0;
+    const targetDueMonthIdx = nextMonth - 1 + dueMonthOffset;
+    const targetDueYear = nextYear + Math.floor(targetDueMonthIdx / 12);
+    const targetDueMonth = ((targetDueMonthIdx % 12) + 12) % 12;
+    const maxDue = new Date(targetDueYear, targetDueMonth + 1, 0).getDate();
+    nextDueDate = new Date(
+      Date.UTC(targetDueYear, targetDueMonth, Math.min(dueDay, maxDue), 12, 0, 0)
+    );
+  }
+
+  // Calcular cuotas y gastos recurrentes asociados a esta tarjeta para el nuevo resumen
+  const { items: instItems, totalAmount: instTotal } = computeApplicableCardInstallments(
+    card.recurringExpenses || [],
+    nextYear,
+    nextMonth
+  );
+
+  const autoNotes =
+    instItems.length > 0
+      ? `Cuotas/fijos incluidos: ${instItems
+          .map((i) =>
+            i.totalInstallments
+              ? `${i.title} (${i.installmentNumber}/${i.totalInstallments})`
+              : i.title
+          )
+          .join(", ")}`
+      : null;
+
+  const newPeriod = await prisma.cardMonthlyPeriod.upsert({
+    where: {
+      cardId_year_month: {
+        cardId: card.id,
+        year: nextYear,
+        month: nextMonth,
+      },
+    },
+    update: {
+      closingDate: nextClosingDate,
+      dueDate: nextDueDate,
+      statementAmount: instTotal,
+      statementAmountUsd: 0,
+      isPaid: false,
+      paidAt: null,
+      linkedExpenseId: null,
+      notes: autoNotes,
+    },
+    create: {
+      cardId: card.id,
+      year: nextYear,
+      month: nextMonth,
+      closingDate: nextClosingDate,
+      dueDate: nextDueDate,
+      statementAmount: instTotal,
+      statementAmountUsd: 0,
+      isPaid: false,
+      notes: autoNotes,
+    },
+  });
+
+  revalidatePath("/");
+  return {
+    success: true,
+    newPeriod,
+    linkedInstallments: instItems,
+    linkedInstallmentsTotal: instTotal,
+  };
 }
 
 export async function createPersonalCardAction(data: {

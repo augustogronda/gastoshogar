@@ -1,13 +1,22 @@
 "use client";
 
 import React from "react";
-import { Check, Clock, Calendar, AlertCircle } from "./ui/icons";
+import { Check, Clock, Calendar, AlertCircle, ArrowRight, Repeat } from "./ui/icons";
 import { BANK_THEMES } from "@/lib/cards-service";
 
 const SHORT_MONTHS_ES = [
   "Ene", "Feb", "Mar", "Abr", "May", "Jun",
   "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
 ];
+
+interface LinkedInstallment {
+  id: string;
+  title: string;
+  installmentAmount?: number;
+  amount?: number;
+  installmentNumber: number;
+  totalInstallments?: number | null;
+}
 
 interface CreditCardVisualProps {
   bank: string;
@@ -19,9 +28,13 @@ interface CreditCardVisualProps {
   closingDate?: Date | string | null;
   dueDate?: Date | string | null;
   periodMonth?: number;
+  periodYear?: number;
   isPaid: boolean;
+  linkedInstallments?: LinkedInstallment[];
+  linkedInstallmentsTotal?: number;
   onEdit?: () => void;
   onTogglePaid?: () => void;
+  onNextSummary?: () => void;
   isProcessing?: boolean;
 }
 
@@ -35,9 +48,13 @@ export function CreditCardVisual({
   closingDate,
   dueDate,
   periodMonth,
+  periodYear,
   isPaid,
+  linkedInstallments = [],
+  linkedInstallmentsTotal = 0,
   onEdit,
   onTogglePaid,
+  onNextSummary,
   isProcessing = false,
 }: CreditCardVisualProps) {
   const bankTheme = BANK_THEMES[bank] || BANK_THEMES.Otro;
@@ -56,21 +73,23 @@ export function CreditCardVisual({
   const closingStr = formatShortDate(closingDate);
   const dueStr = formatShortDate(dueDate);
 
-  // Detectar si vence en el mes siguiente al del resumen
+  // Detectar si el cierre y el vencimiento cruzan entre dos meses distintos
   const dueDateObj = dueDate ? new Date(dueDate) : null;
   const closeDateObj = closingDate ? new Date(closingDate) : null;
   const dueMonthIdx =
     dueDateObj && !isNaN(dueDateObj.getTime()) ? dueDateObj.getUTCMonth() : null;
-  const baseMonthIdx = periodMonth
-    ? periodMonth - 1
-    : closeDateObj && !isNaN(closeDateObj.getTime())
-    ? closeDateObj.getUTCMonth()
-    : null;
+  const closeMonthIdx =
+    closeDateObj && !isNaN(closeDateObj.getTime())
+      ? closeDateObj.getUTCMonth()
+      : periodMonth
+      ? periodMonth - 1
+      : null;
 
-  const isDueNextMonth =
-    dueMonthIdx !== null && baseMonthIdx !== null && dueMonthIdx !== baseMonthIdx;
+  const isDueDifferentMonth =
+    dueMonthIdx !== null && closeMonthIdx !== null && dueMonthIdx !== closeMonthIdx;
 
   const dueMonthLabel = dueMonthIdx !== null ? SHORT_MONTHS_ES[dueMonthIdx] : "";
+  const closeMonthLabel = closeMonthIdx !== null ? SHORT_MONTHS_ES[closeMonthIdx] : "";
 
   // Calcular si está vencida (comparando fin del día de vencimiento)
   const isOverdue =
@@ -134,7 +153,7 @@ export function CreditCardVisual({
         </div>
 
         {/* Fila Central: Chip Dorado EMV + Contactless Waves + Estado */}
-        <div className="flex items-center justify-between mb-5 relative z-10">
+        <div className="flex items-center justify-between mb-4 relative z-10">
           <div className="flex items-center gap-2">
             {/* Chip EMV Dorado */}
             <div className="w-9 h-7 rounded-md bg-gradient-to-tr from-amber-300 via-amber-400 to-yellow-600 border border-yellow-200/80 shadow-inner flex items-center justify-center p-0.5">
@@ -156,7 +175,7 @@ export function CreditCardVisual({
             </svg>
           </div>
 
-          {/* Badge de Estado: Pagada / Vencida / Vence Próx. Mes / Pendiente */}
+          {/* Badge de Estado: Pagada / Vencida / Ciclo / Pendiente */}
           <div>
             {isPaid ? (
               <span className="px-2.5 py-1 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/50 text-[10px] font-extrabold tracking-wider uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
@@ -168,25 +187,30 @@ export function CreditCardVisual({
                 <AlertCircle className="w-3 h-3" />
                 <span>VENCIDA</span>
               </span>
-            ) : isDueNextMonth ? (
+            ) : isDueDifferentMonth ? (
               <span className="px-2.5 py-1 rounded-full bg-purple-500/35 text-purple-100 border border-purple-300/50 text-[10px] font-extrabold tracking-wider uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
                 <Calendar className="w-3 h-3 text-purple-200" />
-                <span>VENCE EN {dueMonthLabel.toUpperCase()}</span>
+                <span>CIERRE {closeMonthLabel.toUpperCase()} → VENCE {dueMonthLabel.toUpperCase()}</span>
               </span>
             ) : (
               <span className="px-2.5 py-1 rounded-full bg-black/40 text-zinc-300 border border-white/20 text-[10px] font-bold tracking-wider uppercase flex items-center gap-1 shadow-sm backdrop-blur-md">
                 <Clock className="w-3 h-3 text-amber-400" />
-                <span>PENDIENTE</span>
+                <span>RESUMEN ACTIVO</span>
               </span>
             )}
           </div>
         </div>
 
         {/* Número de Tarjeta (Últimos 4 dígitos) */}
-        <div className="mb-4 relative z-10">
+        <div className="mb-3.5 relative z-10 flex items-center justify-between">
           <span className="font-mono text-sm tracking-[0.25em] text-white/90 drop-shadow">
             •••• •••• •••• {lastDigits || "••••"}
           </span>
+          {periodMonth && periodYear && (
+            <span className="text-[10px] font-mono text-white/60 bg-black/25 px-2 py-0.5 rounded-full border border-white/10">
+              Ciclo {SHORT_MONTHS_ES[(periodMonth - 1) % 12]} {periodYear}
+            </span>
+          )}
         </div>
 
         {/* Fila Inferior: Titular + Fechas (Cierre / Vence) */}
@@ -204,7 +228,7 @@ export function CreditCardVisual({
           <div className="flex items-center gap-3 text-right">
             <div>
               <span className="text-[9px] uppercase tracking-wider text-white/60 block">
-                Cierre
+                Cierre {closeMonthLabel ? `(${closeMonthLabel})` : ""}
               </span>
               <span className="text-xs font-mono font-bold text-white/90">
                 {closingStr}
@@ -213,88 +237,138 @@ export function CreditCardVisual({
 
             <div>
               <span className="text-[9px] uppercase tracking-wider text-white/60 block">
-                {isDueNextMonth ? `Vence (${dueMonthLabel})` : "Vence"}
+                Vence {dueMonthLabel ? `(${dueMonthLabel})` : ""}
               </span>
               <div className="flex items-center justify-end gap-1">
                 <span
                   className={`text-xs font-mono font-bold ${
                     isOverdue
                       ? "text-rose-300 underline"
-                      : isDueNextMonth
+                      : isDueDifferentMonth
                       ? "text-purple-100"
                       : "text-white"
                   }`}
                 >
                   {dueStr}
                 </span>
-                {isDueNextMonth && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-purple-500/40 text-purple-100 font-bold border border-purple-300/40">
-                    Próx. mes
-                  </span>
-                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Franja de Resumen y Monto */}
-        <div className="mt-3.5 pt-2.5 border-t border-white/[0.1] flex items-center justify-between relative z-10">
-          <div>
-            <span className="text-[10px] text-white/70 block font-medium">
-              Resumen del Mes:
-            </span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-black font-mono tracking-tight tabular-nums text-white">
-                ${Math.round(statementAmount).toLocaleString("es-AR")}
+        {/* Desglose de Cuotas / Gastos Fijos Asociados a esta tarjeta */}
+        {linkedInstallments.length > 0 && (
+          <div className="mt-3 px-3 py-2 rounded-2xl bg-black/30 border border-white/15 relative z-10">
+            <div className="flex items-center justify-between text-[10px] font-bold text-purple-200 mb-1">
+              <span className="flex items-center gap-1">
+                <Repeat className="w-3 h-3 text-purple-300" />
+                <span>{linkedInstallments.length} cuota(s)/fijo(s) en esta tarjeta:</span>
               </span>
-              {statementAmountUsd && statementAmountUsd > 0 ? (
-                <span className="text-[11px] font-mono font-bold text-emerald-300">
-                  +u$s {statementAmountUsd.toLocaleString("es-AR")}
+              <span className="font-mono tabular-nums text-white">
+                ${Math.round(linkedInstallmentsTotal).toLocaleString("es-AR")}/mes
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {linkedInstallments.map((inst) => (
+                <span
+                  key={inst.id}
+                  className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/10 text-white/90 font-medium border border-white/10"
+                >
+                  {inst.title}{" "}
+                  {inst.totalInstallments ? (
+                    <strong className="text-purple-200 font-mono">
+                      ({inst.installmentNumber}/{inst.totalInstallments})
+                    </strong>
+                  ) : null}
                 </span>
-              ) : null}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Franja de Resumen y Monto + Acciones */}
+        <div className="mt-3.5 pt-2.5 border-t border-white/[0.1] flex flex-col gap-2.5 relative z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-white/70 block font-medium">
+                Resumen Actual:
+              </span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-black font-mono tracking-tight tabular-nums text-white">
+                  ${Math.round(statementAmount).toLocaleString("es-AR")}
+                </span>
+                {statementAmountUsd && statementAmountUsd > 0 ? (
+                  <span className="text-[11px] font-mono font-bold text-emerald-300">
+                    +u$s {statementAmountUsd.toLocaleString("es-AR")}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Botones principales: Editar, Pagar y Siguiente Resumen */}
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit();
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-[11px] font-semibold text-white backdrop-blur-md transition border border-white/20"
+                >
+                  Editar
+                </button>
+              )}
+
+              {onTogglePaid && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTogglePaid();
+                  }}
+                  disabled={isProcessing}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 shadow-md flex items-center gap-1 ${
+                    isPaid
+                      ? "bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 border border-white/20"
+                      : "bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/30"
+                  }`}
+                >
+                  {isPaid ? (
+                    <span>Desmarcar</span>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Pagar</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Botones de acción rápida en la tarjeta */}
-          <div className="flex items-center gap-2">
-            {onEdit && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit();
-                }}
-                className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-[11px] font-semibold text-white backdrop-blur-md transition border border-white/20"
-              >
-                Editar
-              </button>
-            )}
-
-            {onTogglePaid && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTogglePaid();
-                }}
-                disabled={isProcessing}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition active:scale-95 shadow-md flex items-center gap-1 ${
-                  isPaid
-                    ? "bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 border border-white/20"
-                    : "bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/30"
-                }`}
-              >
-                {isPaid ? (
-                  <span>Desmarcar</span>
-                ) : (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Pagar</span>
-                  </>
-                )}
-              </button>
-            )}
-          </div>
+          {/* Botón para cerrar el resumen actual y abrir el siguiente desde $0 (o con cuotas asociadas) */}
+          {onNextSummary && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNextSummary();
+              }}
+              disabled={isProcessing}
+              className="w-full py-1.5 px-3 rounded-xl bg-black/35 hover:bg-black/50 active:scale-[0.99] border border-white/15 text-[11px] font-semibold text-white/90 flex items-center justify-between transition"
+            >
+              <span className="flex items-center gap-1.5">
+                <ArrowRight className="w-3.5 h-3.5 text-purple-300" />
+                <span>Cerrar actual e ir al Siguiente Resumen</span>
+              </span>
+              <span className="text-[10px] font-mono text-purple-200 bg-purple-500/25 px-1.5 py-0.5 rounded-md border border-purple-400/30">
+                {linkedInstallments.length > 0
+                  ? `Abre con ${linkedInstallments.length} cuota(s)`
+                  : "Nuevo en $0"}
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </div>
