@@ -9,11 +9,51 @@ import crypto from "crypto";
 import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
 
 export async function getDashboardData(targetYear?: number, targetMonth?: number) {
-  const household = await ensureDefaultHousehold();
+  const cookieStore = await cookies();
+  const loggedUserId = cookieStore.get("auth_user_id")?.value;
 
   const now = new Date();
   const year = targetYear ?? now.getFullYear();
   const month = targetMonth ?? (now.getMonth() + 1);
+
+  // Si no hay usuario logueado (ej. tras logout), no disparar consultas pesadas innecesarias
+  if (!loggedUserId) {
+    return {
+      household: { id: "", name: "Finanzas Hogar", currency: "ARS" },
+      users: [],
+      currentUser: null,
+      categories: [],
+      period: {
+        id: "",
+        year,
+        month,
+        status: "OPEN",
+        carriedOverBalance: 0,
+        incomes: [],
+        expenses: [],
+        investmentTransfer: null,
+      },
+      poolSummary: {
+        totalSalaries: 0,
+        salaryPool: 0,
+        carriedOverBalance: 0,
+        totalAvailablePool: 0,
+        investedInFCI: 0,
+        totalExpenses: 0,
+        remainingPool: 0,
+        burnRatePct: 0,
+        memberBalances: [],
+      },
+      investmentFund: null,
+      categoriesWithUsage: [],
+      recurringExpenses: [],
+      personalData: null,
+      currentYear: year,
+      currentMonth: month,
+    };
+  }
+
+  const household = await ensureDefaultHousehold();
 
   // Buscar o crear el período
   let period = await prisma.monthlyPeriod.findUnique({
@@ -180,8 +220,6 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
   });
 
   // Autenticación: Identificar usuario conectado (Augusto o Agus)
-  const cookieStore = await cookies();
-  const loggedUserId = cookieStore.get("auth_user_id")?.value;
   const currentUser = household.users.find((u) => u.id === loggedUserId) || null;
 
   // Si hay usuario conectado, cargar/calcular su espacio personal

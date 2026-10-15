@@ -154,6 +154,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
     await logoutAction();
+    window.location.href = "/";
   };
 
   const isClosed = period.status === "CLOSED";
