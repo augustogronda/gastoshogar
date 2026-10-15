@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CreditCard, Check, Sparkles, Calendar } from "./ui/icons";
+import { CreditCard, Check, Sparkles, Calendar, Plus, ArrowRight, X, Repeat } from "./ui/icons";
 import { CreditCardVisual } from "./CreditCardVisual";
 import { CardStatementModal } from "./CardStatementModal";
 import { toggleCardPaidAction, advanceCardToNextSummaryAction } from "@/app/actions";
@@ -17,6 +17,7 @@ interface PersonalCardsViewProps {
   year: number;
   month: number;
   monthName: string;
+  onOpenNewRecurring?: () => void;
   cardsData?: {
     cards: Array<{
       id: string;
@@ -62,11 +63,13 @@ interface PersonalCardsViewProps {
 
 export function PersonalCardsView({
   userName,
+  onOpenNewRecurring,
   cardsData,
 }: PersonalCardsViewProps) {
   const [localCards, setLocalCards] = useState(cardsData?.cards || []);
   const [selectedCardForEdit, setSelectedCardForEdit] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [cardForNextSummary, setCardForNextSummary] = useState<any | null>(null);
   const [processingCardId, setProcessingCardId] = useState<string | null>(null);
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
 
@@ -147,7 +150,7 @@ export function PersonalCardsView({
 
     showToast(
       nextIsPaid
-        ? `✓ ${cardItem.bank} ${cardItem.brand} pagada (impactado en cuenta de ${currentCalendarMonthName})`
+        ? `✓ ${cardItem.bank} ${cardItem.brand} pagada (impactado en ${currentCalendarMonthName})`
         : `✓ ${cardItem.bank} ${cardItem.brand} desmarcada como pagada`
     );
 
@@ -161,23 +164,19 @@ export function PersonalCardsView({
     } catch (err: unknown) {
       // Revertir en caso de error
       setLocalCards(previousCards);
-      alert(err instanceof Error ? err.message : "Error al actualizar estado de pago");
+      showToast("Error al actualizar estado de pago");
     } finally {
       setProcessingCardId(null);
     }
   };
 
-  // Cerrar el resumen actual y abrir el siguiente resumen desde $0 (o con cuotas asociadas)
-  const handleAdvanceNextSummary = async (cardItem: any) => {
-    const linkedCount = cardItem.linkedInstallments?.length || 0;
-    const confirmMsg =
-      linkedCount > 0
-        ? `¿Cerrar el resumen actual de ${cardItem.bank} ${cardItem.brand} y abrir el siguiente resumen?\n\nSe avanzarán las fechas de cierre/vencimiento 1 mes y se incluirán automáticamente las ${linkedCount} cuota(s)/fijo(s) asociados.`
-        : `¿Cerrar el resumen actual de ${cardItem.bank} ${cardItem.brand} y abrir el siguiente resumen en $0?\n\nSe avanzarán las fechas de cierre y vencimiento al próximo ciclo.`;
-
-    if (!confirm(confirmMsg)) return;
-
+  // Confirmar y ejecutar el paso al siguiente resumen
+  const confirmAdvanceNextSummary = async () => {
+    if (!cardForNextSummary) return;
+    const cardItem = cardForNextSummary;
+    setCardForNextSummary(null);
     setProcessingCardId(cardItem.id);
+
     try {
       const res = await advanceCardToNextSummaryAction({
         cardId: cardItem.id,
@@ -208,7 +207,7 @@ export function PersonalCardsView({
         );
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error al abrir el siguiente resumen");
+      showToast(err instanceof Error ? err.message : "Error al abrir el siguiente resumen");
     } finally {
       setProcessingCardId(null);
     }
@@ -332,12 +331,24 @@ export function PersonalCardsView({
           )}
         </div>
 
-        {/* Aviso informativo de independencia y pago */}
-        <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-start gap-2 text-[11px] text-zinc-400 leading-relaxed">
-          <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
-          <span>
-            Cada tarjeta mantiene su <strong className="text-zinc-200">resumen actual independiente</strong>. Al tocar <strong className="text-emerald-300">Pagar</strong> se descuenta en el mes de la fecha de pago, y con <strong className="text-purple-300">Siguiente Resumen</strong> cerrás el ciclo actual y abrís uno nuevo con sus cuotas asociadas.
-          </span>
+        {/* Aviso informativo + Acceso directo para asociar nueva compra en cuotas */}
+        <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between gap-2">
+          <div className="flex items-start gap-2 text-[11px] text-zinc-400 leading-snug">
+            <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
+            <span>
+              Al tocar <strong className="text-emerald-300">Pagar</strong> impacta en tu cuenta del mes de pago.
+            </span>
+          </div>
+          {onOpenNewRecurring && (
+            <button
+              type="button"
+              onClick={onOpenNewRecurring}
+              className="shrink-0 px-3 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 text-purple-200 border border-purple-500/30 text-[11px] font-bold flex items-center gap-1 active:scale-95 transition"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Asociar Cuota</span>
+            </button>
+          )}
         </div>
       </section>
 
@@ -380,13 +391,85 @@ export function PersonalCardsView({
                   setIsModalOpen(true);
                 }}
                 onTogglePaid={() => handleTogglePaid(card)}
-                onNextSummary={() => handleAdvanceNextSummary(card)}
+                onNextSummary={() => setCardForNextSummary(card)}
                 isProcessing={processingCardId === card.id}
               />
             ))}
           </div>
         )}
       </section>
+
+      {/* Modal nativo oscuro para confirmar el paso al Siguiente Resumen */}
+      {cardForNextSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm super-card rounded-3xl p-6 shadow-2xl border border-white/[0.12] space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300">
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    Abrir Siguiente Resumen
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    {cardForNextSummary.bank} {cardForNextSummary.brand}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCardForNextSummary(null)}
+                className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-zinc-300 leading-relaxed">
+              <p>
+                Se cerrará el ciclo actual y se abrirá un <strong className="text-white">nuevo resumen</strong> avanzando las fechas de cierre y vencimiento en <strong className="text-purple-300">+1 mes</strong>.
+              </p>
+
+              {cardForNextSummary.linkedInstallments &&
+              cardForNextSummary.linkedInstallments.length > 0 ? (
+                <div className="p-3 rounded-2xl bg-purple-500/15 border border-purple-500/30 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-purple-200 font-bold text-[11px]">
+                    <Repeat className="w-3.5 h-3.5" />
+                    <span>
+                      Se incluirán automáticamente {cardForNextSummary.linkedInstallments.length} cuota(s)/fijo(s) vigentes:
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-200">
+                    El nuevo resumen iniciará con las cuotas activas del próximo ciclo ya sumadas.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-[11px] text-zinc-300">
+                  El nuevo resumen iniciará limpio en <strong className="text-white font-mono">$0</strong> listo para el próximo período.
+                </div>
+              )}
+            </div>
+
+            <div className="pt-1 space-y-2">
+              <button
+                type="button"
+                onClick={confirmAdvanceNextSummary}
+                className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 flex items-center justify-center gap-1.5 active:scale-[0.98] transition"
+              >
+                <span>Confirmar e Ir al Siguiente Resumen</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCardForNextSummary(null)}
+                className="w-full py-2.5 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-medium text-xs transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal para editar resumen de tarjeta */}
       <CardStatementModal

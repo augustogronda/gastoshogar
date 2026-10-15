@@ -102,6 +102,7 @@ interface PersonalDashboardViewProps {
     cardsData?: any;
     isClosed: boolean;
   };
+  activeTab?: "gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones";
 }
 
 const SHORT_MONTHS = [
@@ -116,8 +117,10 @@ export function PersonalDashboardView({
   monthName,
   categories,
   personalData,
+  activeTab = "gastos",
 }: PersonalDashboardViewProps) {
-  const [personalTab, setPersonalTab] = useState<"gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones">("gastos");
+  const personalTab = activeTab;
+  const [personalCategoryFilter, setPersonalCategoryFilter] = useState<string>("ALL");
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
@@ -235,63 +238,13 @@ export function PersonalDashboardView({
   const sortedCategories = Object.values(categoryTotals).sort((a, b) => b.amount - a.amount);
   const averagePersonalExpense = expenses.length > 0 ? Math.round(totalPersonalExpenses / expenses.length) : 0;
 
+  const filteredPersonalExpenses =
+    personalCategoryFilter === "ALL"
+      ? expenses
+      : expenses.filter((e) => (e.category?.name || "Varios") === personalCategoryFilter);
+
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Sub-navegación Interna Personal (Pestañas estilo iOS) */}
-      <div className="flex bg-zinc-900/80 p-1 rounded-2xl border border-white/[0.08] shadow-inner gap-1 overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setPersonalTab("gastos")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center ${
-            personalTab === "gastos"
-              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-              : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          Gastos ({expenses.length})
-        </button>
-        <button
-          onClick={() => setPersonalTab("analisis")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center ${
-            personalTab === "analisis"
-              ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
-              : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          Análisis
-        </button>
-        <button
-          onClick={() => setPersonalTab("cuotas")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center ${
-            personalTab === "cuotas"
-              ? "bg-indigo-700 text-white shadow-md shadow-indigo-700/30"
-              : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          Cuotas
-        </button>
-        <button
-          onClick={() => setPersonalTab("tarjetas")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center flex items-center justify-center gap-1 ${
-            personalTab === "tarjetas"
-              ? "bg-pink-600 text-white shadow-md shadow-pink-600/30"
-              : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <CreditCard className="w-3 h-3 shrink-0" />
-          <span>Tarjetas ({cardsData?.cards?.length || 0})</span>
-        </button>
-        <button
-          onClick={() => setPersonalTab("inversiones")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center flex items-center justify-center gap-1 ${
-            personalTab === "inversiones"
-              ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
-              : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <TrendingUp className="w-3 h-3 shrink-0" />
-          <span>Inversión ({investments.length})</span>
-        </button>
-      </div>
 
       {/* PESTAÑA 1: GASTOS PERSONALES */}
       {personalTab === "gastos" && (
@@ -411,10 +364,10 @@ export function PersonalDashboardView({
           </div>
 
           {/* Lista de Gastos Personales */}
-          <section className="space-y-2">
+          <section className="space-y-2.5">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-                Gastos Personales de {monthName} ({expenses.length})
+                Gastos Personales de {monthName} ({filteredPersonalExpenses.length})
               </h2>
               <button
                 onClick={() => setIsCategoryModalOpen(true)}
@@ -426,7 +379,43 @@ export function PersonalDashboardView({
               </button>
             </div>
 
-            {expenses.length === 0 ? (
+            {/* Chips de filtro rápido por categoría (1 toque) */}
+            {sortedCategories.length > 1 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPersonalCategoryFilter("ALL")}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
+                    personalCategoryFilter === "ALL"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
+                  }`}
+                >
+                  Todos ({expenses.length})
+                </button>
+                {sortedCategories.map((cat) => (
+                  <button
+                    key={cat.name}
+                    type="button"
+                    onClick={() =>
+                      setPersonalCategoryFilter(
+                        personalCategoryFilter === cat.name ? "ALL" : cat.name
+                      )
+                    }
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition flex items-center gap-1 ${
+                      personalCategoryFilter === cat.name
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
+                    }`}
+                  >
+                    <span>{cat.name}</span>
+                    <span className="text-[10px] opacity-75">({cat.count})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {filteredPersonalExpenses.length === 0 ? (
               <div className="super-card rounded-2xl p-8 text-center">
                 <Wallet className="w-8 h-8 text-zinc-600 mx-auto mb-2 opacity-60" />
                 <p className="text-sm font-medium text-zinc-300">Sin gastos personales registrados</p>
@@ -436,7 +425,7 @@ export function PersonalDashboardView({
               </div>
             ) : (
               <div className="space-y-2">
-                {expenses.map((exp) => {
+                {filteredPersonalExpenses.map((exp) => {
                   const dateObj = new Date(exp.date);
                   const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
 
@@ -744,6 +733,7 @@ export function PersonalDashboardView({
           month={currentMonth}
           monthName={monthName}
           cardsData={cardsData}
+          onOpenNewRecurring={() => setIsRecurringModalOpen(true)}
         />
       )}
 
