@@ -3,8 +3,8 @@
 :root {
   --background: #09090b;
   --foreground: #f4f4f5;
-  --card: #121215;
-  --card-border: #27272a;
+  --card: #111114;
+  --card-border: rgba(255, 255, 255, 0.08);
   --primary: #3b82f6;
   --primary-foreground: #ffffff;
   --sat: env(safe-area-inset-top, 0px);
@@ -46,11 +46,32 @@ input, textarea, select {
   bottom: env(safe-area-inset-bottom);
 }
 
-/* Desplazamiento suave de listas */
+/* Scrollbar invisible */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Efectos visuales SuperDesign */
+.super-card {
+  background: rgba(18, 18, 22, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.super-card-subtle {
+  background: rgba(24, 24, 28, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.super-nav {
+  background: rgba(9, 9, 11, 0.88);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }

@@ -72,36 +72,36 @@ export function FCIInvestModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar">
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      <div className="w-full max-w-md super-card rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar">
+        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
           <div className="flex items-center gap-2">
             <PiggyBank className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-semibold text-white">Fondo Común de Inversión (FCI)</h2>
+            <h2 className="text-base font-bold text-white tracking-tight">Fondo Común de Inversión</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full text-zinc-400 hover:text-white bg-zinc-800/60 transition"
+            className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Saldo acumulado actual en el FCI */}
-        <div className="mt-4 bg-gradient-to-br from-emerald-950/40 to-zinc-900 border border-emerald-800/40 rounded-2xl p-5">
+        <div className="mt-4 bg-emerald-950/30 border border-emerald-500/20 rounded-2xl p-5 relative overflow-hidden">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-emerald-400 tracking-wider">
+            <span className="text-[10px] font-bold text-emerald-400/90 tracking-wider uppercase">
               PATRIMONIO INVERTIDO CONJUNTO
             </span>
             <TrendingUp className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-3xl font-extrabold text-white">
+            <span className="text-3xl font-extrabold text-white font-mono tabular-nums">
               ${Math.round(currentFundValue).toLocaleString("es-AR")}
             </span>
             <button
               onClick={() => setIsUpdatingValue(!isUpdatingValue)}
-              className="text-xs text-zinc-400 hover:text-emerald-400 underline"
+              className="text-xs text-zinc-400 hover:text-emerald-400 underline transition"
             >
               {isUpdatingValue ? "Cancelar" : "Editar Saldo"}
             </button>
@@ -114,11 +114,11 @@ export function FCIInvestModal({
                 placeholder="Valor actual en broker"
                 value={newValueInput}
                 onChange={(e) => setNewValueInput(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white text-sm"
+                className="w-full bg-black/40 border border-white/[0.1] rounded-xl px-3 py-2 text-white text-sm font-mono tabular-nums"
               />
               <button
                 onClick={handleSaveValue}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-semibold"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-semibold shadow-md active:scale-95 transition"
               >
                 Actualizar
               </button>
@@ -128,32 +128,32 @@ export function FCIInvestModal({
 
         {/* Remanente del Mes Actual */}
         <div className="mt-5 space-y-3">
-          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
             Sobrante del Mes para Invertir
           </h3>
 
-          <div className="bg-zinc-800/50 border border-zinc-700/40 rounded-2xl p-4">
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4">
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm text-zinc-300">Remanente de este mes:</span>
-              <span className="text-xl font-bold text-emerald-400">
+              <span className="text-xl font-bold text-emerald-400 font-mono tabular-nums">
                 ${Math.round(surplusAmount).toLocaleString("es-AR")}
               </span>
             </div>
 
             {surplusAmount > 0 ? (
-              <div className="space-y-2 border-t border-zinc-700/40 pt-3">
+              <div className="space-y-2 border-t border-white/[0.06] pt-3">
                 <div className="text-xs text-zinc-400 flex items-center gap-1.5 mb-2">
-                  <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                   <span>Distribución proporcional según aportes del 60%:</span>
                 </div>
-                <div className="flex justify-between text-xs text-zinc-300">
-                  <span>{userABalance.name} ({Math.round(userABalance.quotaPct)}%):</span>
+                <div className="flex justify-between text-xs text-zinc-300 font-mono tabular-nums">
+                  <span className="font-sans">{userABalance.name} ({Math.round(userABalance.quotaPct)}%):</span>
                   <span className="font-semibold text-white">
                     ${quotaA.toLocaleString("es-AR")}
                   </span>
                 </div>
-                <div className="flex justify-between text-xs text-zinc-300">
-                  <span>{userBBalance.name} ({Math.round(userBBalance.quotaPct)}%):</span>
+                <div className="flex justify-between text-xs text-zinc-300 font-mono tabular-nums">
+                  <span className="font-sans">{userBBalance.name} ({Math.round(userBBalance.quotaPct)}%):</span>
                   <span className="font-semibold text-white">
                     ${quotaB.toLocaleString("es-AR")}
                   </span>
@@ -168,19 +168,19 @@ export function FCIInvestModal({
         </div>
 
         {/* Acción de Transferir Remanente */}
-        <div className="mt-6">
+        <div className="mt-5">
           {isAlreadyTransferred ? (
-            <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-2xl p-4 flex items-center gap-3 text-emerald-300 text-sm">
-              <Check className="w-5 h-5 text-emerald-400 shrink-0" />
+            <div className="bg-emerald-950/25 border border-emerald-500/25 rounded-2xl p-4 flex items-center gap-3 text-emerald-300 text-xs">
+              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>El excedente de este mes ya fue transferido al FCI.</span>
             </div>
           ) : (
             <button
               onClick={handleTransfer}
               disabled={surplusAmount <= 0 || isSubmitting}
-              className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-base shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-98 transition"
+              className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-emerald-400/20"
             >
-              <ArrowUpRight className="w-5 h-5" />
+              <ArrowUpRight className="w-4 h-4" />
               <span>Pasar Remanente al FCI (${Math.round(surplusAmount).toLocaleString("es-AR")})</span>
             </button>
           )}
