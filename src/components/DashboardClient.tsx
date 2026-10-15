@@ -263,14 +263,19 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       {/* Contenedor mobile-first refinado */}
       <main className="w-full max-w-md mx-auto px-4 pt-safe pb-28 flex-1 flex flex-col gap-3.5">
         
-        {/* Cabecera Superior: Usuario Conectado + Selector de Mes */}
+        {/* Cabecera Superior: Logo + Usuario Conectado + Selector de Mes */}
         <header className="flex items-center justify-between pt-2">
-          {/* Selector / Pill de Usuario Activo */}
-          <div className="relative">
-            <button
-              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="flex items-center gap-2 bg-zinc-900/90 hover:bg-zinc-800 border border-white/[0.08] px-3 py-1.5 rounded-full shadow-inner transition active:scale-95"
-            >
+          {/* Logo y Selector de Usuario */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl overflow-hidden border border-white/[0.08] shadow-md shadow-indigo-500/20 shrink-0">
+              <img src="/apple-touch-icon.png" alt="Hogar" className="w-full h-full object-cover" />
+            </div>
+
+            <div className="relative">
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="flex items-center gap-2 bg-zinc-900/90 hover:bg-zinc-800 border border-white/[0.08] px-3 py-1.5 rounded-full shadow-inner transition active:scale-95"
+              >
               <div
                 className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white shadow-sm"
                 style={{ backgroundColor: currentUser.avatarColor }}
@@ -330,6 +335,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 </button>
               </div>
             )}
+            </div>
           </div>
 
           {/* Selector de Mes Estilo Cápsula Dynamic Island */}

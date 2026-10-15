@@ -83,8 +83,8 @@ export function LoginScreen({ users }: LoginScreenProps) {
       <div className="w-full max-w-sm flex flex-col items-center text-center animate-fade-in">
         
         {/* Logo / Badge */}
-        <div className="w-16 h-16 rounded-3xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-5 shadow-xl shadow-blue-600/10">
-          <Wallet className="w-8 h-8 stroke-[1.8]" />
+        <div className="w-20 h-20 rounded-[24px] overflow-hidden mb-4 shadow-2xl shadow-indigo-600/30 border border-white/10 ring-2 ring-indigo-500/20">
+          <img src="/apple-touch-icon.png" alt="Hogar" className="w-full h-full object-cover" />
         </div>
 
         <h1 className="text-2xl font-extrabold text-white tracking-tight">
