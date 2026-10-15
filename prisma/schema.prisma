@@ -1,6 +1,6 @@
 // Prisma Schema para Finanzas de Pareja (Fondo Común 60% + FCI + Cuotas/Recurrentes)
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
