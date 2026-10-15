@@ -26,7 +26,10 @@ import {
   LogOut,
   Tag,
   Copy,
+  RefreshCw,
 } from "./ui/icons";
+import { forceCheckAppUpdate } from "./AppUpdateChecker";
+import currentAppVersion from "../../public/version.json";
 import { CategoryIcon } from "./ui/icons";
 import { QuickExpenseModal } from "./QuickExpenseModal";
 import { SalaryConfigModal } from "./SalaryConfigModal";
@@ -300,8 +303,23 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 </div>
                 <div className="border-t border-white/[0.06] pt-1" />
                 <button
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    forceCheckAppUpdate();
+                  }}
+                  className="w-full px-2.5 py-1.5 text-left text-xs font-semibold text-zinc-300 hover:bg-white/[0.05] rounded-xl flex items-center justify-between transition"
+                >
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Versión</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-400 font-bold">
+                    v{currentAppVersion.version}
+                  </span>
+                </button>
+                <button
                   onClick={handleLogout}
-                  className="w-full px-2.5 py-2 text-left text-xs font-semibold text-rose-300 hover:bg-rose-500/10 rounded-xl flex items-center gap-2 transition"
+                  className="w-full px-2.5 py-1.5 text-left text-xs font-semibold text-rose-300 hover:bg-rose-500/10 rounded-xl flex items-center gap-2 transition"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Cerrar sesión</span>

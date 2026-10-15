@@ -57,6 +57,7 @@ import {
   Shield,
   Baby,
   Search,
+  RefreshCw,
 } from "lucide-react";
 
 export const CATEGORY_ICON_OPTIONS = [
@@ -285,4 +286,5 @@ export {
   Shield,
   Baby,
   Search,
+  RefreshCw,
 };
