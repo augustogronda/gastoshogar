@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { ensureDefaultHousehold } from "@/lib/db-init";
+import { ensureDefaultHousehold, invalidateHouseholdCache } from "@/lib/db-init";
 import { calculateMonthlyPool } from "@/lib/finance-engine";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
@@ -13,8 +13,11 @@ import {
   fetchTickerQuote,
   getExchangeRates,
   POPULAR_ARGENTINA_ASSETS,
+  invalidatePortfolioCache,
 } from "@/lib/investments-service";
-import { getCardsForUserAndMonth } from "@/lib/cards-service";
+import { getCardsForUserAndMonth, invalidateCardsCache } from "@/lib/cards-service";
+
+let categoriesBackfilled = false;
 
 export async function getDashboardData(targetYear?: number, targetMonth?: number) {
   const cookieStore = await cookies();
@@ -118,7 +121,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
         month,
         householdId: household.id,
         incomes: {
-          create: household.users.map((u) => {
+          create: household.users.map((u: any) => {
             const prevIncome = prevPeriod?.incomes.find((i) => i.userId === u.id);
             const amount = prevIncome?.amount ?? 0;
             const pct = prevIncome?.contributionPct ?? 0.60;
@@ -172,7 +175,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
   }
 
   // Preparar input para el motor financiero
-  const engineMembers = household.users.map((u) => {
+  const engineMembers = household.users.map((u: any) => {
     const incomeRecord = period.incomes.find((i) => i.userId === u.id);
     return {
       userId: u.id,
@@ -248,7 +251,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
   });
 
   // Autenticación: Identificar usuario conectado (Augusto o Agus)
-  const currentUser = household.users.find((u) => u.id === loggedUserId) || null;
+  const currentUser = household.users.find((u: any) => u.id === loggedUserId) || null;
 
   // Si hay usuario conectado, cargar/calcular su espacio personal
   let personalData = null;
@@ -380,27 +383,30 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     };
   }
 
-  // Backfill inicial para categorías preexistentes sin lastUsedAt
-  const uninitializedCategories = await prisma.category.findMany({
-    where: { householdId: household.id, lastUsedAt: null },
-    include: {
-      expenses: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
-      personalExpenses: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
-    },
-  });
-
-  for (const cat of uninitializedCategories) {
-    const dates: Date[] = [];
-    if (cat.expenses[0]?.date) dates.push(new Date(cat.expenses[0].date));
-    if (cat.personalExpenses[0]?.date) dates.push(new Date(cat.personalExpenses[0].date));
-    const mostRecent = dates.length > 0
-      ? new Date(Math.max(...dates.map((d) => d.getTime())))
-      : (cat.createdAt || new Date());
-
-    await prisma.category.update({
-      where: { id: cat.id },
-      data: { lastUsedAt: mostRecent },
+  // Backfill inicial para categorías preexistentes sin lastUsedAt (ejecutado una sola vez por proceso)
+  if (!categoriesBackfilled) {
+    const uninitializedCategories = await prisma.category.findMany({
+      where: { householdId: household.id, lastUsedAt: null },
+      include: {
+        expenses: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
+        personalExpenses: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
+      },
     });
+
+    for (const cat of uninitializedCategories) {
+      const dates: Date[] = [];
+      if (cat.expenses[0]?.date) dates.push(new Date(cat.expenses[0].date));
+      if (cat.personalExpenses[0]?.date) dates.push(new Date(cat.personalExpenses[0].date));
+      const mostRecent = dates.length > 0
+        ? new Date(Math.max(...dates.map((d) => d.getTime())))
+        : (cat.createdAt || new Date());
+
+      await prisma.category.update({
+        where: { id: cat.id },
+        data: { lastUsedAt: mostRecent },
+      });
+    }
+    categoriesBackfilled = true;
   }
 
   // Categorías ordenadas por uso reciente primero (las más nuevas o recién usadas al principio)
@@ -1508,6 +1514,7 @@ export async function createCategoryAction(data: {
     },
   });
 
+  invalidateHouseholdCache();
   revalidatePath("/");
   return category;
 }
@@ -1533,6 +1540,7 @@ export async function updateCategoryAction(data: {
     },
   });
 
+  invalidateHouseholdCache();
   revalidatePath("/");
   return updated;
 }
@@ -1561,6 +1569,7 @@ export async function deleteCategoryAction(id: string) {
     where: { id },
   });
 
+  invalidateHouseholdCache();
   revalidatePath("/");
   return { success: true };
 }
@@ -1657,6 +1666,7 @@ export async function savePersonalInvestmentAction(data: {
         notes: data.notes?.trim() || null,
       },
     });
+    invalidatePortfolioCache();
     revalidatePath("/");
     return created;
   }
@@ -1669,12 +1679,15 @@ export async function deletePersonalInvestmentAction(id: string) {
     where: { id },
   });
 
+  invalidatePortfolioCache();
   revalidatePath("/");
   return { success: true };
 }
 
 export async function refreshPersonalInvestmentsAction(userId: string) {
   if (!userId) throw new Error("ID de usuario requerido");
+
+  invalidatePortfolioCache();
 
   const rawInvestments = await prisma.personalInvestment.findMany({
     where: { userId },
@@ -1726,6 +1739,7 @@ export async function saveSharedInvestmentAction(data: {
         notes: data.notes?.trim() || null,
       },
     });
+    invalidatePortfolioCache();
     revalidatePath("/");
     return updated;
   } else {
@@ -1742,6 +1756,7 @@ export async function saveSharedInvestmentAction(data: {
         notes: data.notes?.trim() || null,
       },
     });
+    invalidatePortfolioCache();
     revalidatePath("/");
     return created;
   }
@@ -1754,6 +1769,7 @@ export async function deleteSharedInvestmentAction(id: string) {
     where: { id },
   });
 
+  invalidatePortfolioCache();
   revalidatePath("/");
   return { success: true };
 }

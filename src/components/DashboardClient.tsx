@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Wallet,
@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ArrowRight,
   Sparkles,
   Users,
@@ -41,8 +42,10 @@ import { PersonalDashboardView } from "./PersonalDashboardView";
 import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
 import { CategoryManagerModal } from "./CategoryManagerModal";
 import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
+import { MonthPickerModal } from "./MonthPickerModal";
 import { appConfig } from "@/config/appConfig";
 import {
+  getDashboardData,
   deleteExpenseAction,
   closeMonthAction,
   reopenMonthAction,
@@ -141,6 +144,20 @@ type ActiveTab = "hogar" | "analisis" | "cuotas" | "fci";
 
 export function DashboardClient({ initialData }: DashboardClientProps) {
   const router = useRouter();
+  const [dashboardData, setDashboardData] = useState(initialData);
+  const [isChangingMonth, setIsChangingMonth] = useState(false);
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+
+  // Caché de meses en memoria cliente para respuesta instantánea (0ms)
+  const dataCacheRef = useRef<Map<string, typeof initialData>>(new Map());
+
+  // Sincronizar datos si initialData se actualiza desde el servidor (ej: revalidatePath tras agregar gasto)
+  useEffect(() => {
+    setDashboardData(initialData);
+    const key = `${initialData.currentYear}-${initialData.currentMonth}`;
+    dataCacheRef.current.set(key, initialData);
+  }, [initialData]);
+
   const {
     household,
     users,
@@ -155,7 +172,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     sharedInvestmentsSummary = null,
     currentYear,
     currentMonth,
-  } = initialData;
+  } = dashboardData;
 
   const [spaceMode, setSpaceMode] = useState<"hogar" | "personal">("hogar");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -170,6 +187,103 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Precarga inteligente en segundo plano de los meses contiguos (-1 y +1)
+  useEffect(() => {
+    const currentKey = `${currentYear}-${currentMonth}`;
+    dataCacheRef.current.set(currentKey, dashboardData);
+
+    const prevM = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevY = currentMonth === 1 ? currentYear - 1 : currentYear;
+    const prevKey = `${prevY}-${prevM}`;
+
+    const nextM = currentMonth === 12 ? 1 : currentMonth + 1;
+    const nextY = currentMonth === 12 ? currentYear + 1 : currentYear;
+    const nextKey = `${nextY}-${nextM}`;
+
+    let isMounted = true;
+    const prefetchTimer = setTimeout(async () => {
+      if (!dataCacheRef.current.has(prevKey) && isMounted) {
+        try {
+          const prevData = await getDashboardData(prevY, prevM);
+          if (isMounted && prevData) {
+            dataCacheRef.current.set(prevKey, prevData);
+          }
+        } catch (e) {
+          // Silencioso para no interferir
+        }
+      }
+      if (!dataCacheRef.current.has(nextKey) && isMounted) {
+        try {
+          const nextData = await getDashboardData(nextY, nextM);
+          if (isMounted && nextData) {
+            dataCacheRef.current.set(nextKey, nextData);
+          }
+        } catch (e) {
+          // Silencioso para no interferir
+        }
+      }
+    }, 450);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(prefetchTimer);
+    };
+  }, [currentYear, currentMonth, dashboardData]);
+
+  // Manejo de navegación del navegador (botones atrás/adelante)
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const y = params.get("year") ? parseInt(params.get("year")!) : undefined;
+      const m = params.get("month") ? parseInt(params.get("month")!) : undefined;
+      if (y && m) {
+        switchMonth(y, m);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Cambio ultra-rápido de mes con soporte de caché
+  const switchMonth = async (targetYear: number, targetMonth: number) => {
+    if (targetYear === currentYear && targetMonth === currentMonth) return;
+
+    const key = `${targetYear}-${targetMonth}`;
+
+    // 1. Si está en caché local, respuesta inmediata en 0ms
+    if (dataCacheRef.current.has(key)) {
+      const cached = dataCacheRef.current.get(key)!;
+      setDashboardData(cached);
+      window.history.pushState(null, "", `/?year=${targetYear}&month=${targetMonth}`);
+      return;
+    }
+
+    // 2. Si no está en caché, mostramos indicador visual de carga suave en la cápsula
+    setIsChangingMonth(true);
+    try {
+      const freshData = await getDashboardData(targetYear, targetMonth);
+      dataCacheRef.current.set(key, freshData);
+      setDashboardData(freshData);
+      window.history.pushState(null, "", `/?year=${targetYear}&month=${targetMonth}`);
+    } catch (err) {
+      console.error("Error al cargar mes:", err);
+    } finally {
+      setIsChangingMonth(false);
+    }
+  };
+
+  const handlePrevMonth = () => {
+    const prevM = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevY = currentMonth === 1 ? currentYear - 1 : currentYear;
+    switchMonth(prevY, prevM);
+  };
+
+  const handleNextMonth = () => {
+    const nextM = currentMonth === 12 ? 1 : currentMonth + 1;
+    const nextY = currentMonth === 12 ? currentYear + 1 : currentYear;
+    switchMonth(nextY, nextM);
+  };
 
   // Si no hay usuario logueado en cookies, mostrar pantalla de login
   if (!currentUser) {
@@ -186,19 +300,6 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const nextMonthNumber = currentMonth === 12 ? 1 : currentMonth + 1;
   const nextMonthYear = currentMonth === 12 ? currentYear + 1 : currentYear;
   const nextMonthName = MONTH_NAMES[nextMonthNumber - 1];
-
-  // Navegación de meses
-  const handlePrevMonth = () => {
-    const prevM = currentMonth === 1 ? 12 : currentMonth - 1;
-    const prevY = currentMonth === 1 ? currentYear - 1 : currentYear;
-    router.push(`/?year=${prevY}&month=${prevM}`);
-  };
-
-  const handleNextMonth = () => {
-    const nextM = currentMonth === 12 ? 1 : currentMonth + 1;
-    const nextY = currentMonth === 12 ? currentYear + 1 : currentYear;
-    router.push(`/?year=${nextY}&month=${nextM}`);
-  };
 
   const handleDeleteExpense = async (id: string) => {
     if (confirm("¿Eliminar este gasto?")) {
@@ -336,24 +437,43 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             </div>
           </div>
 
-          {/* Selector de Mes Estilo Cápsula Dynamic Island */}
-          <div className="flex items-center gap-1.5 bg-zinc-900/80 border border-white/[0.08] px-2 py-1 rounded-full shadow-inner">
+          {/* Selector de Mes Estilo Cápsula Dynamic Island con Popover Interactivo */}
+          <div className="flex items-center gap-1 bg-zinc-900/90 border border-white/[0.08] px-2 py-1 rounded-full shadow-inner">
             <button
+              type="button"
               onClick={handlePrevMonth}
-              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-zinc-400 hover:text-white active:scale-90 transition duration-150"
+              disabled={isChangingMonth}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-zinc-400 hover:text-white active:scale-90 transition duration-150 disabled:opacity-30"
               title="Mes anterior"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <span className="text-xs font-bold text-white px-1 tracking-tight flex items-center gap-1">
-              {monthLabel} {currentYear}
-              {isClosed && spaceMode === "hogar" && <Lock className="w-3 h-3 text-amber-400" />}
-            </span>
+            <button
+              type="button"
+              onClick={() => setIsMonthPickerOpen(true)}
+              className="text-xs font-bold text-white px-2 py-1 rounded-full hover:bg-white/[0.08] tracking-tight flex items-center gap-1.5 transition active:scale-95 group"
+              title="Tocar para seleccionar mes"
+            >
+              {isChangingMonth ? (
+                <span className="flex items-center gap-1.5 text-blue-400 font-medium">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span className="text-[11px]">{monthLabel}</span>
+                </span>
+              ) : (
+                <>
+                  <span>{monthLabel} {currentYear}</span>
+                  {isClosed && spaceMode === "hogar" && <Lock className="w-3 h-3 text-amber-400" />}
+                  <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-200 transition-colors" />
+                </>
+              )}
+            </button>
 
             <button
+              type="button"
               onClick={handleNextMonth}
-              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-zinc-400 hover:text-white active:scale-90 transition duration-150"
+              disabled={isChangingMonth}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-zinc-400 hover:text-white active:scale-90 transition duration-150 disabled:opacity-30"
               title="Mes siguiente"
             >
               <ChevronRight className="w-4 h-4" />
@@ -1124,6 +1244,15 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
         categories={categories}
+      />
+
+      {/* Selector Rápido de Meses */}
+      <MonthPickerModal
+        isOpen={isMonthPickerOpen}
+        onClose={() => setIsMonthPickerOpen(false)}
+        currentYear={currentYear}
+        currentMonth={currentMonth}
+        onSelectMonth={switchMonth}
       />
     </div>
   );

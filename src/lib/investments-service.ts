@@ -295,6 +295,16 @@ export interface PortfolioSummary {
   }>;
 }
 
+const portfolioCache = new Map<
+  string,
+  { data: { investments: HydratedInvestment[]; summary: PortfolioSummary }; timestamp: number }
+>();
+const PORTFOLIO_CACHE_TTL = 3 * 60 * 1000; // 3 minutos
+
+export function invalidatePortfolioCache() {
+  portfolioCache.clear();
+}
+
 export async function hydrateInvestments(
   rawInvestments: Array<{
     id: string;
@@ -313,6 +323,33 @@ export async function hydrateInvestments(
   }>
 ): Promise<{ investments: HydratedInvestment[]; summary: PortfolioSummary }> {
   const rates = await getExchangeRates();
+
+  if (rawInvestments.length === 0) {
+    return {
+      investments: [],
+      summary: {
+        totalValuationArs: 0,
+        totalValuationUsd: 0,
+        totalCostArs: 0,
+        totalGainLossArs: 0,
+        totalGainLossPct: 0,
+        rates,
+        assetTypeBreakdown: [],
+      },
+    };
+  }
+
+  // Clave de caché basada en los IDs y cantidades
+  const cacheKey = rawInvestments
+    .map((i) => `${i.id}_${i.quantity}_${i.manualPrice || 0}`)
+    .sort()
+    .join("|");
+
+  const now = Date.now();
+  const cached = portfolioCache.get(cacheKey);
+  if (cached && now - cached.timestamp < PORTFOLIO_CACHE_TTL) {
+    return cached.data;
+  }
 
   // Obtener cotizaciones de mercado en paralelo con tolerancia a fallas
   const quotesPromises = rawInvestments.map(async (inv) => {
@@ -400,7 +437,7 @@ export async function hydrateInvestments(
     pct: totalValuationArs > 0 ? (amount / totalValuationArs) * 100 : 0,
   }));
 
-  return {
+  const result = {
     investments,
     summary: {
       totalValuationArs,
@@ -412,4 +449,7 @@ export async function hydrateInvestments(
       assetTypeBreakdown,
     },
   };
+
+  portfolioCache.set(cacheKey, { data: result, timestamp: Date.now() });
+  return result;
 }

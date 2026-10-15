@@ -1,7 +1,7 @@
 {
-  "version": "1.2.0",
-  "build": 2026101503,
-  "releasedAt": "2026-10-15T21:45:00Z",
-  "title": "Tarjetas de Crédito de Bancos",
-  "description": "Nueva sección de Tarjetas de Crédito personales (Santander, Galicia, BBVA) con fechas de cierre, vencimientos y registro automático como gasto al pagarlas."
+  "version": "1.3.0",
+  "build": 2026101504,
+  "releasedAt": "2026-10-15T22:00:00Z",
+  "title": "Navegación Instantánea y Selector de Meses",
+  "description": "Selector de meses con popover de 12 meses, navegación instantánea en 0ms gracias a caché en memoria y precarga en segundo plano."
 }

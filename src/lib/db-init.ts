@@ -1,7 +1,21 @@
 import { prisma } from "./prisma";
 import crypto from "crypto";
 
+let cachedHousehold: any = null;
+let cachedHouseholdTimestamp = 0;
+const HOUSEHOLD_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+export function invalidateHouseholdCache() {
+  cachedHousehold = null;
+  cachedHouseholdTimestamp = 0;
+}
+
 export async function ensureDefaultHousehold() {
+  const currentTimeMs = Date.now();
+  if (cachedHousehold && currentTimeMs - cachedHouseholdTimestamp < HOUSEHOLD_CACHE_TTL) {
+    return cachedHousehold;
+  }
+
   const existingHousehold = await prisma.household.findFirst({
     include: {
       users: true,
@@ -24,6 +38,8 @@ export async function ensureDefaultHousehold() {
         });
       }
     }
+    cachedHousehold = existingHousehold;
+    cachedHouseholdTimestamp = currentTimeMs;
     return existingHousehold;
   }
 

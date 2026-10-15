@@ -67,12 +67,27 @@ export const DEFAULT_USER_CARDS: Record<
   ],
 };
 
+const verifiedCardsUsers = new Set<string>();
+
+export function invalidateCardsCache(userId?: string) {
+  if (userId) {
+    verifiedCardsUsers.delete(userId);
+  } else {
+    verifiedCardsUsers.clear();
+  }
+}
+
 export async function ensureDefaultCardsForUser(userId: string, userName: string) {
+  if (verifiedCardsUsers.has(userId)) return;
+
   const existingCount = await prisma.personalCreditCard.count({
     where: { userId },
   });
 
-  if (existingCount > 0) return;
+  if (existingCount > 0) {
+    verifiedCardsUsers.add(userId);
+    return;
+  }
 
   const normalized = userName.toLowerCase();
   const isAgus = normalized.includes("agus") && !normalized.includes("august");
