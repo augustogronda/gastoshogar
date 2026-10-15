@@ -7,6 +7,13 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
+import {
+  hydrateInvestments,
+  searchTickers,
+  fetchTickerQuote,
+  getExchangeRates,
+  POPULAR_ARGENTINA_ASSETS,
+} from "@/lib/investments-service";
 
 export async function getDashboardData(targetYear?: number, targetMonth?: number) {
   const cookieStore = await cookies();
@@ -332,6 +339,15 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       };
     });
 
+    // Inversiones Personales (CEDEARs, Acciones, Bonos, FCIs, Cripto)
+    const rawPersonalInvestments = await prisma.personalInvestment.findMany({
+      where: { userId: currentUser.id },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const { investments: hydratedInvestments, summary: investmentsSummary } =
+      await hydrateInvestments(rawPersonalInvestments);
+
     personalData = {
       incomeRecord: personalIncome,
       hogarSalary,
@@ -346,6 +362,8 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       personalBurnRatePct,
       expenses: personalExpenses,
       recurringExpenses: activePersonalInstallments,
+      investments: hydratedInvestments,
+      investmentsSummary,
       isClosed: personalIncome.status === "CLOSED",
     };
   }
@@ -1522,6 +1540,126 @@ export async function deleteCategoryAction(id: string) {
 
   revalidatePath("/");
   return { success: true };
+}
+
+// ==========================================
+// INVERSIONES PERSONALES (ACCIONES, CEDEARS, FCIS, CRIPTO)
+// ==========================================
+
+export async function searchMarketTickersAction(query: string) {
+  try {
+    return await searchTickers(query);
+  } catch (err) {
+    console.error("Error searching tickers:", err);
+    return [];
+  }
+}
+
+export async function fetchMarketQuoteAction(ticker: string) {
+  try {
+    return await fetchTickerQuote(ticker);
+  } catch (err) {
+    console.error(`Error fetching quote for ${ticker}:`, err);
+    return null;
+  }
+}
+
+export async function getExchangeRatesAction() {
+  try {
+    return await getExchangeRates();
+  } catch (err) {
+    console.error("Error getting exchange rates:", err);
+    return {
+      mep: 1535,
+      ccl: 1615,
+      blue: 1545,
+      oficial: 1520,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+}
+
+export async function savePersonalInvestmentAction(data: {
+  id?: string;
+  userId: string;
+  ticker: string;
+  name: string;
+  assetType: string;
+  quantity: number;
+  buyPrice?: number | null;
+  currency?: string;
+  manualPrice?: number | null;
+  notes?: string | null;
+}) {
+  const ticker = data.ticker.trim().toUpperCase();
+  const name = data.name.trim() || ticker;
+  const quantity = Number(data.quantity);
+  const buyPrice = typeof data.buyPrice === "number" && !isNaN(data.buyPrice) && data.buyPrice > 0 ? data.buyPrice : null;
+  const manualPrice = typeof data.manualPrice === "number" && !isNaN(data.manualPrice) && data.manualPrice > 0 ? data.manualPrice : null;
+  const currency = (data.currency || "ARS").toUpperCase();
+
+  if (!data.userId || !ticker || isNaN(quantity) || quantity <= 0) {
+    throw new Error("Datos de inversión incompletos o cantidad inválida.");
+  }
+
+  if (data.id) {
+    // Actualizar inversión existente
+    const updated = await prisma.personalInvestment.update({
+      where: { id: data.id },
+      data: {
+        ticker,
+        name,
+        assetType: data.assetType || "CEDEAR",
+        quantity,
+        buyPrice,
+        currency,
+        manualPrice,
+        notes: data.notes?.trim() || null,
+      },
+    });
+    revalidatePath("/");
+    return updated;
+  } else {
+    // Crear nueva inversión
+    const created = await prisma.personalInvestment.create({
+      data: {
+        userId: data.userId,
+        ticker,
+        name,
+        assetType: data.assetType || "CEDEAR",
+        quantity,
+        buyPrice,
+        currency,
+        manualPrice,
+        notes: data.notes?.trim() || null,
+      },
+    });
+    revalidatePath("/");
+    return created;
+  }
+}
+
+export async function deletePersonalInvestmentAction(id: string) {
+  if (!id) throw new Error("ID de inversión requerido");
+
+  await prisma.personalInvestment.delete({
+    where: { id },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function refreshPersonalInvestmentsAction(userId: string) {
+  if (!userId) throw new Error("ID de usuario requerido");
+
+  const rawInvestments = await prisma.personalInvestment.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const hydrated = await hydrateInvestments(rawInvestments);
+  return hydrated;
 }
 
 

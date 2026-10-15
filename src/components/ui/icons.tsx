@@ -56,6 +56,7 @@ import {
   Music,
   Shield,
   Baby,
+  Search,
 } from "lucide-react";
 
 export const CATEGORY_ICON_OPTIONS = [
@@ -283,4 +284,5 @@ export {
   Music,
   Shield,
   Baby,
+  Search,
 };

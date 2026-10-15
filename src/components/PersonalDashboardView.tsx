@@ -18,12 +18,14 @@ import {
   PieChart,
   Repeat,
   Tag,
+  TrendingUp,
 } from "./ui/icons";
 import { PersonalIncomeModal } from "./PersonalIncomeModal";
 import { PersonalExpenseModal } from "./PersonalExpenseModal";
 import { PersonalRecurringModal } from "./PersonalRecurringModal";
 import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
 import { CategoryManagerModal } from "./CategoryManagerModal";
+import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
 import {
   deletePersonalExpenseAction,
   applyPersonalRecurringExpenseAction,
@@ -87,6 +89,8 @@ interface PersonalDashboardViewProps {
     personalBurnRatePct: number;
     expenses: PersonalExpenseItem[];
     recurringExpenses: PersonalRecurringItem[];
+    investments?: any[];
+    investmentsSummary?: any;
     isClosed: boolean;
   };
 }
@@ -104,7 +108,7 @@ export function PersonalDashboardView({
   categories,
   personalData,
 }: PersonalDashboardViewProps) {
-  const [personalTab, setPersonalTab] = useState<"gastos" | "analisis" | "cuotas">("gastos");
+  const [personalTab, setPersonalTab] = useState<"gastos" | "analisis" | "cuotas" | "inversiones">("gastos");
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
@@ -125,6 +129,8 @@ export function PersonalDashboardView({
     personalBurnRatePct,
     expenses,
     recurringExpenses,
+    investments = [],
+    investmentsSummary = null,
     isClosed,
   } = personalData;
 
@@ -222,10 +228,10 @@ export function PersonalDashboardView({
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Sub-navegación Interna Personal (Pestañas estilo iOS) */}
-      <div className="flex bg-zinc-900/80 p-1 rounded-2xl border border-white/[0.08] shadow-inner">
+      <div className="flex bg-zinc-900/80 p-1 rounded-2xl border border-white/[0.08] shadow-inner gap-1">
         <button
           onClick={() => setPersonalTab("gastos")}
-          className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition ${
+          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center ${
             personalTab === "gastos"
               ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
               : "text-zinc-400 hover:text-white"
@@ -234,24 +240,35 @@ export function PersonalDashboardView({
           Gastos ({expenses.length})
         </button>
         <button
+          onClick={() => setPersonalTab("inversiones")}
+          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center flex items-center justify-center gap-1 ${
+            personalTab === "inversiones"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+              : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <TrendingUp className="w-3 h-3 shrink-0" />
+          <span>Inversión ({investments.length})</span>
+        </button>
+        <button
+          onClick={() => setPersonalTab("cuotas")}
+          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center ${
+            personalTab === "cuotas"
+              ? "bg-indigo-700 text-white shadow-md shadow-indigo-700/30"
+              : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          Cuotas
+        </button>
+        <button
           onClick={() => setPersonalTab("analisis")}
-          className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition ${
+          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center ${
             personalTab === "analisis"
               ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
               : "text-zinc-400 hover:text-white"
           }`}
         >
           Análisis
-        </button>
-        <button
-          onClick={() => setPersonalTab("cuotas")}
-          className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition ${
-            personalTab === "cuotas"
-              ? "bg-indigo-700 text-white shadow-md shadow-indigo-700/30"
-              : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          Cuotas & Fijos
         </button>
       </div>
 
@@ -668,6 +685,16 @@ export function PersonalDashboardView({
             </div>
           )}
         </div>
+      )}
+
+      {/* PESTAÑA 4: INVERSIONES PERSONALES */}
+      {personalTab === "inversiones" && (
+        <PersonalInvestmentsView
+          userId={currentUser.id}
+          userName={currentUser.name}
+          investments={investments}
+          summary={investmentsSummary}
+        />
       )}
 
       {/* Modales Personales */}
