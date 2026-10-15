@@ -24,6 +24,7 @@ import {
   Home,
   User,
   LogOut,
+  Tag,
 } from "./ui/icons";
 import { CategoryIcon } from "./ui/icons";
 import { QuickExpenseModal } from "./QuickExpenseModal";
@@ -34,6 +35,7 @@ import { InstallmentsManagerView } from "./InstallmentsManagerView";
 import { LoginScreen } from "./LoginScreen";
 import { PersonalDashboardView } from "./PersonalDashboardView";
 import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
+import { CategoryManagerModal } from "./CategoryManagerModal";
 import {
   deleteExpenseAction,
   closeMonthAction,
@@ -141,6 +143,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isProcessingClose, setIsProcessingClose] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<EditableExpense | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Si no hay usuario logueado en cookies, mostrar pantalla de selección de perfil
@@ -571,13 +574,23 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 <h2 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
                   Gastos de {monthLabel} ({period.expenses.length})
                 </h2>
-                <button
-                  onClick={() => setIsExpenseModalOpen(true)}
-                  className="text-xs font-semibold text-blue-400 hover:text-blue-300 active:scale-95 flex items-center gap-1 transition"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Anotar Gasto</span>
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsCategoryModalOpen(true)}
+                    className="text-xs font-semibold text-zinc-400 hover:text-zinc-200 active:scale-95 flex items-center gap-1 transition"
+                    title="Gestionar categorías"
+                  >
+                    <Tag className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>Categorías</span>
+                  </button>
+                  <button
+                    onClick={() => setIsExpenseModalOpen(true)}
+                    className="text-xs font-semibold text-blue-400 hover:text-blue-300 active:scale-95 flex items-center gap-1 transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Anotar Gasto</span>
+                  </button>
+                </div>
               </div>
 
               {period.expenses.length === 0 ? (
@@ -1020,6 +1033,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         users={users}
         categories={categories}
         isPersonal={false}
+      />
+
+      {/* Modal de Gestión de Categorías */}
+      <CategoryManagerModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        categories={categories}
       />
     </div>
   );

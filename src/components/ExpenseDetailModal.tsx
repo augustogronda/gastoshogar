@@ -12,7 +12,9 @@ import {
   Sparkles,
   Layers,
   Edit3,
+  Plus,
 } from "./ui/icons";
+import { CategoryManagerModal } from "./CategoryManagerModal";
 import {
   updateExpenseAction,
   duplicateExpenseAction,
@@ -27,6 +29,7 @@ export interface CategoryItem {
   name: string;
   icon?: string | null;
   color?: string | null;
+  lastUsedAt?: Date | string | null;
 }
 
 export interface HouseholdUserItem {
@@ -77,6 +80,7 @@ export function ExpenseDetailModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   useEffect(() => {
     if (expense) {
@@ -277,10 +281,34 @@ export function ExpenseDetailModal({
 
           {/* Selector de Categoría */}
           <div>
-            <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block mb-2">
-              Categoría
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
+                Categoría
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 active:scale-95 transition"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Gestionar</span>
+              </button>
+            </div>
             <div className="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto no-scrollbar p-1">
+              {/* Botón + Nueva */}
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="flex flex-col items-center justify-center p-2 rounded-2xl border border-dashed border-white/20 bg-white/[0.02] text-zinc-400 hover:text-white hover:border-white/40 transition active:scale-95 text-center"
+              >
+                <div className="w-7 h-7 rounded-xl bg-white/[0.06] text-blue-400 flex items-center justify-center mb-1">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-semibold truncate w-full text-zinc-300">
+                  + Nueva
+                </span>
+              </button>
+
               {categories.map((cat) => {
                 const isSelected = categoryId === cat.id;
                 return (
@@ -295,7 +323,7 @@ export function ExpenseDetailModal({
                     }`}
                   >
                     <div className="w-7 h-7 rounded-xl bg-white/[0.08] flex items-center justify-center mb-1">
-                      <CategoryIcon name={cat.name} className="w-4 h-4" />
+                      <CategoryIcon name={cat.name} icon={cat.icon} className="w-4 h-4" />
                     </div>
                     <span className="text-[10px] font-semibold truncate w-full">
                       {cat.name}
@@ -383,6 +411,17 @@ export function ExpenseDetailModal({
           </div>
         </form>
       </div>
+
+      {/* Modal de Gestión de Categorías */}
+      <CategoryManagerModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        categories={categories}
+        onSelectCategory={(newCat) => {
+          setCategoryId(newCat.id);
+          setIsCategoryModalOpen(false);
+        }}
+      />
     </div>
   );
 }

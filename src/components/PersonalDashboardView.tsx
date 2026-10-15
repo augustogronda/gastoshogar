@@ -17,11 +17,13 @@ import {
   X,
   PieChart,
   Repeat,
+  Tag,
 } from "./ui/icons";
 import { PersonalIncomeModal } from "./PersonalIncomeModal";
 import { PersonalExpenseModal } from "./PersonalExpenseModal";
 import { PersonalRecurringModal } from "./PersonalRecurringModal";
 import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
+import { CategoryManagerModal } from "./CategoryManagerModal";
 import {
   deletePersonalExpenseAction,
   applyPersonalRecurringExpenseAction,
@@ -109,6 +111,7 @@ export function PersonalDashboardView({
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [selectedPersonalExpense, setSelectedPersonalExpense] = useState<EditableExpense | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -375,6 +378,14 @@ export function PersonalDashboardView({
               <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
                 Gastos Personales de {monthName} ({expenses.length})
               </h2>
+              <button
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="text-xs font-semibold text-zinc-400 hover:text-zinc-200 active:scale-95 flex items-center gap-1 transition"
+                title="Gestionar categorías"
+              >
+                <Tag className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Categorías</span>
+              </button>
             </div>
 
             {expenses.length === 0 ? (
@@ -790,6 +801,13 @@ export function PersonalDashboardView({
         expense={selectedPersonalExpense}
         categories={categories}
         isPersonal={true}
+      />
+
+      {/* Modal de Gestión de Categorías */}
+      <CategoryManagerModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        categories={categories}
       />
     </div>
   );
