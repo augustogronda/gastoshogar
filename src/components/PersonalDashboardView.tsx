@@ -21,6 +21,7 @@ import {
 import { PersonalIncomeModal } from "./PersonalIncomeModal";
 import { PersonalExpenseModal } from "./PersonalExpenseModal";
 import { PersonalRecurringModal } from "./PersonalRecurringModal";
+import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
 import {
   deletePersonalExpenseAction,
   applyPersonalRecurringExpenseAction,
@@ -106,6 +107,8 @@ export function PersonalDashboardView({
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
+  const [selectedPersonalExpense, setSelectedPersonalExpense] = useState<EditableExpense | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -391,14 +394,29 @@ export function PersonalDashboardView({
                   return (
                     <div
                       key={exp.id}
-                      className="super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.03] transition duration-150"
+                      onClick={() => {
+                        setSelectedPersonalExpense({
+                          id: exp.id,
+                          title: exp.title,
+                          amount: exp.amount,
+                          date: exp.date,
+                          categoryId: exp.categoryId || exp.category?.id,
+                          category: exp.category,
+                          notes: exp.notes,
+                          installmentNumber: exp.installmentNumber,
+                          totalInstallments: exp.totalInstallments,
+                          isPersonal: true,
+                        });
+                        setIsDetailModalOpen(true);
+                      }}
+                      className="super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition duration-150 cursor-pointer group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
                           <CategoryIcon name={exp.category?.name || "Varios"} className="w-5 h-5" />
                         </div>
                         <div>
-                          <span className="text-sm font-semibold text-white block">
+                          <span className="text-sm font-semibold text-white block group-hover:text-indigo-300 transition-colors">
                             {exp.title}
                           </span>
                           <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-400 font-medium">
@@ -418,6 +436,12 @@ export function PersonalDashboardView({
                               </>
                             )}
                           </div>
+                          {exp.notes && (
+                            <p className="text-[11px] text-zinc-400 italic mt-1 line-clamp-1 flex items-center gap-1">
+                              <span>💬</span>
+                              <span>{exp.notes}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -426,7 +450,10 @@ export function PersonalDashboardView({
                           ${Math.round(exp.amount).toLocaleString("es-AR")}
                         </span>
                         <button
-                          onClick={() => handleDeleteExpense(exp.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteExpense(exp.id);
+                          }}
                           disabled={deletingId === exp.id}
                           className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 active:scale-90 transition"
                           title="Eliminar gasto"
@@ -752,6 +779,18 @@ export function PersonalDashboardView({
           </div>
         </div>
       )}
+
+      {/* Modal de Detalle / Edición de Gasto Personal */}
+      <ExpenseDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedPersonalExpense(null);
+        }}
+        expense={selectedPersonalExpense}
+        categories={categories}
+        isPersonal={true}
+      />
     </div>
   );
 }

@@ -352,6 +352,61 @@ export async function deleteExpenseAction(expenseId: string) {
   return { success: true };
 }
 
+export async function updateExpenseAction(data: {
+  id: string;
+  title: string;
+  amount: number;
+  paidById: string;
+  categoryId: string;
+  date?: string;
+  notes?: string;
+  isFromPoolFund?: boolean;
+}) {
+  if (!data.id || !data.title || data.amount <= 0 || !data.paidById || !data.categoryId) {
+    throw new Error("Datos de gasto inválidos");
+  }
+
+  await prisma.expense.update({
+    where: { id: data.id },
+    data: {
+      title: data.title,
+      amount: data.amount,
+      paidById: data.paidById,
+      categoryId: data.categoryId,
+      notes: data.notes ?? null,
+      isFromPoolFund: data.isFromPoolFund ?? false,
+      ...(data.date ? { date: new Date(data.date) } : {}),
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function duplicateExpenseAction(expenseId: string) {
+  const existing = await prisma.expense.findUnique({
+    where: { id: expenseId },
+  });
+
+  if (!existing) throw new Error("Gasto no encontrado");
+
+  await prisma.expense.create({
+    data: {
+      title: `${existing.title} (Copia)`,
+      amount: existing.amount,
+      paidById: existing.paidById,
+      categoryId: existing.categoryId,
+      periodId: existing.periodId,
+      isFromPoolFund: existing.isFromPoolFund,
+      notes: existing.notes,
+      date: new Date(),
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
 export async function updateSalariesAction(
   periodId: string,
   salaries: Array<{ userId: string; amount: number; pct?: number }>
@@ -809,6 +864,57 @@ export async function deletePersonalExpenseAction(expenseId: string) {
   await prisma.personalExpense.delete({
     where: { id: expenseId },
   });
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function updatePersonalExpenseAction(data: {
+  id: string;
+  title: string;
+  amount: number;
+  categoryId?: string;
+  date?: string;
+  notes?: string;
+}) {
+  if (!data.id || !data.title || data.amount <= 0) {
+    throw new Error("Datos de gasto personal inválidos");
+  }
+
+  await prisma.personalExpense.update({
+    where: { id: data.id },
+    data: {
+      title: data.title,
+      amount: data.amount,
+      categoryId: data.categoryId,
+      notes: data.notes ?? null,
+      ...(data.date ? { date: new Date(data.date) } : {}),
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function duplicatePersonalExpenseAction(expenseId: string) {
+  const existing = await prisma.personalExpense.findUnique({
+    where: { id: expenseId },
+  });
+
+  if (!existing) throw new Error("Gasto personal no encontrado");
+
+  await prisma.personalExpense.create({
+    data: {
+      userId: existing.userId,
+      year: existing.year,
+      month: existing.month,
+      title: `${existing.title} (Copia)`,
+      amount: existing.amount,
+      categoryId: existing.categoryId,
+      notes: existing.notes,
+      date: new Date(),
+    },
+  });
+
   revalidatePath("/");
   return { success: true };
 }
