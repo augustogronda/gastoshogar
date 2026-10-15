@@ -414,3 +414,50 @@ export async function applyRecurringExpenseToMonthAction(data: {
   revalidatePath("/");
   return { success: true };
 }
+
+export async function applyAllRecurringExpensesAction(
+  periodId: string,
+  items: Array<{
+    recurringId: string;
+    title: string;
+    amount: number;
+    paidById: string;
+    categoryId: string;
+    isFromPoolFund: boolean;
+    installmentNumber?: number;
+    totalInstallments?: number | null;
+  }>
+) {
+  for (const item of items) {
+    const fullTitle = item.totalInstallments
+      ? `${item.title} (Cuota ${item.installmentNumber}/${item.totalInstallments})`
+      : item.title;
+
+    await prisma.expense.create({
+      data: {
+        title: fullTitle,
+        amount: item.amount,
+        paidById: item.paidById,
+        categoryId: item.categoryId,
+        periodId,
+        isFromPoolFund: item.isFromPoolFund,
+        recurringExpenseId: item.recurringId,
+        installmentNumber: item.installmentNumber,
+        totalInstallments: item.totalInstallments,
+        date: new Date(),
+      },
+    });
+  }
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function unapplyRecurringExpenseAction(expenseId: string) {
+  await prisma.expense.delete({
+    where: { id: expenseId },
+  });
+  revalidatePath("/");
+  return { success: true };
+}
+
