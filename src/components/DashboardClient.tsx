@@ -41,9 +41,7 @@ import {
   deleteExpenseAction,
   closeMonthAction,
   reopenMonthAction,
-  loginAction,
   logoutAction,
-  getMagicLinkForUserAction,
 } from "@/app/actions";
 
 interface ExpenseItem {
@@ -62,8 +60,8 @@ interface ExpenseItem {
 interface DashboardClientProps {
   initialData: {
     household: { id: string; name: string; currency: string };
-    users: Array<{ id: string; name: string; avatarColor: string }>;
-    currentUser: { id: string; name: string; avatarColor: string } | null;
+    users: Array<{ id: string; name: string; avatarColor: string; email?: string | null }>;
+    currentUser: { id: string; name: string; avatarColor: string; email?: string | null } | null;
     categories: Array<{ id: string; name: string; icon?: string | null; color?: string | null }>;
     period: {
       id: string;
@@ -147,35 +145,15 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
 
-  // Si no hay usuario logueado en cookies, mostrar pantalla de selección de perfil
+  // Si no hay usuario logueado en cookies, mostrar pantalla de login
   if (!currentUser) {
-    return <LoginScreen users={users} />;
+    return <LoginScreen />;
   }
-
-  const otherUser = users.find((u) => u.id !== currentUser.id);
-
-  const handleSwitchUser = async (newUserId: string) => {
-    setIsUserMenuOpen(false);
-    await loginAction(newUserId);
-  };
 
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
     await logoutAction();
-  };
-
-  const handleCopyMagicLink = async () => {
-    try {
-      const res = await getMagicLinkForUserAction(currentUser.id);
-      const fullUrl = `${window.location.origin}${res.accessPath}`;
-      await navigator.clipboard.writeText(fullUrl);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
-    } catch (err) {
-      console.error(err);
-    }
   };
 
   const isClosed = period.status === "CLOSED";
@@ -288,44 +266,23 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               <span className="text-[10px] text-zinc-400">▾</span>
             </button>
 
-            {/* Menú Flotante de Cambio de Usuario */}
+            {/* Menú Flotante de Usuario */}
             {isUserMenuOpen && (
-              <div className="absolute left-0 top-full mt-2 w-48 bg-zinc-900 border border-white/[0.12] rounded-2xl p-2 shadow-2xl z-50 animate-fade-in space-y-1">
-                <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-zinc-400 tracking-wider">
-                  Perfil Activo
-                </div>
-                {otherUser && (
-                  <button
-                    onClick={() => handleSwitchUser(otherUser.id)}
-                    className="w-full px-2.5 py-2 text-left text-xs font-semibold text-zinc-200 hover:text-white hover:bg-white/[0.08] rounded-xl flex items-center gap-2 transition"
-                  >
-                    <div
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
-                      style={{ backgroundColor: otherUser.avatarColor }}
-                    >
-                      {otherUser.name.charAt(0)}
-                    </div>
-                    <span>Cambiar a {otherUser.name}</span>
-                  </button>
-                )}
-                <div className="border-t border-white/[0.06] my-1" />
-                <button
-                  onClick={handleCopyMagicLink}
-                  className="w-full px-2.5 py-2 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/[0.08] rounded-xl flex items-center gap-2 transition"
-                  title="Guardá este link para entrar siempre directo sin contraseña"
-                >
-                  {copiedLink ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-300 font-bold">¡Link copiado!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-zinc-400" />
-                      <span>Copiar mi Link Directo</span>
-                    </>
+              <div className="absolute left-0 top-full mt-2 w-48 bg-zinc-900 border border-white/[0.12] rounded-2xl p-2.5 shadow-2xl z-50 animate-fade-in space-y-2">
+                <div className="px-1 text-left">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider block">
+                    Conectado como
+                  </span>
+                  <span className="text-xs font-bold text-white block mt-0.5">
+                    {currentUser.name}
+                  </span>
+                  {currentUser.email && (
+                    <span className="text-[10px] text-zinc-400 font-mono block truncate">
+                      {currentUser.email}
+                    </span>
                   )}
-                </button>
+                </div>
+                <div className="border-t border-white/[0.06] pt-1" />
                 <button
                   onClick={handleLogout}
                   className="w-full px-2.5 py-2 text-left text-xs font-semibold text-rose-300 hover:bg-rose-500/10 rounded-xl flex items-center gap-2 transition"

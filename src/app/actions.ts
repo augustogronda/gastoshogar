@@ -829,7 +829,7 @@ export async function requestMagicLinkAction(inputEmail: string) {
 
   if (!AUTHORIZED_EMAILS.includes(normalizedEmail)) {
     throw new Error(
-      "Correo no autorizado. Solo tienen acceso los correos registrados: augustogronda@gmail.com y agusaux@gmail.com"
+      "El correo ingresado no se encuentra autorizado en el sistema."
     );
   }
 
@@ -869,27 +869,33 @@ export async function requestMagicLinkAction(inputEmail: string) {
     });
   }
 
-  // Intentar disparo de OTP vía Supabase Auth
+  // Disparo de Magic Link vía Supabase Auth con el dominio de producción
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://gastoshogar-jade.vercel.app";
+  const redirectUrl = `${siteUrl.replace(/\/$/, "")}/auth/callback`;
+
   let emailSent = false;
   try {
     const cookieStore = await cookies();
     const supabase = createSupabaseServerClient(cookieStore);
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,
+      options: {
+        emailRedirectTo: redirectUrl,
+      },
     });
-    if (!error) emailSent = true;
+    if (!error) {
+      emailSent = true;
+    } else {
+      console.warn("Supabase signInWithOtp warning:", error.message);
+    }
   } catch (err) {
-    console.log("Supabase OTP optional dispatch notice:", err);
+    console.warn("Supabase OTP optional dispatch notice:", err);
   }
 
   return {
     success: true,
     emailSent,
-    userName: user.name,
-    email: user.email,
-    token: user.magicToken,
-    userId: user.id,
-    accessPath: `/auth/access?token=${user.magicToken}`,
+    email: normalizedEmail,
   };
 }
 
@@ -917,46 +923,13 @@ export async function loginWithMagicTokenAction(token: string) {
   return { success: true, user };
 }
 
-export async function getMagicLinkForUserAction(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  });
-
-  if (!user) throw new Error("Usuario no encontrado");
-
-  let token = user.magicToken;
-  if (!token) {
-    token = crypto.randomBytes(24).toString("hex");
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { magicToken: token },
-    });
-  }
-
-  return {
-    token,
-    accessPath: `/auth/access?token=${token}`,
-  };
-}
-
-export async function loginAction(userId: string) {
-  const cookieStore = await cookies();
-  cookieStore.set("auth_user_id", userId, {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365, // 1 año de persistencia en iPhone
-    httpOnly: true,
-    sameSite: "lax",
-  });
-  revalidatePath("/");
-  return { success: true };
-}
-
 export async function logoutAction() {
   const cookieStore = await cookies();
   cookieStore.delete("auth_user_id");
   revalidatePath("/");
   return { success: true };
 }
+
 
 // ==========================================
 // ACCIONES DE FINANZAS PERSONALES (40% + Extras)
