@@ -20,6 +20,7 @@ model Household {
   categories        Category[]
   investments       InvestmentFund[]
   recurringExpenses RecurringExpense[]
+  sharedInvestments SharedInvestment[]
 }
 
 model User {
@@ -248,5 +249,23 @@ model PersonalInvestment {
   updatedAt    DateTime  @updatedAt
 
   @@index([userId])
+}
+
+model SharedInvestment {
+  id           String    @id @default(cuid())
+  householdId  String
+  household    Household @relation(fields: [householdId], references: [id])
+  ticker       String    // e.g. "AAPL.BA", "SPY.BA", "AL30", "FCI-FIMA", "BTC-USD"
+  name         String    // e.g. "Apple Inc. (CEDEAR)"
+  assetType    String    // "CEDEAR", "ACCION", "BONO", "FCI", "CRYPTO", "OTRO"
+  quantity     Float     // Cantidad de títulos / nominales / cuotapartes
+  buyPrice     Float?    // Precio de compra promedio por unidad
+  currency     String    @default("ARS") // "ARS" o "USD"
+  manualPrice  Float?    // Precio manual si no cotiza en bolsa o para FCI
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([householdId])
 }
 

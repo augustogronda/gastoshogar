@@ -18,7 +18,9 @@ import {
 import { PersonalInvestmentModal } from "./PersonalInvestmentModal";
 import {
   deletePersonalInvestmentAction,
+  deleteSharedInvestmentAction,
   refreshPersonalInvestmentsAction,
+  refreshSharedInvestmentsAction,
 } from "@/app/actions";
 import {
   HydratedInvestment,
@@ -26,8 +28,10 @@ import {
 } from "@/lib/investments-service";
 
 interface PersonalInvestmentsViewProps {
-  userId: string;
-  userName: string;
+  userId?: string;
+  householdId?: string;
+  userName?: string;
+  title?: string;
   investments: HydratedInvestment[];
   summary?: PortfolioSummary | null;
 }
@@ -43,7 +47,9 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> 
 
 export function PersonalInvestmentsView({
   userId,
+  householdId,
   userName,
+  title,
   investments: initialInvestments,
   summary: initialSummary,
 }: PersonalInvestmentsViewProps) {
@@ -63,9 +69,15 @@ export function PersonalInvestmentsView({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const res = await refreshPersonalInvestmentsAction(userId);
-      setInvestments(res.investments);
-      setSummary(res.summary);
+      if (householdId) {
+        const res = await refreshSharedInvestmentsAction(householdId);
+        setInvestments(res.investments);
+        setSummary(res.summary);
+      } else if (userId) {
+        const res = await refreshPersonalInvestmentsAction(userId);
+        setInvestments(res.investments);
+        setSummary(res.summary);
+      }
     } catch (err) {
       console.error("Error refreshing investments:", err);
     } finally {
@@ -74,10 +86,14 @@ export function PersonalInvestmentsView({
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`¿Eliminar ${name} de tu portafolio?`)) {
+    if (confirm(`¿Eliminar ${name} del portafolio?`)) {
       setDeletingId(id);
       try {
-        await deletePersonalInvestmentAction(id);
+        if (householdId) {
+          await deleteSharedInvestmentAction(id);
+        } else {
+          await deletePersonalInvestmentAction(id);
+        }
         setInvestments((prev) => prev.filter((i) => i.id !== id));
         // Refrescar cálculo total
         handleRefresh();
@@ -102,7 +118,7 @@ export function PersonalInvestmentsView({
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
             <TrendingUp className="w-4 h-4 text-emerald-400" />
-            Portafolio de Inversiones ({investments.length})
+            {title || (householdId ? "Inversiones del Hogar" : "Portafolio de Inversiones")} ({investments.length})
           </span>
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.08] text-zinc-300 font-mono font-bold border border-white/[0.1]">
@@ -404,6 +420,7 @@ export function PersonalInvestmentsView({
           setEditingInvestment(null);
         }}
         userId={userId}
+        householdId={householdId}
         investmentToEdit={editingInvestment}
         onSaved={handleRefresh}
       />

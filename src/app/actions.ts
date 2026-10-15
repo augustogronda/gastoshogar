@@ -56,6 +56,8 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       categoriesWithUsage: [],
       recurringExpenses: [],
       personalData: null,
+      sharedInvestments: [],
+      sharedInvestmentsSummary: null,
       currentYear: year,
       currentMonth: month,
     };
@@ -400,6 +402,15 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     ],
   });
 
+  // Inversiones Compartidas del Hogar (CEDEARs, Acciones, Bonos, etc.)
+  const rawSharedInvestments = await prisma.sharedInvestment.findMany({
+    where: { householdId: household.id },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const { investments: sharedInvestments, summary: sharedInvestmentsSummary } =
+    await hydrateInvestments(rawSharedInvestments);
+
   return {
     household,
     users: household.users,
@@ -410,6 +421,8 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     investmentFund,
     recurringExpenses: activeInstallmentsWithStatus,
     personalData,
+    sharedInvestments,
+    sharedInvestmentsSummary,
     currentYear: year,
     currentMonth: month,
   };
@@ -1655,6 +1668,91 @@ export async function refreshPersonalInvestmentsAction(userId: string) {
 
   const rawInvestments = await prisma.personalInvestment.findMany({
     where: { userId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const hydrated = await hydrateInvestments(rawInvestments);
+  return hydrated;
+}
+
+// ==========================================
+// INVERSIONES COMPARTIDAS DEL HOGAR (FEATURE FLAG)
+// ==========================================
+
+export async function saveSharedInvestmentAction(data: {
+  id?: string;
+  householdId: string;
+  ticker: string;
+  name: string;
+  assetType: string;
+  quantity: number;
+  buyPrice?: number | null;
+  currency?: string;
+  manualPrice?: number | null;
+  notes?: string | null;
+}) {
+  const ticker = data.ticker.trim().toUpperCase();
+  const name = data.name.trim() || ticker;
+  const quantity = Number(data.quantity);
+  const buyPrice = typeof data.buyPrice === "number" && !isNaN(data.buyPrice) && data.buyPrice > 0 ? data.buyPrice : null;
+  const manualPrice = typeof data.manualPrice === "number" && !isNaN(data.manualPrice) && data.manualPrice > 0 ? data.manualPrice : null;
+  const currency = (data.currency || "ARS").toUpperCase();
+
+  if (!data.householdId || !ticker || isNaN(quantity) || quantity <= 0) {
+    throw new Error("Datos de inversión incompletos o cantidad inválida.");
+  }
+
+  if (data.id) {
+    const updated = await prisma.sharedInvestment.update({
+      where: { id: data.id },
+      data: {
+        ticker,
+        name,
+        assetType: data.assetType || "CEDEAR",
+        quantity,
+        buyPrice,
+        currency,
+        manualPrice,
+        notes: data.notes?.trim() || null,
+      },
+    });
+    revalidatePath("/");
+    return updated;
+  } else {
+    const created = await prisma.sharedInvestment.create({
+      data: {
+        householdId: data.householdId,
+        ticker,
+        name,
+        assetType: data.assetType || "CEDEAR",
+        quantity,
+        buyPrice,
+        currency,
+        manualPrice,
+        notes: data.notes?.trim() || null,
+      },
+    });
+    revalidatePath("/");
+    return created;
+  }
+}
+
+export async function deleteSharedInvestmentAction(id: string) {
+  if (!id) throw new Error("ID de inversión requerido");
+
+  await prisma.sharedInvestment.delete({
+    where: { id },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function refreshSharedInvestmentsAction(householdId: string) {
+  if (!householdId) throw new Error("ID de hogar requerido");
+
+  const rawInvestments = await prisma.sharedInvestment.findMany({
+    where: { householdId },
     orderBy: { createdAt: "desc" },
   });
 

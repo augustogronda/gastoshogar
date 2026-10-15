@@ -12,6 +12,7 @@ import {
 } from "./ui/icons";
 import {
   savePersonalInvestmentAction,
+  saveSharedInvestmentAction,
   searchMarketTickersAction,
   fetchMarketQuoteAction,
 } from "@/app/actions";
@@ -20,7 +21,8 @@ import { POPULAR_ARGENTINA_ASSETS } from "@/lib/investments-service";
 interface PersonalInvestmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  userId: string;
+  userId?: string;
+  householdId?: string;
   investmentToEdit?: {
     id: string;
     ticker: string;
@@ -39,6 +41,7 @@ export function PersonalInvestmentModal({
   isOpen,
   onClose,
   userId,
+  householdId,
   investmentToEdit,
   onSaved,
 }: PersonalInvestmentModalProps) {
@@ -179,18 +182,35 @@ export function PersonalInvestmentModal({
 
     setIsSubmitting(true);
     try {
-      await savePersonalInvestmentAction({
-        id: investmentToEdit?.id,
-        userId,
-        ticker: cleanTicker,
-        name: name.trim() || cleanTicker,
-        assetType,
-        quantity: cleanQuantity,
-        buyPrice: cleanBuyPrice,
-        currency,
-        manualPrice: cleanManualPrice,
-        notes: notes.trim() || null,
-      });
+      if (householdId) {
+        await saveSharedInvestmentAction({
+          id: investmentToEdit?.id,
+          householdId,
+          ticker: cleanTicker,
+          name: name.trim() || cleanTicker,
+          assetType,
+          quantity: cleanQuantity,
+          buyPrice: cleanBuyPrice,
+          currency,
+          manualPrice: cleanManualPrice,
+          notes: notes.trim() || null,
+        });
+      } else if (userId) {
+        await savePersonalInvestmentAction({
+          id: investmentToEdit?.id,
+          userId,
+          ticker: cleanTicker,
+          name: name.trim() || cleanTicker,
+          assetType,
+          quantity: cleanQuantity,
+          buyPrice: cleanBuyPrice,
+          currency,
+          manualPrice: cleanManualPrice,
+          notes: notes.trim() || null,
+        });
+      } else {
+        throw new Error("No se especificó usuario u hogar.");
+      }
 
       if (onSaved) onSaved();
       onClose();

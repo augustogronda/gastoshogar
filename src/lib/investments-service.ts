@@ -256,7 +256,8 @@ export async function searchTickers(query: string) {
 
 export interface HydratedInvestment {
   id: string;
-  userId: string;
+  userId?: string;
+  householdId?: string;
   ticker: string;
   name: string;
   assetType: string;
@@ -297,7 +298,8 @@ export interface PortfolioSummary {
 export async function hydrateInvestments(
   rawInvestments: Array<{
     id: string;
-    userId: string;
+    userId?: string;
+    householdId?: string;
     ticker: string;
     name: string;
     assetType: string;

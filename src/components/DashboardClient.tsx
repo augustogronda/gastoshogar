@@ -40,6 +40,8 @@ import { LoginScreen } from "./LoginScreen";
 import { PersonalDashboardView } from "./PersonalDashboardView";
 import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
 import { CategoryManagerModal } from "./CategoryManagerModal";
+import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
+import { appConfig } from "@/config/appConfig";
 import {
   deleteExpenseAction,
   closeMonthAction,
@@ -118,6 +120,8 @@ interface DashboardClientProps {
     } | null;
     recurringExpenses: Array<any>;
     personalData: any | null;
+    sharedInvestments?: any[];
+    sharedInvestmentsSummary?: any;
     currentYear: number;
     currentMonth: number;
   };
@@ -147,6 +151,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     investmentFund,
     recurringExpenses,
     personalData,
+    sharedInvestments = [],
+    sharedInvestmentsSummary = null,
     currentYear,
     currentMonth,
   } = initialData;
@@ -154,6 +160,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [spaceMode, setSpaceMode] = useState<"hogar" | "personal">("hogar");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("hogar");
+  const [sharedInvestmentsTab, setSharedInvestmentsTab] = useState<"fci" | "portfolio">("fci");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
   const [isFCIModalOpen, setIsFCIModalOpen] = useState(false);
@@ -749,57 +756,97 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           />
         )}
 
-        {/* TAB 4: FCI INVERSIÓN */}
+        {/* TAB 4: FCI INVERSIÓN (con soporte de Feature Flag para multi-activo) */}
         {activeTab === "fci" && (
           <div className="space-y-4 animate-fade-in">
-            <div className="super-card rounded-3xl p-5 shadow-xl relative overflow-hidden">
-              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">
-                Fondo Común de Inversión Pareja
-              </span>
-              <span className="text-3xl font-extrabold text-white block mt-2 font-mono tabular-nums">
-                ${Math.round(investmentFund?.currentValue || 0).toLocaleString("es-AR")}
-              </span>
-              <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-                Patrimonio acumulado con los remanentes mensuales del 60%.
-              </p>
-              <button
-                onClick={() => setIsFCIModalOpen(true)}
-                className="mt-4 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-sm font-semibold shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition duration-150"
-              >
-                Gestionar Ahorro e Inversión
-              </button>
-            </div>
+            {/* Si el flag está activo en appConfig, mostrar sub-selector */}
+            {appConfig.features.enableSharedInvestmentsPortfolio && (
+              <div className="flex bg-zinc-900/90 p-1 rounded-2xl border border-white/[0.08] shadow-inner mb-3">
+                <button
+                  type="button"
+                  onClick={() => setSharedInvestmentsTab("fci")}
+                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition ${
+                    sharedInvestmentsTab === "fci"
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  Fondo FCI Pareja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSharedInvestmentsTab("portfolio")}
+                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
+                    sharedInvestmentsTab === "portfolio"
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Portafolio Hogar</span>
+                </button>
+              </div>
+            )}
 
-            {/* Historial de Aportes al FCI */}
-            <div className="super-card rounded-3xl p-5">
-              <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-                Historial de Remanentes Invertidos
-              </h3>
-              {!investmentFund?.contributions || investmentFund.contributions.length === 0 ? (
-                <p className="text-xs text-zinc-500 italic py-2">
-                  Aún no se han transferido remanentes al FCI.
-                </p>
-              ) : (
-                <div className="space-y-2.5">
-                  {investmentFund.contributions.map((c) => {
-                    const d = new Date(c.investedAt);
-                    return (
-                      <div
-                        key={c.id}
-                        className="flex justify-between items-center text-xs py-2 border-b border-white/[0.06] last:border-0"
-                      >
-                        <span className="text-zinc-300 font-medium">
-                          Traspaso {d.getDate()}/{d.getMonth() + 1}/{d.getFullYear()}
-                        </span>
-                        <span className="font-bold text-emerald-400 font-mono tabular-nums">
-                          +${Math.round(c.amount).toLocaleString("es-AR")}
-                        </span>
-                      </div>
-                    );
-                  })}
+            {appConfig.features.enableSharedInvestmentsPortfolio && sharedInvestmentsTab === "portfolio" ? (
+              <PersonalInvestmentsView
+                householdId={household.id}
+                title="Portafolio de Inversiones del Hogar"
+                investments={sharedInvestments}
+                summary={sharedInvestmentsSummary}
+              />
+            ) : (
+              <>
+                <div className="super-card rounded-3xl p-5 shadow-xl relative overflow-hidden">
+                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">
+                    Fondo Común de Inversión Pareja
+                  </span>
+                  <span className="text-3xl font-extrabold text-white block mt-2 font-mono tabular-nums">
+                    ${Math.round(investmentFund?.currentValue || 0).toLocaleString("es-AR")}
+                  </span>
+                  <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
+                    Patrimonio acumulado con los remanentes mensuales del 60%.
+                  </p>
+                  <button
+                    onClick={() => setIsFCIModalOpen(true)}
+                    className="mt-4 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-sm font-semibold shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition duration-150"
+                  >
+                    Gestionar Ahorro e Inversión
+                  </button>
                 </div>
-              )}
-            </div>
+
+                {/* Historial de Aportes al FCI */}
+                <div className="super-card rounded-3xl p-5">
+                  <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                    Historial de Remanentes Invertidos
+                  </h3>
+                  {!investmentFund?.contributions || investmentFund.contributions.length === 0 ? (
+                    <p className="text-xs text-zinc-500 italic py-2">
+                      Aún no se han transferido remanentes al FCI.
+                    </p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {investmentFund.contributions.map((c) => {
+                        const d = new Date(c.investedAt);
+                        return (
+                          <div
+                            key={c.id}
+                            className="flex justify-between items-center text-xs py-2 border-b border-white/[0.06] last:border-0"
+                          >
+                            <span className="text-zinc-300 font-medium">
+                              Traspaso {d.getDate()}/{d.getMonth() + 1}/{d.getFullYear()}
+                            </span>
+                            <span className="font-bold text-emerald-400 font-mono tabular-nums">
+                              +${Math.round(c.amount).toLocaleString("es-AR")}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

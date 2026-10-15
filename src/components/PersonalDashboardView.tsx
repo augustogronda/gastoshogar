@@ -240,15 +240,14 @@ export function PersonalDashboardView({
           Gastos ({expenses.length})
         </button>
         <button
-          onClick={() => setPersonalTab("inversiones")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center flex items-center justify-center gap-1 ${
-            personalTab === "inversiones"
-              ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+          onClick={() => setPersonalTab("analisis")}
+          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center ${
+            personalTab === "analisis"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
               : "text-zinc-400 hover:text-white"
           }`}
         >
-          <TrendingUp className="w-3 h-3 shrink-0" />
-          <span>Inversión ({investments.length})</span>
+          Análisis
         </button>
         <button
           onClick={() => setPersonalTab("cuotas")}
@@ -261,14 +260,15 @@ export function PersonalDashboardView({
           Cuotas
         </button>
         <button
-          onClick={() => setPersonalTab("analisis")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center ${
-            personalTab === "analisis"
-              ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+          onClick={() => setPersonalTab("inversiones")}
+          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center flex items-center justify-center gap-1 ${
+            personalTab === "inversiones"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
               : "text-zinc-400 hover:text-white"
           }`}
         >
-          Análisis
+          <TrendingUp className="w-3 h-3 shrink-0" />
+          <span>Inversión ({investments.length})</span>
         </button>
       </div>
 
