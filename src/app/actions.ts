@@ -908,6 +908,8 @@ export async function addPersonalExpenseAction(data: {
     },
   });
 
+  await touchCategory(data.categoryId);
+
   revalidatePath("/");
   return { success: true };
 }
@@ -943,6 +945,8 @@ export async function updatePersonalExpenseAction(data: {
     },
   });
 
+  await touchCategory(data.categoryId);
+
   revalidatePath("/");
   return { success: true };
 }
@@ -966,6 +970,8 @@ export async function duplicatePersonalExpenseAction(expenseId: string) {
       date: new Date(),
     },
   });
+
+  await touchCategory(existing.categoryId);
 
   revalidatePath("/");
   return { success: true };
@@ -998,6 +1004,8 @@ export async function createPersonalRecurringExpenseAction(data: {
       isActive: true,
     },
   });
+
+  await touchCategory(data.categoryId);
 
   revalidatePath("/");
   return { success: true };
@@ -1185,5 +1193,109 @@ export async function reopenPersonalMonthAction(
   revalidatePath("/");
   return { success: true };
 }
+
+// ==========================================
+// GESTIÓN DE CATEGORÍAS (CRUD & RECIENTES)
+// ==========================================
+
+export async function createCategoryAction(data: {
+  name: string;
+  icon?: string;
+  color?: string;
+}) {
+  const household = await ensureDefaultHousehold();
+  const trimmedName = data.name.trim();
+  if (!trimmedName) {
+    throw new Error("El nombre de la categoría es requerido");
+  }
+
+  // Si ya existe una con el mismo nombre (case-insensitive), la actualizamos y la ponemos primera
+  const existing = await prisma.category.findFirst({
+    where: {
+      householdId: household.id,
+      name: { equals: trimmedName },
+    },
+  });
+
+  if (existing) {
+    const updated = await prisma.category.update({
+      where: { id: existing.id },
+      data: {
+        lastUsedAt: new Date(),
+        ...(data.icon ? { icon: data.icon } : {}),
+        ...(data.color ? { color: data.color } : {}),
+      },
+    });
+    revalidatePath("/");
+    return updated;
+  }
+
+  const category = await prisma.category.create({
+    data: {
+      name: trimmedName,
+      icon: data.icon || "Tag",
+      color: data.color || "#6366f1",
+      householdId: household.id,
+      lastUsedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/");
+  return category;
+}
+
+export async function updateCategoryAction(data: {
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+}) {
+  const trimmedName = data.name.trim();
+  if (!data.id || !trimmedName) {
+    throw new Error("ID y nombre de categoría son requeridos");
+  }
+
+  const updated = await prisma.category.update({
+    where: { id: data.id },
+    data: {
+      name: trimmedName,
+      ...(data.icon ? { icon: data.icon } : {}),
+      ...(data.color ? { color: data.color } : {}),
+      lastUsedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/");
+  return updated;
+}
+
+export async function deleteCategoryAction(id: string) {
+  if (!id) throw new Error("ID de categoría requerido");
+
+  const [expenseCount, personalExpenseCount, recurringCount, personalRecCount] =
+    await Promise.all([
+      prisma.expense.count({ where: { categoryId: id } }),
+      prisma.personalExpense.count({ where: { categoryId: id } }),
+      prisma.recurringExpense.count({ where: { categoryId: id } }),
+      prisma.personalRecurringExpense.count({ where: { categoryId: id } }),
+    ]);
+
+  const total =
+    expenseCount + personalExpenseCount + recurringCount + personalRecCount;
+
+  if (total > 0) {
+    throw new Error(
+      `No se puede eliminar la categoría porque tiene ${total} gasto(s) vinculado(s). Podés editar su nombre o ícono.`
+    );
+  }
+
+  await prisma.category.delete({
+    where: { id },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
 
 
