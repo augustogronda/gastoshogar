@@ -1,7 +1,7 @@
 {
-  "version": "1.1.1",
-  "build": 2026101502,
-  "releasedAt": "2026-10-15T21:30:00Z",
-  "title": "Ajuste de Inversiones & Feature Flag Hogar",
-  "description": "Pestaña de inversiones personales reubicada a la derecha y soporte para portafolio multi-activo en Hogar Compartido vía appConfig."
+  "version": "1.2.0",
+  "build": 2026101503,
+  "releasedAt": "2026-10-15T21:45:00Z",
+  "title": "Tarjetas de Crédito de Bancos",
+  "description": "Nueva sección de Tarjetas de Crédito personales (Santander, Galicia, BBVA) con fechas de cierre, vencimientos y registro automático como gasto al pagarlas."
 }

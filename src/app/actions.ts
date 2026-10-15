@@ -14,6 +14,7 @@ import {
   getExchangeRates,
   POPULAR_ARGENTINA_ASSETS,
 } from "@/lib/investments-service";
+import { getCardsForUserAndMonth } from "@/lib/cards-service";
 
 export async function getDashboardData(targetYear?: number, targetMonth?: number) {
   const cookieStore = await cookies();
@@ -350,6 +351,14 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     const { investments: hydratedInvestments, summary: investmentsSummary } =
       await hydrateInvestments(rawPersonalInvestments);
 
+    // Tarjetas de Crédito Personales (Santander, Galicia, BBVA, etc.)
+    const cardsData = await getCardsForUserAndMonth(
+      currentUser.id,
+      currentUser.name,
+      year,
+      month
+    );
+
     personalData = {
       incomeRecord: personalIncome,
       hogarSalary,
@@ -366,6 +375,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       recurringExpenses: activePersonalInstallments,
       investments: hydratedInvestments,
       investmentsSummary,
+      cardsData,
       isClosed: personalIncome.status === "CLOSED",
     };
   }
@@ -1758,6 +1768,195 @@ export async function refreshSharedInvestmentsAction(householdId: string) {
 
   const hydrated = await hydrateInvestments(rawInvestments);
   return hydrated;
+}
+
+// ==========================================
+// TARJETAS DE CRÉDITO PERSONALES (CIERRES & VENCIMIENTOS)
+// ==========================================
+
+export async function updateCardStatementAction(data: {
+  cardMonthlyPeriodId: string;
+  statementAmount: number;
+  statementAmountUsd?: number;
+  closingDate?: string | null;
+  dueDate?: string | null;
+  notes?: string | null;
+}) {
+  if (!data.cardMonthlyPeriodId) {
+    throw new Error("ID de período de tarjeta requerido.");
+  }
+
+  const statementAmount = Number(data.statementAmount);
+  const statementAmountUsd = Number(data.statementAmountUsd || 0);
+
+  const existing = await prisma.cardMonthlyPeriod.findUnique({
+    where: { id: data.cardMonthlyPeriodId },
+    include: { card: true },
+  });
+
+  if (!existing) {
+    throw new Error("Período de tarjeta no encontrado.");
+  }
+
+  const updated = await prisma.cardMonthlyPeriod.update({
+    where: { id: data.cardMonthlyPeriodId },
+    data: {
+      statementAmount: isNaN(statementAmount) ? 0 : Math.max(0, statementAmount),
+      statementAmountUsd: isNaN(statementAmountUsd) ? 0 : Math.max(0, statementAmountUsd),
+      closingDate: data.closingDate ? new Date(data.closingDate) : existing.closingDate,
+      dueDate: data.dueDate ? new Date(data.dueDate) : existing.dueDate,
+      notes: data.notes !== undefined ? (data.notes ? data.notes.trim() : null) : existing.notes,
+    },
+  });
+
+  // Si ya estaba marcada como pagada y tenía un gasto vinculado, actualizar el monto del gasto
+  if (existing.isPaid && existing.linkedExpenseId) {
+    await prisma.personalExpense.update({
+      where: { id: existing.linkedExpenseId },
+      data: {
+        amount: isNaN(statementAmount) ? 0 : Math.max(0, statementAmount),
+      },
+    }).catch((err) => console.warn("No se pudo actualizar gasto vinculado:", err));
+  }
+
+  revalidatePath("/");
+  return updated;
+}
+
+export async function toggleCardPaidAction(data: {
+  cardMonthlyPeriodId: string;
+  isPaid: boolean;
+}) {
+  const period = await prisma.cardMonthlyPeriod.findUnique({
+    where: { id: data.cardMonthlyPeriodId },
+    include: { card: { include: { user: true } } },
+  });
+
+  if (!period) throw new Error("Período de tarjeta no encontrado.");
+
+  if (data.isPaid) {
+    // Marcar como pagada y registrar como gasto personal en el mes
+    const household = await ensureDefaultHousehold();
+
+    // Buscar o crear categoría "Tarjetas"
+    let tarjetasCat = await prisma.category.findFirst({
+      where: {
+        householdId: household.id,
+        name: { in: ["Tarjetas", "Tarjeta", "Tarjeta de Crédito"] },
+      },
+    });
+
+    if (!tarjetasCat) {
+      tarjetasCat = await prisma.category.create({
+        data: {
+          name: "Tarjetas",
+          icon: "CreditCard",
+          color: "#6366f1",
+          householdId: household.id,
+          lastUsedAt: new Date(),
+        },
+      });
+    }
+
+    const title = `Pago Tarjeta ${period.card.bank} ${period.card.brand}`;
+    const amount = period.statementAmount > 0 ? period.statementAmount : 0;
+
+    let linkedExpenseId = period.linkedExpenseId;
+
+    if (!linkedExpenseId && amount > 0) {
+      const createdExpense = await prisma.personalExpense.create({
+        data: {
+          userId: period.card.userId,
+          year: period.year,
+          month: period.month,
+          title,
+          amount,
+          categoryId: tarjetasCat.id,
+          date: period.dueDate ? new Date(period.dueDate) : new Date(),
+          notes: `Resumen ${period.card.bank} ${period.card.brand} (${period.month}/${period.year})`,
+        },
+      });
+      linkedExpenseId = createdExpense.id;
+      await touchCategory(tarjetasCat.id);
+    }
+
+    await prisma.cardMonthlyPeriod.update({
+      where: { id: period.id },
+      data: {
+        isPaid: true,
+        paidAt: new Date(),
+        linkedExpenseId,
+      },
+    });
+  } else {
+    // Desmarcar pagada: si había creado un gasto vinculado, eliminarlo
+    if (period.linkedExpenseId) {
+      try {
+        await prisma.personalExpense.delete({
+          where: { id: period.linkedExpenseId },
+        });
+      } catch (err) {
+        console.warn("No se encontró o no se pudo eliminar gasto vinculado:", err);
+      }
+    }
+
+    await prisma.cardMonthlyPeriod.update({
+      where: { id: period.id },
+      data: {
+        isPaid: false,
+        paidAt: null,
+        linkedExpenseId: null,
+      },
+    });
+  }
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function createPersonalCardAction(data: {
+  userId: string;
+  bank: string;
+  brand: string;
+  lastDigits?: string;
+  colorTheme?: string;
+  defaultClosingDay?: number;
+  defaultDueDay?: number;
+  notes?: string;
+}) {
+  const bank = data.bank.trim();
+  const brand = data.brand.trim().toUpperCase();
+
+  if (!data.userId || !bank || !brand) {
+    throw new Error("Banco y marca de tarjeta son requeridos.");
+  }
+
+  const card = await prisma.personalCreditCard.create({
+    data: {
+      userId: data.userId,
+      bank,
+      brand,
+      lastDigits: data.lastDigits?.trim() || null,
+      colorTheme: data.colorTheme || bank,
+      defaultClosingDay: data.defaultClosingDay || 20,
+      defaultDueDay: data.defaultDueDay || 5,
+      notes: data.notes?.trim() || null,
+    },
+  });
+
+  revalidatePath("/");
+  return card;
+}
+
+export async function deletePersonalCardAction(cardId: string) {
+  if (!cardId) throw new Error("ID de tarjeta requerido");
+
+  await prisma.personalCreditCard.delete({
+    where: { id: cardId },
+  });
+
+  revalidatePath("/");
+  return { success: true };
 }
 
 

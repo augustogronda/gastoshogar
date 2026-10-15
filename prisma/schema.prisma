@@ -39,6 +39,7 @@ model User {
   personalExpenses  PersonalExpense[]
   personalRecurring PersonalRecurringExpense[]
   personalInvestments PersonalInvestment[]
+  personalCards     PersonalCreditCard[]
   createdAt         DateTime                   @default(now())
 }
 
@@ -267,5 +268,44 @@ model SharedInvestment {
   updatedAt    DateTime  @updatedAt
 
   @@index([householdId])
+}
+
+model PersonalCreditCard {
+  id                String              @id @default(cuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id])
+  bank              String              // "Santander", "Galicia", "BBVA", etc.
+  brand             String              // "VISA", "AMEX", "MASTERCARD"
+  lastDigits        String?             // ej: "4821"
+  colorTheme        String?             // red, orange, blue, purple, dark
+  defaultClosingDay Int?                // ej: día 22 del mes
+  defaultDueDay     Int?                // ej: día 5 del mes siguiente
+  notes             String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  periods           CardMonthlyPeriod[]
+
+  @@index([userId])
+}
+
+model CardMonthlyPeriod {
+  id                 String             @id @default(cuid())
+  cardId             String
+  card               PersonalCreditCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  year               Int
+  month              Int                // 1 al 12
+  closingDate        DateTime?          // Fecha exacta de cierre
+  dueDate            DateTime?          // Fecha exacta de vencimiento
+  statementAmount    Float              @default(0) // Monto total del resumen en pesos
+  statementAmountUsd Float              @default(0) // Consumos en USD si hubiere
+  isPaid             Boolean            @default(false)
+  paidAt             DateTime?
+  linkedExpenseId    String?            // Id del PersonalExpense generado al marcar pagada
+  notes              String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([cardId, year, month])
+  @@index([cardId])
 }
 

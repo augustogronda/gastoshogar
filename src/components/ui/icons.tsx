@@ -58,6 +58,7 @@ import {
   Baby,
   Search,
   RefreshCw,
+  Clock,
 } from "lucide-react";
 
 export const CATEGORY_ICON_OPTIONS = [
@@ -287,4 +288,5 @@ export {
   Baby,
   Search,
   RefreshCw,
+  Clock,
 };

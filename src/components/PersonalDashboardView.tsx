@@ -26,6 +26,7 @@ import { PersonalRecurringModal } from "./PersonalRecurringModal";
 import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
 import { CategoryManagerModal } from "./CategoryManagerModal";
 import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
+import { PersonalCardsView } from "./PersonalCardsView";
 import {
   deletePersonalExpenseAction,
   applyPersonalRecurringExpenseAction,
@@ -91,6 +92,7 @@ interface PersonalDashboardViewProps {
     recurringExpenses: PersonalRecurringItem[];
     investments?: any[];
     investmentsSummary?: any;
+    cardsData?: any;
     isClosed: boolean;
   };
 }
@@ -108,7 +110,7 @@ export function PersonalDashboardView({
   categories,
   personalData,
 }: PersonalDashboardViewProps) {
-  const [personalTab, setPersonalTab] = useState<"gastos" | "analisis" | "cuotas" | "inversiones">("gastos");
+  const [personalTab, setPersonalTab] = useState<"gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones">("gastos");
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
@@ -131,6 +133,7 @@ export function PersonalDashboardView({
     recurringExpenses,
     investments = [],
     investmentsSummary = null,
+    cardsData = null,
     isClosed,
   } = personalData;
 
@@ -228,10 +231,10 @@ export function PersonalDashboardView({
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Sub-navegación Interna Personal (Pestañas estilo iOS) */}
-      <div className="flex bg-zinc-900/80 p-1 rounded-2xl border border-white/[0.08] shadow-inner gap-1">
+      <div className="flex bg-zinc-900/80 p-1 rounded-2xl border border-white/[0.08] shadow-inner gap-1 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setPersonalTab("gastos")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center ${
+          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center ${
             personalTab === "gastos"
               ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
               : "text-zinc-400 hover:text-white"
@@ -241,7 +244,7 @@ export function PersonalDashboardView({
         </button>
         <button
           onClick={() => setPersonalTab("analisis")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center ${
+          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center ${
             personalTab === "analisis"
               ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
               : "text-zinc-400 hover:text-white"
@@ -251,7 +254,7 @@ export function PersonalDashboardView({
         </button>
         <button
           onClick={() => setPersonalTab("cuotas")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center ${
+          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center ${
             personalTab === "cuotas"
               ? "bg-indigo-700 text-white shadow-md shadow-indigo-700/30"
               : "text-zinc-400 hover:text-white"
@@ -260,8 +263,19 @@ export function PersonalDashboardView({
           Cuotas
         </button>
         <button
+          onClick={() => setPersonalTab("tarjetas")}
+          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center flex items-center justify-center gap-1 ${
+            personalTab === "tarjetas"
+              ? "bg-pink-600 text-white shadow-md shadow-pink-600/30"
+              : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <CreditCard className="w-3 h-3 shrink-0" />
+          <span>Tarjetas ({cardsData?.cards?.length || 0})</span>
+        </button>
+        <button
           onClick={() => setPersonalTab("inversiones")}
-          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-semibold whitespace-nowrap transition text-center flex items-center justify-center gap-1 ${
+          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-semibold whitespace-nowrap transition text-center flex items-center justify-center gap-1 ${
             personalTab === "inversiones"
               ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
               : "text-zinc-400 hover:text-white"
@@ -687,7 +701,19 @@ export function PersonalDashboardView({
         </div>
       )}
 
-      {/* PESTAÑA 4: INVERSIONES PERSONALES */}
+      {/* PESTAÑA 4: TARJETAS DE CRÉDITO PERSONALES */}
+      {personalTab === "tarjetas" && (
+        <PersonalCardsView
+          userId={currentUser.id}
+          userName={currentUser.name}
+          year={currentYear}
+          month={currentMonth}
+          monthName={monthName}
+          cardsData={cardsData}
+        />
+      )}
+
+      {/* PESTAÑA 5: INVERSIONES PERSONALES */}
       {personalTab === "inversiones" && (
         <PersonalInvestmentsView
           userId={currentUser.id}
