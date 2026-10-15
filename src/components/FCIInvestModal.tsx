@@ -111,14 +111,14 @@ export function FCIInvestModal({
             <div className="mt-3 flex gap-2">
               <input
                 type="number"
-                placeholder="Valor actual en broker"
+                placeholder="Nuevo valor broker ($)"
                 value={newValueInput}
                 onChange={(e) => setNewValueInput(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.1] rounded-xl px-3 py-2 text-white text-sm font-mono tabular-nums"
+                className="w-full bg-black/50 border border-white/[0.14] rounded-xl px-3 py-2 text-white text-sm font-mono tabular-nums text-center placeholder:text-center placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-inner"
               />
               <button
                 onClick={handleSaveValue}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-semibold shadow-md active:scale-95 transition"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md active:scale-95 transition whitespace-nowrap"
               >
                 Actualizar
               </button>
@@ -128,13 +128,13 @@ export function FCIInvestModal({
 
         {/* Remanente del Mes Actual */}
         <div className="mt-5 space-y-3">
-          <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+          <h3 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
             Sobrante del Mes para Invertir
           </h3>
 
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4">
+          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4">
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm text-zinc-300">Remanente de este mes:</span>
+              <span className="text-sm font-medium text-zinc-200">Remanente de este mes:</span>
               <span className="text-xl font-bold text-emerald-400 font-mono tabular-nums">
                 ${Math.round(surplusAmount).toLocaleString("es-AR")}
               </span>
@@ -142,25 +142,25 @@ export function FCIInvestModal({
 
             {surplusAmount > 0 ? (
               <div className="space-y-2 border-t border-white/[0.06] pt-3">
-                <div className="text-xs text-zinc-400 flex items-center gap-1.5 mb-2">
+                <div className="text-xs text-zinc-300 flex items-center gap-1.5 mb-2">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                   <span>Distribución proporcional según aportes del 60%:</span>
                 </div>
-                <div className="flex justify-between text-xs text-zinc-300 font-mono tabular-nums">
+                <div className="flex justify-between text-xs text-zinc-200 font-mono tabular-nums">
                   <span className="font-sans">{userABalance.name} ({Math.round(userABalance.quotaPct)}%):</span>
-                  <span className="font-semibold text-white">
+                  <span className="font-bold text-white">
                     ${quotaA.toLocaleString("es-AR")}
                   </span>
                 </div>
-                <div className="flex justify-between text-xs text-zinc-300 font-mono tabular-nums">
+                <div className="flex justify-between text-xs text-zinc-200 font-mono tabular-nums">
                   <span className="font-sans">{userBBalance.name} ({Math.round(userBBalance.quotaPct)}%):</span>
-                  <span className="font-semibold text-white">
+                  <span className="font-bold text-white">
                     ${quotaB.toLocaleString("es-AR")}
                   </span>
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-zinc-500 italic">
+              <p className="text-xs text-zinc-400 italic">
                 Aún no hay remanente positivo este mes (o no se configuraron los sueldos).
               </p>
             )}

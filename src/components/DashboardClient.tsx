@@ -222,32 +222,32 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Tarjeta Principal: Termómetro del Fondo Común (Obsidian Glass) */}
             <section className="super-card rounded-3xl p-5 relative overflow-hidden">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
                   <Wallet className="w-3.5 h-3.5 text-blue-400" />
                   Presupuesto Común (60%)
                 </span>
-                <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/[0.06] text-zinc-300 font-semibold border border-white/[0.08] tabular-nums">
+                <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/[0.08] text-white font-bold border border-white/[0.12] tabular-nums">
                   {Math.round(poolSummary.burnRatePct)}% gastado
                 </span>
               </div>
 
               <div className="flex items-baseline justify-between mb-4">
                 <div>
-                  <span className="text-[11px] text-zinc-400 block mb-0.5">Gastado:</span>
+                  <span className="text-[11px] font-medium text-zinc-300 block mb-0.5">Gastado:</span>
                   <span className="text-3xl font-extrabold text-white tracking-tight font-mono tabular-nums">
                     ${Math.round(poolSummary.totalExpenses).toLocaleString("es-AR")}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[11px] text-zinc-400 block mb-0.5">Fondo (60%):</span>
-                  <span className="text-base font-semibold text-zinc-400 font-mono tabular-nums">
+                  <span className="text-[11px] font-medium text-zinc-300 block mb-0.5">Fondo (60%):</span>
+                  <span className="text-base font-bold text-zinc-200 font-mono tabular-nums">
                     ${Math.round(poolSummary.totalCommittedPool).toLocaleString("es-AR")}
                   </span>
                 </div>
               </div>
 
               {/* Barra de Progreso SuperDesign */}
-              <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden mb-4 p-0.5 border border-white/[0.05]">
+              <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden mb-4 p-0.5 border border-white/[0.08]">
                 <div
                   className={`h-full transition-all duration-500 rounded-full ${burnRateColor}`}
                   style={{ width: `${Math.min(100, poolSummary.burnRatePct)}%` }}
@@ -257,14 +257,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               {/* Banner Remanente para Invertir en FCI */}
               <div
                 onClick={() => setIsFCIModalOpen(true)}
-                className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/30 border border-emerald-500/20 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group"
+                className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     <PiggyBank className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/90 block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
                       Remanente para FCI
                     </span>
                     <span className="text-lg font-bold text-white font-mono tabular-nums">
@@ -272,7 +272,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-emerald-400 font-semibold group-hover:translate-x-0.5 transition-transform">
+                <div className="flex items-center gap-1 text-xs text-emerald-300 font-bold group-hover:translate-x-0.5 transition-transform">
                   <span>Invertir</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </div>
@@ -281,40 +281,40 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
             {/* Balances de Bolsillo (Agus & Pareja) */}
             <section className="super-card rounded-3xl p-5">
-              <h2 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <h2 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-rose-400" />
                 Desembolsos de Bolsillo
               </h2>
 
               <div className="grid grid-cols-2 gap-3 mb-3">
                 {/* User A (Agus) */}
-                <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-3.5">
+                <div className="bg-blue-950/30 border border-blue-500/30 rounded-2xl p-3.5 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-blue-400 truncate">
+                    <span className="text-xs font-bold text-blue-300 truncate">
                       {userA.name}
                     </span>
-                    <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.6)]" />
+                    <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
                   </div>
                   <span className="text-xl font-extrabold text-white block mt-1.5 font-mono tabular-nums">
                     ${Math.round(userA.outOfPocketPaid).toLocaleString("es-AR")}
                   </span>
-                  <span className="text-[10px] text-zinc-400 block mt-0.5 font-mono tabular-nums">
+                  <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
                     Meta 60%: ${Math.round(userA.committedAmount).toLocaleString("es-AR")}
                   </span>
                 </div>
 
                 {/* User B (Pareja) */}
-                <div className="bg-rose-950/20 border border-rose-500/20 rounded-2xl p-3.5">
+                <div className="bg-rose-950/30 border border-rose-500/30 rounded-2xl p-3.5 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-rose-400 truncate">
+                    <span className="text-xs font-bold text-rose-300 truncate">
                       {userB.name}
                     </span>
-                    <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.6)]" />
+                    <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />
                   </div>
                   <span className="text-xl font-extrabold text-white block mt-1.5 font-mono tabular-nums">
                     ${Math.round(userB.outOfPocketPaid).toLocaleString("es-AR")}
                   </span>
-                  <span className="text-[10px] text-zinc-400 block mt-0.5 font-mono tabular-nums">
+                  <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
                     Meta 60%: ${Math.round(userB.committedAmount).toLocaleString("es-AR")}
                   </span>
                 </div>
@@ -322,17 +322,17 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
               {/* Compensación Sugerida */}
               {poolSummary.settlementSuggestion.amount > 0 ? (
-                <div className="bg-blue-950/30 border border-blue-500/30 rounded-2xl p-3.5 text-xs text-blue-200 flex items-start gap-2.5">
-                  <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <div className="bg-blue-950/40 border border-blue-500/40 rounded-2xl p-3.5 text-xs text-blue-100 flex items-start gap-2.5 shadow-sm">
+                  <Sparkles className="w-4 h-4 text-blue-300 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-semibold block text-blue-300">Nivelación sugerida:</span>
-                    <p className="mt-0.5 text-zinc-300 leading-relaxed">
+                    <span className="font-bold block text-blue-300">Nivelación sugerida:</span>
+                    <p className="mt-0.5 text-zinc-200 leading-relaxed">
                       {poolSummary.settlementSuggestion.explanation}
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-zinc-400 text-center py-1">
+                <div className="text-xs text-zinc-300 font-medium text-center py-1">
                   Gastos nivelados proporcionalmente al 60% este mes.
                 </div>
               )}
@@ -381,14 +381,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                             <span className="text-sm font-semibold text-white block">
                               {exp.title}
                             </span>
-                            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-400">
+                            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-300 font-medium">
                               <span>{dateStr}</span>
                               <span>•</span>
                               <span
-                                className={`font-semibold px-2 py-0.5 rounded-full text-[10px] border ${
+                                className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] border ${
                                   isAgus
-                                    ? "bg-blue-500/10 text-blue-300 border-blue-500/20"
-                                    : "bg-rose-500/10 text-rose-300 border-rose-500/20"
+                                    ? "bg-blue-500/20 text-blue-200 border-blue-400/30"
+                                    : "bg-rose-500/20 text-rose-200 border-rose-400/30"
                                 }`}
                               >
                                 Pagó {exp.paidBy.name}
@@ -404,7 +404,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                           <button
                             onClick={() => handleDeleteExpense(exp.id)}
                             disabled={deletingId === exp.id}
-                            className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 active:scale-90 transition"
+                            className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 active:scale-90 transition"
                             title="Eliminar gasto"
                           >
                             <Trash2 className="w-4 h-4" />

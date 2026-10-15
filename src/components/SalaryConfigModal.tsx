@@ -104,68 +104,66 @@ export function SalaryConfigModal({
 
         <form onSubmit={handleSave} className="space-y-3.5">
           {/* Persona A */}
-          <div className="bg-white/[0.03] p-4 rounded-2xl border border-blue-500/20">
-            <div className="flex items-center justify-between mb-2">
+          <div className="bg-white/[0.04] p-4 rounded-2xl border border-blue-500/30 shadow-sm">
+            <div className="flex items-center justify-between mb-2.5">
               <input
                 type="text"
                 value={nameA}
                 onChange={(e) => setNameA(e.target.value)}
-                className="bg-transparent font-bold text-blue-400 border-b border-white/10 focus:border-blue-500 focus:outline-none text-sm px-1 py-0.5"
+                className="bg-transparent font-bold text-blue-300 border-b border-blue-400/30 focus:border-blue-400 focus:outline-none text-sm px-1 py-0.5 placeholder:text-blue-300/60"
                 placeholder="Nombre"
               />
-              <span className="text-xs font-semibold text-blue-300 font-mono tabular-nums">
+              <span className="text-xs font-bold text-blue-300 font-mono tabular-nums bg-blue-950/40 px-2.5 py-0.5 rounded-full border border-blue-500/20">
                 Aporte {pct}%: ${quotaA.toLocaleString("es-AR")}
               </span>
             </div>
-            <div className="relative">
-              <span className="absolute left-3.5 top-3 text-zinc-500 text-sm">$</span>
+            <div>
               <input
                 type="number"
-                placeholder="Sueldo neto mensual"
+                placeholder="Sueldo neto mensual ($)"
                 value={salaryA}
                 onChange={(e) => setSalaryA(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-8 pr-4 py-2.5 text-white text-base focus:ring-1 focus:ring-blue-500/50 focus:outline-none font-mono tabular-nums"
+                className="w-full bg-black/50 border border-white/[0.14] rounded-xl px-4 py-2.5 text-white text-base text-center placeholder:text-center placeholder:text-zinc-400 focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400 focus:outline-none font-mono tabular-nums shadow-inner"
               />
             </div>
           </div>
 
           {/* Persona B */}
-          <div className="bg-white/[0.03] p-4 rounded-2xl border border-rose-500/20">
-            <div className="flex items-center justify-between mb-2">
+          <div className="bg-white/[0.04] p-4 rounded-2xl border border-rose-500/30 shadow-sm">
+            <div className="flex items-center justify-between mb-2.5">
               <input
                 type="text"
                 value={nameB}
                 onChange={(e) => setNameB(e.target.value)}
-                className="bg-transparent font-bold text-rose-400 border-b border-white/10 focus:border-rose-500 focus:outline-none text-sm px-1 py-0.5"
+                className="bg-transparent font-bold text-rose-300 border-b border-rose-400/30 focus:border-rose-400 focus:outline-none text-sm px-1 py-0.5 placeholder:text-rose-300/60"
                 placeholder="Nombre de tu pareja"
               />
-              <span className="text-xs font-semibold text-rose-300 font-mono tabular-nums">
+              <span className="text-xs font-bold text-rose-300 font-mono tabular-nums bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-500/20">
                 Aporte {pct}%: ${quotaB.toLocaleString("es-AR")}
               </span>
             </div>
-            <div className="relative">
-              <span className="absolute left-3.5 top-3 text-zinc-500 text-sm">$</span>
+            <div>
               <input
                 type="number"
-                placeholder="Sueldo neto mensual"
+                placeholder="Sueldo neto mensual ($)"
                 value={salaryB}
                 onChange={(e) => setSalaryB(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-8 pr-4 py-2.5 text-white text-base focus:ring-1 focus:ring-rose-500/50 focus:outline-none font-mono tabular-nums"
+                className="w-full bg-black/50 border border-white/[0.14] rounded-xl px-4 py-2.5 text-white text-base text-center placeholder:text-center placeholder:text-zinc-400 focus:ring-2 focus:ring-rose-500/60 focus:border-rose-400 focus:outline-none font-mono tabular-nums shadow-inner"
               />
             </div>
           </div>
 
           {/* Resumen Proyectado */}
-          <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-blue-950/30 border border-blue-500/30 rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <span className="text-[10px] text-blue-300 font-semibold tracking-wider uppercase block">
+              <span className="text-[10px] text-blue-300 font-bold tracking-wider uppercase block">
                 FONDO COMÚN ({monthName})
               </span>
               <span className="text-2xl font-extrabold text-white font-mono tabular-nums">
                 ${totalPool.toLocaleString("es-AR")}
               </span>
             </div>
-            <div className="flex items-center gap-1 bg-blue-500/15 border border-blue-500/30 px-3 py-1 rounded-full text-blue-300 text-xs font-semibold tabular-nums">
+            <div className="flex items-center gap-1 bg-blue-500/20 border border-blue-500/40 px-3 py-1 rounded-full text-blue-200 text-xs font-bold tabular-nums">
               <Percent className="w-3.5 h-3.5" />
               <span>{pct}% de c/u</span>
             </div>

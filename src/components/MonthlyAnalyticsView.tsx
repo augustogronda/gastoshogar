@@ -71,41 +71,41 @@ export function MonthlyAnalyticsView({
       {/* Tarjeta de Diagnóstico Mensual (Obsidian Glass) */}
       <div className="super-card rounded-3xl p-5 shadow-xl">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
             <PieChart className="w-4 h-4 text-purple-400" />
             Análisis de {monthName} {year}
           </span>
-          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/[0.06] text-zinc-300 font-semibold border border-white/[0.08] tabular-nums">
+          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/[0.08] text-white font-bold border border-white/[0.12] tabular-nums">
             {expenses.length} gastos
           </span>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3.5">
-            <span className="text-[11px] text-zinc-400 block">Total Gastado</span>
+          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-3.5 shadow-sm">
+            <span className="text-[11px] font-medium text-zinc-300 block">Total Gastado</span>
             <span className="text-xl font-bold text-white mt-1 block font-mono tabular-nums">
               ${Math.round(totalSpent).toLocaleString("es-AR")}
             </span>
-            <span className="text-[10px] text-zinc-500 block mt-0.5 tabular-nums">
+            <span className="text-[10px] text-zinc-400 font-medium block mt-0.5 tabular-nums">
               {Math.round(burnRatePct)}% del fondo del 60%
             </span>
           </div>
 
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3.5">
-            <span className="text-[11px] text-zinc-400 block">Ticket Promedio</span>
+          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-3.5 shadow-sm">
+            <span className="text-[11px] font-medium text-zinc-300 block">Ticket Promedio</span>
             <span className="text-xl font-bold text-white mt-1 block font-mono tabular-nums">
               ${averageExpense.toLocaleString("es-AR")}
             </span>
-            <span className="text-[10px] text-zinc-500 block mt-0.5">
+            <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
               por cada compra
             </span>
           </div>
         </div>
 
         {/* Diagnóstico Inteligente */}
-        <div className="bg-purple-950/20 border border-purple-500/20 rounded-2xl p-3.5 flex items-start gap-2.5">
-          <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-          <div className="text-xs text-zinc-300 leading-relaxed">
+        <div className="bg-purple-950/30 border border-purple-500/30 rounded-2xl p-3.5 flex items-start gap-2.5 shadow-sm">
+          <Sparkles className="w-4 h-4 text-purple-300 shrink-0 mt-0.5" />
+          <div className="text-xs text-zinc-200 leading-relaxed">
             {totalSpent === 0 ? (
               <p>Todavía no hay gastos registrados este mes para generar métricas.</p>
             ) : remainingPool > 0 ? (
@@ -127,12 +127,12 @@ export function MonthlyAnalyticsView({
 
       {/* Desglose por Categorías */}
       <div className="super-card rounded-3xl p-5">
-        <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-4">
+        <h3 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-4">
           Gastos por Categoría
         </h3>
 
         {sortedCategories.length === 0 ? (
-          <p className="text-xs text-zinc-500 italic py-2">Sin gastos en este período.</p>
+          <p className="text-xs text-zinc-400 italic py-2">Sin gastos en este período.</p>
         ) : (
           <div className="space-y-3.5">
             {sortedCategories.map((cat) => {
@@ -142,21 +142,21 @@ export function MonthlyAnalyticsView({
                 <div key={cat.name} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-white/[0.05] border border-white/[0.06] flex items-center justify-center text-zinc-300">
+                      <div className="w-7 h-7 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-zinc-200">
                         <CategoryIcon name={cat.name} className="w-3.5 h-3.5" />
                       </div>
                       <span className="font-semibold text-white">{cat.name}</span>
-                      <span className="text-zinc-500 text-[10px]">({cat.count})</span>
+                      <span className="text-zinc-400 text-[10px]">({cat.count})</span>
                     </div>
                     <div className="text-right">
                       <span className="font-bold text-white mr-2 font-mono tabular-nums">
                         ${Math.round(cat.amount).toLocaleString("es-AR")}
                       </span>
-                      <span className="text-zinc-400 font-semibold tabular-nums">{Math.round(pctOfTotal)}%</span>
+                      <span className="text-zinc-300 font-bold tabular-nums">{Math.round(pctOfTotal)}%</span>
                     </div>
                   </div>
 
-                  <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden p-0.5 border border-white/[0.04]">
+                  <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden p-0.5 border border-white/[0.08]">
                     <div
                       className="h-full bg-blue-500 rounded-full transition-all duration-300"
                       style={{ width: `${Math.max(4, pctOfTotal)}%` }}

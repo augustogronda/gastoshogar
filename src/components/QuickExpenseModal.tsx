@@ -105,26 +105,26 @@ export function QuickExpenseModal({
 
         {/* Display del Monto (Suizo Fintech / Monospace Tabular) */}
         <div className="py-5 text-center">
-          <span className="text-zinc-500 text-2xl font-light mr-1">$</span>
+          <span className="text-zinc-400 text-2xl font-light mr-1">$</span>
           <span className="text-4xl font-extrabold tracking-tight text-white font-mono tabular-nums">
             {formattedAmount}
           </span>
         </div>
 
-        {/* Descripción rápida opcional */}
+        {/* Descripción rápida con placeholder centrado y alto contraste */}
         <div className="mb-4">
           <input
             type="text"
             placeholder="¿Qué compraron? (ej. Coto, Nafta, Delivery)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 transition text-sm"
+            className="w-full bg-white/[0.06] border border-white/[0.14] rounded-2xl px-4 py-3 text-white text-center placeholder:text-center placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400 transition text-sm font-medium shadow-inner"
           />
         </div>
 
         {/* Selector de Pagador (Agus | Pareja) */}
         <div className="mb-4">
-          <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+          <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-2">
             ¿QUIÉN PAGÓ DE SU BOLSILLO?
           </label>
           <div className="grid grid-cols-2 gap-2.5">
@@ -140,9 +140,9 @@ export function QuickExpenseModal({
                   className={`flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border text-sm font-semibold transition active:scale-[0.97] ${
                     isSelected
                       ? isFirst
-                        ? "bg-blue-600/25 border-blue-500 text-blue-300 shadow-md ring-1 ring-blue-500/50"
-                        : "bg-rose-600/25 border-rose-500 text-rose-300 shadow-md ring-1 ring-rose-500/50"
-                      : "bg-white/[0.03] border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]"
+                        ? "bg-blue-600/30 border-blue-400 text-blue-200 shadow-md ring-1 ring-blue-400/60"
+                        : "bg-rose-600/30 border-rose-400 text-rose-200 shadow-md ring-1 ring-rose-400/60"
+                      : "bg-white/[0.04] border-white/[0.08] text-zinc-300 hover:text-white hover:bg-white/[0.08]"
                   }`}
                 >
                   <User className="w-4 h-4" />
@@ -155,7 +155,7 @@ export function QuickExpenseModal({
 
         {/* Selector de Categorías (Chips con Scroll Horizontal) */}
         <div className="mb-4">
-          <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+          <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-2">
             CATEGORÍA
           </label>
           <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
@@ -168,8 +168,8 @@ export function QuickExpenseModal({
                   onClick={() => setSelectedCategoryId(cat.id)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition active:scale-95 ${
                     isSelected
-                      ? "bg-white text-zinc-950 border-white shadow-md"
-                      : "bg-white/[0.04] text-zinc-300 border-white/[0.06] hover:bg-white/[0.08]"
+                      ? "bg-white text-zinc-950 border-white shadow-md font-bold"
+                      : "bg-white/[0.05] text-zinc-200 border-white/[0.1] hover:bg-white/[0.1] hover:text-white"
                   }`}
                 >
                   <CategoryIcon name={cat.name} className="w-3.5 h-3.5" />
@@ -191,7 +191,7 @@ export function QuickExpenseModal({
                 else if (key === "00") handleNumClick("00");
                 else handleNumClick(key);
               }}
-              className="h-13 bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.12] rounded-2xl text-xl font-medium text-white transition active:scale-95 flex items-center justify-center border border-white/[0.06] shadow-sm font-mono"
+              className="h-13 bg-white/[0.06] hover:bg-white/[0.12] active:bg-white/[0.18] rounded-2xl text-xl font-bold text-white transition active:scale-95 flex items-center justify-center border border-white/[0.1] shadow-sm font-mono"
             >
               {key === "C" ? "⌫" : key}
             </button>

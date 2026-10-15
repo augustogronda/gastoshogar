@@ -425,31 +425,31 @@ export function InstallmentsManagerView({
 
             {/* Concepto / Título */}
             <div>
-              <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-1.5 text-center">
                 ¿Qué compraron o qué servicio es?
               </label>
               <input
                 type="text"
-                placeholder="ej: Pasajes, Lavarropas, Alquiler, Spotify"
+                placeholder="ej: Pasajes, Lavarropas, Alquiler, Wifi"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-white text-sm focus:ring-1 focus:ring-indigo-500/50 focus:outline-none"
+                className="w-full bg-black/50 border border-white/[0.14] rounded-2xl px-4 py-3 text-white text-sm text-center placeholder:text-center placeholder:text-zinc-400 focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-400 focus:outline-none shadow-inner font-medium"
                 required
               />
             </div>
 
             {/* Calculadora Total vs Por Cuota (Solo si es en cuotas) */}
             {isInstallmentPlan && (
-              <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-2.5 space-y-2">
+              <div className="bg-white/[0.04] border border-white/[0.1] rounded-2xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                  <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
                     Modo de carga:
                   </span>
-                  <div className="flex gap-1 bg-black/40 p-0.5 rounded-xl border border-white/5">
+                  <div className="flex gap-1 bg-black/50 p-0.5 rounded-xl border border-white/[0.08]">
                     <button
                       type="button"
                       onClick={() => setCalculationMode("per_installment")}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition ${
                         calculationMode === "per_installment"
                           ? "bg-indigo-600 text-white shadow-sm"
                           : "text-zinc-400 hover:text-zinc-200"
@@ -460,7 +460,7 @@ export function InstallmentsManagerView({
                     <button
                       type="button"
                       onClick={() => setCalculationMode("total_amount")}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition ${
                         calculationMode === "total_amount"
                           ? "bg-indigo-600 text-white shadow-sm"
                           : "text-zinc-400 hover:text-zinc-200"
@@ -473,17 +473,17 @@ export function InstallmentsManagerView({
 
                 {/* Preset Chips de Cuotas */}
                 <div>
-                  <span className="text-[10px] text-zinc-400 block mb-1">Cantidad de cuotas:</span>
+                  <span className="text-[10px] font-semibold text-zinc-300 block mb-1.5">Cantidad de cuotas:</span>
                   <div className="grid grid-cols-6 gap-1.5">
                     {["3", "6", "9", "12", "18", "custom"].map((preset) => (
                       <button
                         key={preset}
                         type="button"
                         onClick={() => setSelectedPresetInstallments(preset)}
-                        className={`py-1.5 rounded-xl text-xs font-bold font-mono transition border ${
+                        className={`py-2 rounded-xl text-xs font-bold font-mono transition border ${
                           selectedPresetInstallments === preset
-                            ? "bg-indigo-600 text-white border-indigo-400 shadow-sm"
-                            : "bg-white/[0.04] text-zinc-400 border-white/[0.06] hover:bg-white/[0.08]"
+                            ? "bg-indigo-600 text-white border-indigo-400 shadow-md ring-1 ring-indigo-400/50"
+                            : "bg-white/[0.05] text-zinc-300 border-white/[0.1] hover:bg-white/[0.1] hover:text-white"
                         }`}
                       >
                         {preset === "custom" ? "Otro" : `${preset}c`}
@@ -498,7 +498,7 @@ export function InstallmentsManagerView({
                         placeholder="Ej: 24 cuotas"
                         value={customInstallments}
                         onChange={(e) => setCustomInstallments(e.target.value)}
-                        className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-white text-xs font-mono"
+                        className="w-full bg-black/50 border border-white/[0.14] rounded-xl px-3 py-2 text-white text-xs font-mono text-center placeholder:text-center placeholder:text-zinc-400 focus:ring-2 focus:ring-indigo-500/60 focus:outline-none shadow-inner"
                         min="1"
                         max="120"
                         required
@@ -509,46 +509,45 @@ export function InstallmentsManagerView({
               </div>
             )}
 
-            {/* Input de Monto */}
+            {/* Input de Monto Centrado con Alto Contraste */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
                   {isInstallmentPlan && calculationMode === "total_amount"
                     ? "Monto total de la compra"
                     : "Monto de cada cuota / mes"}
                 </label>
                 {isInstallmentPlan && calculationMode === "total_amount" && calculatedInstallmentAmount > 0 && (
-                  <span className="text-xs text-indigo-400 font-bold font-mono tabular-nums">
+                  <span className="text-xs text-indigo-300 font-bold font-mono tabular-nums bg-indigo-950/60 px-2 py-0.5 rounded-lg border border-indigo-500/30">
                     = ${Math.round(calculatedInstallmentAmount).toLocaleString("es-AR")}/cuota
                   </span>
                 )}
               </div>
               <div className="relative">
-                <span className="absolute left-3.5 top-2.5 text-zinc-500 text-sm font-mono">$</span>
                 <input
                   type="number"
-                  placeholder="35000"
+                  placeholder="Monto en pesos ($)"
                   value={rawAmountInput}
                   onChange={(e) => setRawAmountInput(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-8 pr-3.5 py-2.5 text-white text-base font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+                  className="w-full bg-black/50 border border-white/[0.14] rounded-2xl px-4 py-3 text-white text-lg font-mono tabular-nums text-center placeholder:text-center placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-400 shadow-inner font-bold"
                   required
                 />
               </div>
             </div>
 
             {/* Mes de Inicio */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-1">
                   Mes de inicio
                 </label>
                 <select
                   value={startMonthInput}
                   onChange={(e) => setStartMonthInput(parseInt(e.target.value))}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-3 py-2 text-white text-xs focus:outline-none"
+                  className="w-full bg-zinc-900 border border-white/[0.14] rounded-xl px-3 py-2.5 text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center"
                 >
                   {MONTH_NAMES.map((m, idx) => (
-                    <option key={m} value={idx + 1} className="bg-zinc-900">
+                    <option key={m} value={idx + 1} className="bg-zinc-900 text-white">
                       {m}
                     </option>
                   ))}
@@ -556,16 +555,16 @@ export function InstallmentsManagerView({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-1">
                   Año
                 </label>
                 <select
                   value={startYearInput}
                   onChange={(e) => setStartYearInput(parseInt(e.target.value))}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-3 py-2 text-white text-xs focus:outline-none font-mono"
+                  className="w-full bg-zinc-900 border border-white/[0.14] rounded-xl px-3 py-2.5 text-white text-xs font-bold font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center"
                 >
                   {[currentYear - 1, currentYear, currentYear + 1].map((yr) => (
-                    <option key={yr} value={yr} className="bg-zinc-900">
+                    <option key={yr} value={yr} className="bg-zinc-900 text-white">
                       {yr}
                     </option>
                   ))}
@@ -575,7 +574,7 @@ export function InstallmentsManagerView({
 
             {/* Titular de la tarjeta (Agus o Pareja) */}
             <div>
-              <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-1.5">
                 ¿Con la tarjeta de quién?
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -587,9 +586,9 @@ export function InstallmentsManagerView({
                     className={`py-2.5 px-3 rounded-2xl text-xs font-bold border text-center truncate transition active:scale-[0.97] ${
                       selectedPayerId === u.id
                         ? idx === 0
-                          ? "bg-blue-600/30 border-blue-500 text-blue-300 ring-1 ring-blue-500/50 shadow-sm"
-                          : "bg-rose-600/30 border-rose-500 text-rose-300 ring-1 ring-rose-500/50 shadow-sm"
-                        : "bg-white/[0.03] border-white/[0.06] text-zinc-400 hover:text-zinc-200"
+                          ? "bg-blue-600/35 border-blue-400 text-blue-200 ring-1 ring-blue-400/60 shadow-md"
+                          : "bg-rose-600/35 border-rose-400 text-rose-200 ring-1 ring-rose-400/60 shadow-md"
+                        : "bg-white/[0.05] border-white/[0.1] text-zinc-300 hover:text-white hover:bg-white/[0.08]"
                     }`}
                   >
                     {u.name}
@@ -600,7 +599,7 @@ export function InstallmentsManagerView({
 
             {/* Selector de Categoría */}
             <div>
-              <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-1.5">
                 Categoría
               </label>
               <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
@@ -609,13 +608,13 @@ export function InstallmentsManagerView({
                     key={c.id}
                     type="button"
                     onClick={() => setSelectedCategoryId(c.id)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap border transition ${
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition ${
                       selectedCategoryId === c.id
-                        ? "bg-white text-zinc-950 border-white shadow-sm"
-                        : "bg-white/[0.04] text-zinc-400 border-white/[0.06]"
+                        ? "bg-white text-zinc-950 border-white shadow-md font-bold"
+                        : "bg-white/[0.05] text-zinc-200 border-white/[0.1] hover:bg-white/[0.1] hover:text-white"
                     }`}
                   >
-                    <CategoryIcon name={c.name} className="w-3 h-3" />
+                    <CategoryIcon name={c.name} className="w-3.5 h-3.5" />
                     <span>{c.name}</span>
                   </button>
                 ))}
