@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import crypto from "crypto";
 
 export async function ensureDefaultHousehold() {
   const existingHousehold = await prisma.household.findFirst({
@@ -10,6 +11,19 @@ export async function ensureDefaultHousehold() {
   });
 
   if (existingHousehold) {
+    // Asegurar que los correos registrados y tokens mágicos estén actualizados
+    for (const u of existingHousehold.users) {
+      const isAugusto = u.name.toLowerCase().includes("augusto");
+      const targetEmail = isAugusto ? "augustogronda@gmail.com" : "agusaux@gmail.com";
+      const token = u.magicToken || crypto.randomBytes(24).toString("hex");
+
+      if (u.email !== targetEmail || !u.magicToken) {
+        await prisma.user.update({
+          where: { id: u.id },
+          data: { email: targetEmail, magicToken: token },
+        });
+      }
+    }
     return existingHousehold;
   }
 
@@ -23,13 +37,15 @@ export async function ensureDefaultHousehold() {
         create: [
           {
             name: "Augusto",
-            email: "augusto@hogar.local",
+            email: "augustogronda@gmail.com",
             avatarColor: "#2563eb",
+            magicToken: crypto.randomBytes(24).toString("hex"),
           },
           {
             name: "Agus",
-            email: "agus@hogar.local",
+            email: "agusaux@gmail.com",
             avatarColor: "#ec4899",
+            magicToken: crypto.randomBytes(24).toString("hex"),
           },
         ],
       },

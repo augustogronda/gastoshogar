@@ -27,6 +27,7 @@ model User {
   name              String
   avatarColor       String                     @default("#3b82f6")
   pin               String?
+  magicToken        String?                    @unique
   householdId       String
   household         Household                  @relation(fields: [householdId], references: [id])
   incomes           Income[]

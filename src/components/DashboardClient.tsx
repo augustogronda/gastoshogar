@@ -25,6 +25,7 @@ import {
   User,
   LogOut,
   Tag,
+  Copy,
 } from "./ui/icons";
 import { CategoryIcon } from "./ui/icons";
 import { QuickExpenseModal } from "./QuickExpenseModal";
@@ -42,6 +43,7 @@ import {
   reopenMonthAction,
   loginAction,
   logoutAction,
+  getMagicLinkForUserAction,
 } from "@/app/actions";
 
 interface ExpenseItem {
@@ -145,6 +147,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Si no hay usuario logueado en cookies, mostrar pantalla de selección de perfil
   if (!currentUser) {
@@ -161,6 +164,18 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
     await logoutAction();
+  };
+
+  const handleCopyMagicLink = async () => {
+    try {
+      const res = await getMagicLinkForUserAction(currentUser.id);
+      const fullUrl = `${window.location.origin}${res.accessPath}`;
+      await navigator.clipboard.writeText(fullUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const isClosed = period.status === "CLOSED";
@@ -289,6 +304,23 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   </button>
                 )}
                 <div className="border-t border-white/[0.06] my-1" />
+                <button
+                  onClick={handleCopyMagicLink}
+                  className="w-full px-2.5 py-2 text-left text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/[0.08] rounded-xl flex items-center gap-2 transition"
+                  title="Guardá este link para entrar siempre directo sin contraseña"
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-300 font-bold">¡Link copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                      <span>Copiar mi Link Directo</span>
+                    </>
+                  )}
+                </button>
                 <button
                   onClick={handleLogout}
                   className="w-full px-2.5 py-2 text-left text-xs font-semibold text-rose-300 hover:bg-rose-500/10 rounded-xl flex items-center gap-2 transition"

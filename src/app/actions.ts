@@ -5,6 +5,8 @@ import { ensureDefaultHousehold } from "@/lib/db-init";
 import { calculateMonthlyPool } from "@/lib/finance-engine";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import crypto from "crypto";
+import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
 
 export async function getDashboardData(targetYear?: number, targetMonth?: number) {
   const household = await ensureDefaultHousehold();
@@ -817,8 +819,125 @@ export async function unapplyRecurringExpenseAction(expenseId: string) {
 }
 
 // ==========================================
-// AUTENTICACIÓN SIMPLE (Augusto / Agus)
+// AUTENTICACIÓN SIN CONTRASEÑA (MAGIC LINK & MAILS REGISTRADOS)
 // ==========================================
+
+const AUTHORIZED_EMAILS = ["augustogronda@gmail.com", "agusaux@gmail.com"];
+
+export async function requestMagicLinkAction(inputEmail: string) {
+  const normalizedEmail = inputEmail.trim().toLowerCase();
+
+  if (!AUTHORIZED_EMAILS.includes(normalizedEmail)) {
+    throw new Error(
+      "Correo no autorizado. Solo tienen acceso los correos registrados: augustogronda@gmail.com y agusaux@gmail.com"
+    );
+  }
+
+  // Asegurar que el hogar y los usuarios estén actualizados
+  await ensureDefaultHousehold();
+
+  let user = await prisma.user.findFirst({
+    where: { email: { equals: normalizedEmail } },
+  });
+
+  if (!user) {
+    const isAugusto = normalizedEmail.includes("augusto");
+    const nameMatch = isAugusto ? "Augusto" : "Agus";
+    user = await prisma.user.findFirst({
+      where: { name: { contains: nameMatch } },
+    });
+
+    if (user) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { email: normalizedEmail },
+      });
+    }
+  }
+
+  if (!user) {
+    throw new Error("Usuario no encontrado en el sistema.");
+  }
+
+  // Generar token mágico si no existe
+  let token = user.magicToken;
+  if (!token) {
+    token = crypto.randomBytes(24).toString("hex");
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { magicToken: token },
+    });
+  }
+
+  // Intentar disparo de OTP vía Supabase Auth
+  let emailSent = false;
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+    });
+    if (!error) emailSent = true;
+  } catch (err) {
+    console.log("Supabase OTP optional dispatch notice:", err);
+  }
+
+  return {
+    success: true,
+    emailSent,
+    userName: user.name,
+    email: user.email,
+    token: user.magicToken,
+    userId: user.id,
+    accessPath: `/auth/access?token=${user.magicToken}`,
+  };
+}
+
+export async function loginWithMagicTokenAction(token: string) {
+  if (!token) throw new Error("Token de acceso requerido");
+
+  const user = await prisma.user.findUnique({
+    where: { magicToken: token },
+  });
+
+  if (!user) {
+    throw new Error("Link de acceso inválido o expirado");
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set("auth_user_id", user.id, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365, // 1 año
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  revalidatePath("/");
+  return { success: true, user };
+}
+
+export async function getMagicLinkForUserAction(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) throw new Error("Usuario no encontrado");
+
+  let token = user.magicToken;
+  if (!token) {
+    token = crypto.randomBytes(24).toString("hex");
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { magicToken: token },
+    });
+  }
+
+  return {
+    token,
+    accessPath: `/auth/access?token=${token}`,
+  };
+}
 
 export async function loginAction(userId: string) {
   const cookieStore = await cookies();
