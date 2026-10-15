@@ -266,55 +266,57 @@ export function InstallmentsManagerView({
 
   return (
     <div className="space-y-4 animate-fade-in pb-12">
-      {/* 1. Tarjeta Hero de Compromisos Fijos del Mes (Obsidian Glass) */}
+      {/* 1. Tarjeta Hero de Compromisos Fijos del Mes (Stripe Style) */}
       <section className="super-card rounded-3xl p-5 shadow-2xl relative overflow-hidden">
         {/* Glow de fondo sutil */}
         <div className="absolute -top-16 -right-16 w-44 h-44 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex items-center justify-between mb-3 relative z-10">
-          <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+        <div className="flex items-center justify-between mb-4 relative z-10">
+          <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
             <CreditCard className="w-3.5 h-3.5 text-indigo-400" />
             Compromisos en {monthName} {currentYear}
           </span>
           <button
             onClick={() => setIsAddingNew(true)}
-            className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-md active:scale-95 transition border border-indigo-400/20"
+            className="flex items-center gap-1.5 bg-[#635BFF] hover:bg-[#533AFD] text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-md active:scale-95 transition border border-indigo-400/25"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Nueva Cuota</span>
           </button>
         </div>
 
-        <div className="flex items-baseline justify-between mb-3 relative z-10">
+        <div className="flex items-baseline justify-between mb-4 relative z-10">
           <div>
-            <span className="text-[11px] text-zinc-400 block mb-0.5">Total en Cuotas & Fijos:</span>
+            <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">Total en Cuotas & Fijos:</span>
             <span className="text-3xl font-extrabold text-white tracking-tight font-mono tabular-nums">
               ${Math.round(totalDueThisMonth).toLocaleString("es-AR")}
             </span>
           </div>
           <div className="text-right">
-            <span className="text-[11px] text-zinc-400 block mb-0.5">
-              {pendingCount > 0 ? "Pendiente:" : "100% Imputado"}
+            <span className="text-[11px] font-medium text-zinc-400 block mb-1">
+              {pendingCount > 0 ? "Pendiente:" : "Estado:"}
             </span>
             <span
-              className={`text-base font-bold font-mono tabular-nums ${
-                pendingCount > 0 ? "text-amber-400" : "text-emerald-400"
+              className={`inline-flex items-center gap-1 text-xs font-bold font-mono tabular-nums px-2.5 py-0.5 rounded-full border ${
+                pendingCount > 0
+                  ? "text-amber-300 bg-amber-500/15 border-amber-500/30"
+                  : "text-emerald-300 bg-emerald-500/15 border-emerald-500/30"
               }`}
             >
               {pendingCount > 0
                 ? `$${Math.round(pendingThisMonth).toLocaleString("es-AR")}`
-                : `$${Math.round(alreadyAppliedThisMonth).toLocaleString("es-AR")}`}
+                : "100% Imputado"}
             </span>
           </div>
         </div>
 
         {/* Botón de 1-tap: Imputar todas las pendientes */}
         {pendingCount > 0 && (
-          <div className="mb-3 pt-1">
+          <div className="mb-4 pt-1">
             <button
               onClick={handleBatchApply}
               disabled={isBatchApplying}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition border border-indigo-400/30"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-[#635BFF] to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition border border-indigo-400/30"
             >
               <Sparkles className="w-4 h-4 text-indigo-200" />
               <span>
@@ -326,28 +328,28 @@ export function InstallmentsManagerView({
           </div>
         )}
 
-        {/* Desglose por Tarjeta de Titular */}
-        <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-white/[0.08] relative z-10">
-          <div className="bg-blue-950/20 border border-blue-500/20 rounded-2xl p-2.5">
+        {/* Desglose por Tarjeta de Titular (Nested Cards SIN línea pegada) */}
+        <div className="grid grid-cols-2 gap-3 relative z-10">
+          <div className="bg-[#151e33] border border-blue-500/25 rounded-2xl p-3.5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+              <span className="text-[10px] font-bold text-blue-300 uppercase tracking-wider">
                 Tarjeta {userA?.name || "Agus"}
               </span>
-              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.8)]" />
             </div>
-            <span className="text-base font-bold text-white font-mono tabular-nums block mt-1">
+            <span className="text-base font-extrabold text-white font-mono tabular-nums block mt-1.5">
               ${Math.round(dueByUserA).toLocaleString("es-AR")}
             </span>
           </div>
 
-          <div className="bg-rose-950/20 border border-rose-500/20 rounded-2xl p-2.5">
+          <div className="bg-[#241724] border border-rose-500/25 rounded-2xl p-3.5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">
+              <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider">
                 Tarjeta {userB?.name || "Pareja"}
               </span>
-              <span className="w-2 h-2 rounded-full bg-rose-500" />
+              <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.8)]" />
             </div>
-            <span className="text-base font-bold text-white font-mono tabular-nums block mt-1">
+            <span className="text-base font-extrabold text-white font-mono tabular-nums block mt-1.5">
               ${Math.round(dueByUserB).toLocaleString("es-AR")}
             </span>
           </div>
@@ -355,12 +357,12 @@ export function InstallmentsManagerView({
 
         {/* Deuda remanente futura total si hay cuotas */}
         {totalPendingInstallmentsDebt > 0 && (
-          <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-400">
-            <span className="flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5 text-zinc-500" />
+          <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-zinc-300">
+            <span className="flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-zinc-400" />
               Deuda total remanente en cuotas:
             </span>
-            <span className="font-bold text-zinc-300 font-mono tabular-nums">
+            <span className="font-bold text-white font-mono tabular-nums">
               ${Math.round(totalPendingInstallmentsDebt).toLocaleString("es-AR")}
             </span>
           </div>
@@ -702,7 +704,7 @@ export function InstallmentsManagerView({
             </button>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {filteredApplicable.map((item) => {
               const isAgus = item.paidById === userA?.id;
               const hasInstallments = !!item.totalInstallments;
@@ -716,61 +718,62 @@ export function InstallmentsManagerView({
               return (
                 <div
                   key={item.id}
-                  className="super-card-subtle rounded-2xl p-3.5 space-y-2.5 hover:bg-white/[0.04] transition duration-150 border border-white/[0.06]"
+                  className="super-card-subtle rounded-2xl p-4 transition-all duration-150 hover:border-white/[0.12] space-y-3.5"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white block">
-                          {item.title}
-                        </span>
-                        <span
-                          className={`font-semibold text-[10px] px-2 py-0.5 rounded-full border ${
-                            isAgus
-                              ? "bg-blue-500/10 text-blue-300 border-blue-500/20"
-                              : "bg-rose-500/10 text-rose-300 border-rose-500/20"
-                          }`}
-                        >
-                          {item.paidBy.name}
-                        </span>
+                  {/* Top Row: Icon + Title & Subtitle + Amount */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-zinc-200 shrink-0 shadow-sm">
+                        <CategoryIcon name={item.category.name} className="w-5 h-5" />
                       </div>
-
-                      <div className="flex items-center gap-2 text-xs text-zinc-400">
-                        <span className="text-indigo-300 font-bold font-mono tabular-nums text-[11px]">
-                          {hasInstallments
-                            ? `Cuota ${item.installmentNumber} de ${item.totalInstallments}`
-                            : "Débito mensual fijo"}
-                        </span>
-                        {hasInstallments && (
-                          <>
-                            <span>•</span>
-                            <span className="text-[11px] text-zinc-400">
-                              {remainingCount === 0
-                                ? "¡Última cuota!"
-                                : `Faltan ${remainingCount} cuotas`}
-                            </span>
-                          </>
-                        )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white truncate">{item.title}</span>
+                          <span
+                            className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full border shrink-0 ${
+                              isAgus
+                                ? "bg-blue-500/15 text-blue-300 border-blue-400/30"
+                                : "bg-rose-500/15 text-rose-300 border-rose-400/30"
+                            }`}
+                          >
+                            {item.paidBy.name}
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-0.5 font-medium flex items-center gap-1.5 truncate">
+                          <span className="text-indigo-300 font-semibold font-mono tabular-nums">
+                            {hasInstallments
+                              ? `Cuota ${item.installmentNumber} de ${item.totalInstallments}`
+                              : "Débito mensual fijo"}
+                          </span>
+                          <span>•</span>
+                          <span>{item.category.name}</span>
+                          {hasInstallments && (
+                            <>
+                              <span>•</span>
+                              <span>{remainingCount === 0 ? "¡Última cuota!" : `Faltan ${remainingCount}c`}</span>
+                            </>
+                          )}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <span className="text-base font-bold text-white font-mono tabular-nums block">
+                    <div className="text-right shrink-0">
+                      <span className="text-base font-extrabold text-white font-mono tabular-nums block">
                         ${Math.round(item.installmentAmount).toLocaleString("es-AR")}
                       </span>
                     </div>
                   </div>
 
-                  {/* Barra de Progreso de la Cuota (Seguimiento Visual) */}
+                  {/* Barra de Progreso de la Cuota (Solo si son cuotas) */}
                   {hasInstallments && (
-                    <div className="space-y-1 pt-0.5">
-                      <div className="w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
+                    <div className="space-y-1.5 pt-0.5">
+                      <div className="w-full bg-white/[0.08] rounded-full h-1.5 overflow-hidden">
                         <div
                           className="bg-gradient-to-r from-indigo-500 to-blue-500 h-1.5 rounded-full transition-all duration-500"
                           style={{ width: `${progressPct}%` }}
                         />
                       </div>
-                      <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
+                      <div className="flex justify-between text-[10px] text-zinc-400 font-mono">
                         <span>{progressPct}% pagado</span>
                         <span>
                           Total: $
@@ -782,25 +785,24 @@ export function InstallmentsManagerView({
                     </div>
                   )}
 
-                  {/* Botón de Imputar / Deshacer */}
-                  <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.04]">
-                    <span className="text-[10px] text-zinc-400 flex items-center gap-1">
-                      <CategoryIcon name={item.category.name} className="w-3 h-3 text-zinc-500" />
-                      {item.category.name}
+                  {/* Fila de Acción e Imputación: limpia, sin líneas pegadas */}
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] text-zinc-400 font-medium">
+                      {item.alreadyApplied ? "Cargado al presupuesto del mes" : "Pendiente de cargar"}
                     </span>
 
                     <div className="flex items-center gap-2">
                       {item.alreadyApplied ? (
                         <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-500/30">
-                            <Check className="w-3 h-3 stroke-[2.5]" />
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/30">
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                             Imputada al mes
                           </span>
                           <button
                             type="button"
                             onClick={() => handleUnapplyFromMonth(item)}
                             disabled={actionLoadingId === item.id}
-                            className="text-[10px] text-zinc-400 hover:text-rose-400 transition underline underline-offset-2"
+                            className="text-xs text-zinc-400 hover:text-rose-400 transition ml-1 underline underline-offset-2"
                           >
                             Deshacer
                           </button>
@@ -810,9 +812,9 @@ export function InstallmentsManagerView({
                           type="button"
                           onClick={() => handleApplyToMonth(item)}
                           disabled={actionLoadingId === item.id}
-                          className="flex items-center gap-1 text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-xl active:scale-95 transition shadow-sm border border-indigo-400/20"
+                          className="flex items-center gap-1.5 text-xs font-bold text-white bg-[#635BFF] hover:bg-[#533AFD] px-3.5 py-1.5 rounded-xl active:scale-95 transition shadow-sm border border-indigo-400/25"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                           <span>{actionLoadingId === item.id ? "Cargando..." : "Imputar al mes"}</span>
                         </button>
                       )}
@@ -825,49 +827,49 @@ export function InstallmentsManagerView({
         )}
       </div>
 
-      {/* 4. Listado General de Cuotas y Planes Activos */}
+      {/* 4. Listado General de Cuotas y Planes Activos (Stripe Cards) */}
       <div className="super-card rounded-3xl p-5 shadow-lg space-y-3">
-        <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+        <h3 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
           Todos los Planes Activos Registrados ({recurringExpenses.length})
         </h3>
 
         {recurringExpenses.length === 0 ? (
-          <p className="text-xs text-zinc-500 italic py-1">No hay planes registrados todavía.</p>
+          <p className="text-xs text-zinc-400 italic py-1">No hay planes registrados todavía.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {recurringExpenses.map((r) => {
               const isAgus = r.paidById === userA?.id;
 
               return (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between text-xs py-2.5 border-b border-white/[0.06] last:border-0"
+                  className="bg-[#151d30]/60 hover:bg-[#151d30] border border-white/[0.07] rounded-2xl p-3.5 flex items-center justify-between transition group"
                 >
-                  <div className="space-y-0.5">
+                  <div className="space-y-1 min-w-0 pr-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-zinc-200 font-semibold">{r.title}</span>
+                      <span className="text-zinc-100 font-bold text-xs truncate">{r.title}</span>
                       <span
-                        className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-full border ${
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
                           isAgus
-                            ? "bg-blue-500/10 text-blue-300 border-blue-500/20"
-                            : "bg-rose-500/10 text-rose-300 border-rose-500/20"
+                            ? "bg-blue-500/15 text-blue-300 border-blue-400/30"
+                            : "bg-rose-500/15 text-rose-300 border-rose-400/30"
                         }`}
                       >
                         {r.paidBy.name}
                       </span>
                     </div>
-                    <span className="text-zinc-400 text-[11px] font-mono tabular-nums block">
+                    <p className="text-zinc-400 text-[11px] font-mono tabular-nums">
                       ${Math.round(r.installmentAmount).toLocaleString("es-AR")}/mes •{" "}
                       {r.totalInstallments ? `${r.totalInstallments} cuotas` : "Mensual fijo"} • Desde{" "}
                       {MONTH_NAMES[r.startMonth - 1]} {r.startYear}
-                    </span>
+                    </p>
                   </div>
                   <button
                     onClick={() => handleDelete(r.id)}
-                    className="p-1.5 text-zinc-500 hover:text-rose-400 active:scale-90 transition rounded-lg hover:bg-white/[0.05]"
+                    className="p-2 text-zinc-400 hover:text-rose-400 active:scale-90 transition rounded-xl hover:bg-rose-500/10 shrink-0"
                     title="Eliminar cuota"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               );
