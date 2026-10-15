@@ -22,13 +22,13 @@ export async function ensureDefaultHousehold() {
       users: {
         create: [
           {
-            name: "Agus",
-            email: "agus@hogar.local",
+            name: "Augusto",
+            email: "augusto@hogar.local",
             avatarColor: "#2563eb",
           },
           {
-            name: "Pareja",
-            email: "pareja@hogar.local",
+            name: "Agus",
+            email: "agus@hogar.local",
             avatarColor: "#ec4899",
           },
         ],

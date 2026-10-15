@@ -36,6 +36,10 @@ import {
   Copy,
   Lock,
   Unlock,
+  LogOut,
+  Edit3,
+  UserCheck,
+  Smile,
 } from "lucide-react";
 
 export const CategoryIcon = ({
@@ -115,4 +119,8 @@ export {
   Copy,
   Lock,
   Unlock,
+  LogOut,
+  Edit3,
+  UserCheck,
+  Smile,
 };

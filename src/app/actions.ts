@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureDefaultHousehold } from "@/lib/db-init";
 import { calculateMonthlyPool } from "@/lib/finance-engine";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 export async function getDashboardData(targetYear?: number, targetMonth?: number) {
   const household = await ensureDefaultHousehold();
@@ -176,14 +177,131 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     };
   });
 
+  // Autenticación: Identificar usuario conectado (Augusto o Agus)
+  const cookieStore = await cookies();
+  const loggedUserId = cookieStore.get("auth_user_id")?.value;
+  const currentUser = household.users.find((u) => u.id === loggedUserId) || null;
+
+  // Si hay usuario conectado, cargar/calcular su espacio personal
+  let personalData = null;
+
+  if (currentUser) {
+    // Buscar o inicializar PersonalIncome para este mes
+    let personalIncome = await prisma.personalIncome.findUnique({
+      where: {
+        userId_year_month: {
+          userId: currentUser.id,
+          year,
+          month,
+        },
+      },
+    });
+
+    if (!personalIncome) {
+      personalIncome = await prisma.personalIncome.create({
+        data: {
+          userId: currentUser.id,
+          year,
+          month,
+          extraAmount: 0,
+          carriedOverBalance: 0,
+        },
+      });
+    }
+
+    // Calcular el 40% base restante a partir del sueldo declarado en Hogar
+    const userHogarIncome = period.incomes.find((i) => i.userId === currentUser.id);
+    const hogarSalary = userHogarIncome?.amount ?? 0;
+    const contributionPct = userHogarIncome?.contributionPct ?? 0.60;
+    const personalRate = Math.max(0, 1 - contributionPct); // 40% restante por defecto
+    const basePersonalSalary = hogarSalary * personalRate;
+    const extraIncome = personalIncome.extraAmount || 0;
+    const carriedOverPersonal = personalIncome.carriedOverBalance || 0;
+    const totalPersonalAvailable = basePersonalSalary + extraIncome + carriedOverPersonal;
+
+    // Gastos personales
+    const personalExpenses = await prisma.personalExpense.findMany({
+      where: {
+        userId: currentUser.id,
+        year,
+        month,
+      },
+      include: {
+        category: true,
+      },
+      orderBy: {
+        date: "desc",
+      },
+    });
+
+    const totalPersonalExpenses = personalExpenses.reduce((acc, e) => acc + e.amount, 0);
+    const remainingPersonalPool = Math.max(0, totalPersonalAvailable - totalPersonalExpenses);
+    const personalBurnRatePct = totalPersonalAvailable > 0
+      ? (totalPersonalExpenses / totalPersonalAvailable) * 100
+      : 0;
+
+    // Cuotas y gastos recurrentes personales
+    const personalRecurringExpenses = await prisma.personalRecurringExpense.findMany({
+      where: {
+        userId: currentUser.id,
+        isActive: true,
+      },
+      include: {
+        category: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const activePersonalInstallments = personalRecurringExpenses.map((rec) => {
+      const monthsElapsed = (year - rec.startYear) * 12 + (month - rec.startMonth);
+      const installmentNumber = monthsElapsed + 1;
+      const isApplicableThisMonth =
+        monthsElapsed >= 0 &&
+        (!rec.totalInstallments || installmentNumber <= rec.totalInstallments);
+
+      const appliedExpense = personalExpenses.find(
+        (e) => e.personalRecurringId === rec.id
+      );
+
+      return {
+        ...rec,
+        installmentNumber,
+        isApplicableThisMonth,
+        alreadyApplied: !!appliedExpense,
+        appliedExpenseId: appliedExpense?.id,
+      };
+    });
+
+    personalData = {
+      incomeRecord: personalIncome,
+      hogarSalary,
+      contributionPct,
+      personalRate,
+      basePersonalSalary,
+      extraIncome,
+      carriedOverPersonal,
+      totalPersonalAvailable,
+      totalPersonalExpenses,
+      remainingPersonalPool,
+      personalBurnRatePct,
+      expenses: personalExpenses,
+      recurringExpenses: activePersonalInstallments,
+      isClosed: personalIncome.status === "CLOSED",
+    };
+  }
+
   return {
     household,
     users: household.users,
+    currentUser,
     categories: household.categories,
     period,
     poolSummary,
     investmentFund,
     recurringExpenses: activeInstallmentsWithStatus,
+    personalData,
     currentYear: year,
     currentMonth: month,
   };
@@ -590,4 +708,324 @@ export async function unapplyRecurringExpenseAction(expenseId: string) {
   revalidatePath("/");
   return { success: true };
 }
+
+// ==========================================
+// AUTENTICACIÓN SIMPLE (Augusto / Agus)
+// ==========================================
+
+export async function loginAction(userId: string) {
+  const cookieStore = await cookies();
+  cookieStore.set("auth_user_id", userId, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365, // 1 año de persistencia en iPhone
+    httpOnly: true,
+    sameSite: "lax",
+  });
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function logoutAction() {
+  const cookieStore = await cookies();
+  cookieStore.delete("auth_user_id");
+  revalidatePath("/");
+  return { success: true };
+}
+
+// ==========================================
+// ACCIONES DE FINANZAS PERSONALES (40% + Extras)
+// ==========================================
+
+export async function updatePersonalExtraIncomeAction(
+  userId: string,
+  year: number,
+  month: number,
+  extraAmount: number,
+  notes?: string
+) {
+  await prisma.personalIncome.upsert({
+    where: {
+      userId_year_month: {
+        userId,
+        year,
+        month,
+      },
+    },
+    update: {
+      extraAmount,
+      notes,
+    },
+    create: {
+      userId,
+      year,
+      month,
+      extraAmount,
+      notes,
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function addPersonalExpenseAction(data: {
+  userId: string;
+  year: number;
+  month: number;
+  title: string;
+  amount: number;
+  categoryId?: string;
+  date?: string;
+  installmentNumber?: number;
+  totalInstallments?: number;
+  personalRecurringId?: string;
+  notes?: string;
+}) {
+  if (!data.title || data.amount <= 0 || !data.userId) {
+    throw new Error("Datos de gasto personal inválidos");
+  }
+
+  await prisma.personalExpense.create({
+    data: {
+      userId: data.userId,
+      year: data.year,
+      month: data.month,
+      title: data.title,
+      amount: data.amount,
+      categoryId: data.categoryId,
+      date: data.date ? new Date(data.date) : new Date(),
+      installmentNumber: data.installmentNumber,
+      totalInstallments: data.totalInstallments,
+      personalRecurringId: data.personalRecurringId,
+      notes: data.notes,
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function deletePersonalExpenseAction(expenseId: string) {
+  await prisma.personalExpense.delete({
+    where: { id: expenseId },
+  });
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function createPersonalRecurringExpenseAction(data: {
+  userId: string;
+  title: string;
+  installmentAmount: number;
+  totalInstallments?: number | null;
+  startYear: number;
+  startMonth: number;
+  categoryId?: string;
+  notes?: string;
+}) {
+  if (!data.title || data.installmentAmount <= 0) {
+    throw new Error("Datos de cuota personal inválidos");
+  }
+
+  await prisma.personalRecurringExpense.create({
+    data: {
+      userId: data.userId,
+      title: data.title,
+      installmentAmount: data.installmentAmount,
+      totalInstallments: data.totalInstallments,
+      startYear: data.startYear,
+      startMonth: data.startMonth,
+      categoryId: data.categoryId,
+      notes: data.notes,
+      isActive: true,
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function deletePersonalRecurringExpenseAction(id: string) {
+  await prisma.personalRecurringExpense.delete({
+    where: { id },
+  });
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function applyPersonalRecurringExpenseAction(data: {
+  userId: string;
+  year: number;
+  month: number;
+  recurringId: string;
+  title: string;
+  amount: number;
+  categoryId?: string;
+  installmentNumber?: number;
+  totalInstallments?: number | null;
+}) {
+  const fullTitle = data.totalInstallments
+    ? `${data.title} (Cuota ${data.installmentNumber}/${data.totalInstallments})`
+    : data.title;
+
+  await prisma.personalExpense.create({
+    data: {
+      userId: data.userId,
+      year: data.year,
+      month: data.month,
+      title: fullTitle,
+      amount: data.amount,
+      categoryId: data.categoryId,
+      personalRecurringId: data.recurringId,
+      installmentNumber: data.installmentNumber,
+      totalInstallments: data.totalInstallments,
+      date: new Date(),
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function unapplyPersonalRecurringExpenseAction(expenseId: string) {
+  await prisma.personalExpense.delete({
+    where: { id: expenseId },
+  });
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function closePersonalMonthAction(
+  userId: string,
+  year: number,
+  month: number
+) {
+  const household = await ensureDefaultHousehold();
+  const period = await prisma.monthlyPeriod.findUnique({
+    where: {
+      householdId_year_month: {
+        householdId: household.id,
+        year,
+        month,
+      },
+    },
+    include: { incomes: true },
+  });
+
+  const income = period?.incomes.find((i) => i.userId === userId);
+  const salary = income?.amount ?? 0;
+  const contributionPct = income?.contributionPct ?? 0.60;
+  const base40 = salary * (1 - contributionPct);
+
+  const personalIncome = await prisma.personalIncome.findUnique({
+    where: {
+      userId_year_month: {
+        userId,
+        year,
+        month,
+      },
+    },
+  });
+
+  const extra = personalIncome?.extraAmount ?? 0;
+  const carried = personalIncome?.carriedOverBalance ?? 0;
+  const totalAvailable = base40 + extra + carried;
+
+  const expenses = await prisma.personalExpense.findMany({
+    where: { userId, year, month },
+  });
+  const totalSpent = expenses.reduce((acc, e) => acc + e.amount, 0);
+  const unspent = Math.max(0, totalAvailable - totalSpent);
+
+  await prisma.personalIncome.upsert({
+    where: {
+      userId_year_month: {
+        userId,
+        year,
+        month,
+      },
+    },
+    update: {
+      status: "CLOSED",
+      closedAt: new Date(),
+    },
+    create: {
+      userId,
+      year,
+      month,
+      status: "CLOSED",
+      closedAt: new Date(),
+    },
+  });
+
+  // Próximo mes: arrastrar saldo no gastado
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+
+  await prisma.personalIncome.upsert({
+    where: {
+      userId_year_month: {
+        userId,
+        year: nextYear,
+        month: nextMonth,
+      },
+    },
+    update: {
+      carriedOverBalance: unspent,
+    },
+    create: {
+      userId,
+      year: nextYear,
+      month: nextMonth,
+      carriedOverBalance: unspent,
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true, unspent };
+}
+
+export async function reopenPersonalMonthAction(
+  userId: string,
+  year: number,
+  month: number
+) {
+  await prisma.personalIncome.update({
+    where: {
+      userId_year_month: {
+        userId,
+        year,
+        month,
+      },
+    },
+    data: {
+      status: "OPEN",
+      closedAt: null,
+    },
+  });
+
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+
+  const nextIncome = await prisma.personalIncome.findUnique({
+    where: {
+      userId_year_month: {
+        userId,
+        year: nextYear,
+        month: nextMonth,
+      },
+    },
+  });
+
+  if (nextIncome && nextIncome.status === "OPEN") {
+    await prisma.personalIncome.update({
+      where: { id: nextIncome.id },
+      data: { carriedOverBalance: 0 },
+    });
+  }
+
+  revalidatePath("/");
+  return { success: true };
+}
+
 

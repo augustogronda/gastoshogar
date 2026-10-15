@@ -17,11 +17,13 @@ import {
   Users,
   CreditCard,
   BarChart3,
-  Repeat,
   Lock,
   Unlock,
   Check,
   X,
+  Home,
+  User,
+  LogOut,
 } from "./ui/icons";
 import { CategoryIcon } from "./ui/icons";
 import { QuickExpenseModal } from "./QuickExpenseModal";
@@ -29,7 +31,15 @@ import { SalaryConfigModal } from "./SalaryConfigModal";
 import { FCIInvestModal } from "./FCIInvestModal";
 import { MonthlyAnalyticsView } from "./MonthlyAnalyticsView";
 import { InstallmentsManagerView } from "./InstallmentsManagerView";
-import { deleteExpenseAction, closeMonthAction, reopenMonthAction } from "@/app/actions";
+import { LoginScreen } from "./LoginScreen";
+import { PersonalDashboardView } from "./PersonalDashboardView";
+import {
+  deleteExpenseAction,
+  closeMonthAction,
+  reopenMonthAction,
+  loginAction,
+  logoutAction,
+} from "@/app/actions";
 
 interface ExpenseItem {
   id: string;
@@ -48,6 +58,7 @@ interface DashboardClientProps {
   initialData: {
     household: { id: string; name: string; currency: string };
     users: Array<{ id: string; name: string; avatarColor: string }>;
+    currentUser: { id: string; name: string; avatarColor: string } | null;
     categories: Array<{ id: string; name: string; icon?: string | null; color?: string | null }>;
     period: {
       id: string;
@@ -85,6 +96,7 @@ interface DashboardClientProps {
       contributions: Array<{ id: string; amount: number; investedAt: Date | string }>;
     } | null;
     recurringExpenses: Array<any>;
+    personalData: any | null;
     currentYear: number;
     currentMonth: number;
   };
@@ -107,15 +119,19 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const {
     household,
     users,
+    currentUser,
     categories,
     period,
     poolSummary,
     investmentFund,
     recurringExpenses,
+    personalData,
     currentYear,
     currentMonth,
   } = initialData;
 
+  const [spaceMode, setSpaceMode] = useState<"hogar" | "personal">("hogar");
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("hogar");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
@@ -123,6 +139,23 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [isProcessingClose, setIsProcessingClose] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Si no hay usuario logueado en cookies, mostrar pantalla de selección de perfil
+  if (!currentUser) {
+    return <LoginScreen users={users} />;
+  }
+
+  const otherUser = users.find((u) => u.id !== currentUser.id);
+
+  const handleSwitchUser = async (newUserId: string) => {
+    setIsUserMenuOpen(false);
+    await loginAction(newUserId);
+  };
+
+  const handleLogout = async () => {
+    setIsUserMenuOpen(false);
+    await logoutAction();
+  };
 
   const isClosed = period.status === "CLOSED";
   const nextMonthNumber = currentMonth === 12 ? 1 : currentMonth + 1;
@@ -190,13 +223,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       : "bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]";
 
   const userA = poolSummary.memberBalances[0] || {
-    name: users[0]?.name || "Agus",
+    name: users[0]?.name || "Augusto",
     outOfPocketPaid: 0,
     committedAmount: 0,
     fciQuotaSharePct: 50,
   };
   const userB = poolSummary.memberBalances[1] || {
-    name: users[1]?.name || "Pareja",
+    name: users[1]?.name || "Agus",
     outOfPocketPaid: 0,
     committedAmount: 0,
     fciQuotaSharePct: 50,
@@ -207,10 +240,61 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   return (
     <div className="min-h-screen bg-black text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30">
       {/* Contenedor mobile-first refinado */}
-      <main className="w-full max-w-md mx-auto px-4 pt-safe pb-28 flex-1 flex flex-col gap-4">
+      <main className="w-full max-w-md mx-auto px-4 pt-safe pb-28 flex-1 flex flex-col gap-3.5">
         
-        {/* Cabecera Superior: Selector de Mes Estilo Cápsula Dynamic Island */}
+        {/* Cabecera Superior: Usuario Conectado + Selector de Mes */}
         <header className="flex items-center justify-between pt-2">
+          {/* Selector / Pill de Usuario Activo */}
+          <div className="relative">
+            <button
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="flex items-center gap-2 bg-zinc-900/90 hover:bg-zinc-800 border border-white/[0.08] px-3 py-1.5 rounded-full shadow-inner transition active:scale-95"
+            >
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white shadow-sm"
+                style={{ backgroundColor: currentUser.avatarColor }}
+              >
+                {currentUser.name.charAt(0)}
+              </div>
+              <span className="text-xs font-bold text-white tracking-tight">
+                {currentUser.name}
+              </span>
+              <span className="text-[10px] text-zinc-400">▾</span>
+            </button>
+
+            {/* Menú Flotante de Cambio de Usuario */}
+            {isUserMenuOpen && (
+              <div className="absolute left-0 top-full mt-2 w-48 bg-zinc-900 border border-white/[0.12] rounded-2xl p-2 shadow-2xl z-50 animate-fade-in space-y-1">
+                <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-zinc-400 tracking-wider">
+                  Perfil Activo
+                </div>
+                {otherUser && (
+                  <button
+                    onClick={() => handleSwitchUser(otherUser.id)}
+                    className="w-full px-2.5 py-2 text-left text-xs font-semibold text-zinc-200 hover:text-white hover:bg-white/[0.08] rounded-xl flex items-center gap-2 transition"
+                  >
+                    <div
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                      style={{ backgroundColor: otherUser.avatarColor }}
+                    >
+                      {otherUser.name.charAt(0)}
+                    </div>
+                    <span>Cambiar a {otherUser.name}</span>
+                  </button>
+                )}
+                <div className="border-t border-white/[0.06] my-1" />
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-2.5 py-2 text-left text-xs font-semibold text-rose-300 hover:bg-rose-500/10 rounded-xl flex items-center gap-2 transition"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Cerrar sesión</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Selector de Mes Estilo Cápsula Dynamic Island */}
           <div className="flex items-center gap-1.5 bg-zinc-900/80 border border-white/[0.08] px-2 py-1 rounded-full shadow-inner">
             <button
               onClick={handlePrevMonth}
@@ -222,7 +306,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
             <span className="text-xs font-bold text-white px-1 tracking-tight flex items-center gap-1">
               {monthLabel} {currentYear}
-              {isClosed && <Lock className="w-3 h-3 text-amber-400" />}
+              {isClosed && spaceMode === "hogar" && <Lock className="w-3 h-3 text-amber-400" />}
             </span>
 
             <button
@@ -233,54 +317,103 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setIsExpenseModalOpen(true)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-600/25 active:scale-95 transition duration-150 border border-blue-400/20"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Gasto</span>
-            </button>
-
-            <button
-              onClick={() => setIsSalaryModalOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-zinc-900/90 border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition duration-150"
-              title="Configurar Sueldos"
-            >
-              <Settings className="w-3.5 h-3.5 text-blue-400" />
-            </button>
-
-            {isClosed ? (
-              <button
-                onClick={handleReopenMonth}
-                disabled={isProcessingClose}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-xs font-semibold text-amber-300 hover:bg-amber-500/25 active:scale-95 transition duration-150 disabled:opacity-50"
-                title="Reabrir mes"
-              >
-                <Unlock className="w-3.5 h-3.5" />
-                <span>Reabrir</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsCloseModalOpen(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-zinc-900/90 border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition duration-150"
-                title="Cerrar mes"
-              >
-                <Lock className="w-3.5 h-3.5 text-zinc-400" />
-                <span>Cerrar</span>
-              </button>
-            )}
-          </div>
         </header>
 
-        {/* CONTENIDO SEGÚN LA PESTAÑA ACTIVA */}
+        {/* TOGGLE PRINCIPAL: HOGAR vs PERSONAL */}
+        <div className="flex bg-zinc-900/90 p-1 rounded-2xl border border-white/[0.08] shadow-inner">
+          <button
+            type="button"
+            onClick={() => setSpaceMode("hogar")}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition duration-200 flex items-center justify-center gap-1.5 ${
+              spaceMode === "hogar"
+                ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                : "text-zinc-400 hover:text-white"
+            }`}
+          >
+            <Home className="w-3.5 h-3.5" />
+            <span>Hogar Compartido</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSpaceMode("personal")}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition duration-200 flex items-center justify-center gap-1.5 ${
+              spaceMode === "personal"
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                : "text-zinc-400 hover:text-white"
+            }`}
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>Personal ({currentUser.name})</span>
+          </button>
+        </div>
 
-        {/* TAB 1: HOGAR / GASTOS PRINCIPALES */}
-        {activeTab === "hogar" && (
-          <div className="space-y-4 animate-fade-in">
-            {/* Tarjeta Principal: Termómetro del Fondo Común (Obsidian Glass) */}
-            <section className="super-card rounded-3xl p-5 relative overflow-hidden">
+        {/* CONTENIDO SEGÚN MODO SELECCIONADO */}
+
+        {spaceMode === "personal" ? (
+          /* ========================================================= */
+          /* MODO PERSONAL (Privado e independiente, parte del 40%)    */
+          /* ========================================================= */
+          personalData && (
+            <PersonalDashboardView
+              currentUser={currentUser}
+              currentYear={currentYear}
+              currentMonth={currentMonth}
+              monthName={monthLabel}
+              categories={categories}
+              personalData={personalData}
+            />
+          )
+        ) : (
+          /* ========================================================= */
+          /* MODO HOGAR (Fondo Común 60% e Inversiones Compartidas)    */
+          /* ========================================================= */
+          <div className="space-y-4">
+            {/* Botones de Acción de Hogar */}
+            <div className="flex items-center justify-end gap-1.5">
+              <button
+                onClick={() => setIsExpenseModalOpen(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-600/25 active:scale-95 transition duration-150 border border-blue-400/20"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Gasto</span>
+              </button>
+
+              <button
+                onClick={() => setIsSalaryModalOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-zinc-900/90 border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition duration-150"
+                title="Configurar Sueldos"
+              >
+                <Settings className="w-3.5 h-3.5 text-blue-400" />
+                <span>Sueldos</span>
+              </button>
+
+              {isClosed ? (
+                <button
+                  onClick={handleReopenMonth}
+                  disabled={isProcessingClose}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-xs font-semibold text-amber-300 hover:bg-amber-500/25 active:scale-95 transition duration-150 disabled:opacity-50"
+                  title="Reabrir mes"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Reabrir</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsCloseModalOpen(true)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-zinc-900/90 border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 active:scale-95 transition duration-150"
+                  title="Cerrar mes"
+                >
+                  <Lock className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Cerrar</span>
+                </button>
+              )}
+            </div>
+
+            {/* TAB 1: HOGAR / GASTOS PRINCIPALES */}
+            {activeTab === "hogar" && (
+              <div className="space-y-4 animate-fade-in">
+                {/* Tarjeta Principal: Termómetro del Fondo Común (Obsidian Glass) */}
+                <section className="super-card rounded-3xl p-5 relative overflow-hidden">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
                   <Wallet className="w-3.5 h-3.5 text-blue-400" />
@@ -590,13 +723,16 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             </div>
           </div>
         )}
-      </main>
+      </div>
+    )}
+  </main>
 
-      {/* Barra de Navegación Inferior (iOS Tab Bar Limpia y Equilibrada con 4 pestañas) */}
-      <nav
-        className="super-nav fixed bottom-0 left-0 right-0 z-30"
-        style={{ paddingBottom: "max(6px, env(safe-area-inset-bottom, 0px))" }}
-      >
+  {/* Barra de Navegación Inferior (solo en modo Hogar) */}
+  {spaceMode === "hogar" && (
+    <nav
+      className="super-nav fixed bottom-0 left-0 right-0 z-30"
+      style={{ paddingBottom: "max(6px, env(safe-area-inset-bottom, 0px))" }}
+    >
         <div
           className="w-full max-w-md mx-auto px-3"
           style={{
@@ -704,6 +840,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           </button>
         </div>
       </nav>
+      )}
 
       {/* Modales */}
       <QuickExpenseModal
@@ -712,6 +849,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         periodId={period.id}
         users={users}
         categories={categories}
+        defaultPayerId={currentUser.id}
       />
 
       <SalaryConfigModal

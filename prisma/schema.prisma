@@ -22,16 +22,20 @@ model Household {
 }
 
 model User {
-  id            String             @id @default(cuid())
-  email         String             @unique
-  name          String
-  avatarColor   String             @default("#3b82f6")
-  householdId   String
-  household     Household          @relation(fields: [householdId], references: [id])
-  incomes       Income[]
-  expensesPaid  Expense[]          @relation("ExpensePayer")
-  recurringPaid RecurringExpense[] @relation("RecurringPayer")
-  createdAt     DateTime           @default(now())
+  id                String                     @id @default(cuid())
+  email             String                     @unique
+  name              String
+  avatarColor       String                     @default("#3b82f6")
+  pin               String?
+  householdId       String
+  household         Household                  @relation(fields: [householdId], references: [id])
+  incomes           Income[]
+  expensesPaid      Expense[]                  @relation("ExpensePayer")
+  recurringPaid     RecurringExpense[]         @relation("RecurringPayer")
+  personalIncomes   PersonalIncome[]
+  personalExpenses  PersonalExpense[]
+  personalRecurring PersonalRecurringExpense[]
+  createdAt         DateTime                   @default(now())
 }
 
 model MonthlyPeriod {
@@ -67,14 +71,16 @@ model Income {
 }
 
 model Category {
-  id                String             @id @default(cuid())
-  name              String             // Supermercado, Alquiler, Salidas, etc.
-  icon              String?            // Lucide icon name
-  color             String?            // Hex
+  id                String                     @id @default(cuid())
+  name              String                     // Supermercado, Alquiler, Salidas, etc.
+  icon              String?                    // Lucide icon name
+  color             String?                    // Hex
   householdId       String
-  household         Household          @relation(fields: [householdId], references: [id])
+  household         Household                  @relation(fields: [householdId], references: [id])
   expenses          Expense[]
   recurringExpenses RecurringExpense[]
+  personalExpenses  PersonalExpense[]
+  personalRecurring PersonalRecurringExpense[]
 }
 
 model Expense {
@@ -153,3 +159,55 @@ model InvestmentContribution {
   userBQuota Float          // Cuota atribuible a B
   investedAt DateTime       @default(now())
 }
+
+// Finanzas Personales (40% restante + extras/bonos)
+model PersonalIncome {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id])
+  year               Int
+  month              Int
+  extraAmount        Float     @default(0) // Bonos extra, ingresos adicionales personales
+  carriedOverBalance Float     @default(0) // Saldo arrastrado del mes personal anterior
+  status             String    @default("OPEN") // OPEN, CLOSED
+  closedAt           DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+
+  @@unique([userId, year, month])
+}
+
+model PersonalExpense {
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id])
+  year                Int
+  month               Int
+  title               String
+  amount              Float
+  date                DateTime  @default(now())
+  categoryId          String?
+  category            Category? @relation(fields: [categoryId], references: [id])
+  personalRecurringId String?
+  installmentNumber   Int?      // Ej. cuota 2
+  totalInstallments   Int?      // Ej. de 6
+  notes               String?
+  createdAt           DateTime  @default(now())
+}
+
+model PersonalRecurringExpense {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id])
+  title             String
+  installmentAmount Float     // Monto mensual de la cuota o servicio personal
+  totalInstallments Int?      // ej: 6 cuotas. Null si es recurrente mensual fijo
+  startYear         Int
+  startMonth        Int
+  categoryId        String?
+  category          Category? @relation(fields: [categoryId], references: [id])
+  isActive          Boolean   @default(true)
+  notes             String?
+  createdAt         DateTime  @default(now())
+}
+

@@ -23,6 +23,7 @@ interface QuickExpenseModalProps {
   periodId: string;
   users: HouseholdUser[];
   categories: Category[];
+  defaultPayerId?: string;
 }
 
 export function QuickExpenseModal({
@@ -31,10 +32,13 @@ export function QuickExpenseModal({
   periodId,
   users,
   categories,
+  defaultPayerId,
 }: QuickExpenseModalProps) {
   const [displayAmount, setDisplayAmount] = useState<string>("0");
   const [title, setTitle] = useState<string>("");
-  const [selectedPayerId, setSelectedPayerId] = useState<string>(users[0]?.id || "");
+  const [selectedPayerId, setSelectedPayerId] = useState<string>(
+    defaultPayerId || users[0]?.id || ""
+  );
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
     categories[0]?.id || ""
   );
