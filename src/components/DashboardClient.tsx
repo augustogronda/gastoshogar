@@ -200,13 +200,23 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             </button>
           </div>
 
-          <button
-            onClick={() => setIsSalaryModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 hover:text-white hover:border-zinc-700 active:scale-95 transition"
-          >
-            <Settings className="w-3.5 h-3.5 text-blue-400" />
-            <span>Sueldos</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setIsExpenseModalOpen(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-md active:scale-95 transition"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Gasto</span>
+            </button>
+
+            <button
+              onClick={() => setIsSalaryModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 hover:text-white hover:border-zinc-700 active:scale-95 transition"
+            >
+              <Settings className="w-3.5 h-3.5 text-blue-400" />
+              <span>Sueldos</span>
+            </button>
+          </div>
         </header>
 
         {/* CONTENIDO SEGÚN LA PESTAÑA ACTIVA */}
@@ -485,72 +495,99 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         )}
       </main>
 
-      {/* Botón Flotante para Cargar Gasto (anclado ergonómicamente dentro del viewport) */}
-      {activeTab === "hogar" && (
-        <div className="fixed bottom-20 left-0 right-0 z-40 pointer-events-none">
-          <div className="max-w-md mx-auto px-4 flex justify-end">
-            <button
-              onClick={() => setIsExpenseModalOpen(true)}
-              className="pointer-events-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 rounded-full shadow-2xl shadow-blue-600/50 active:scale-95 transition border border-blue-400/30 flex items-center gap-2"
-              aria-label="Cargar Gasto"
-            >
-              <Plus className="w-5 h-5 stroke-[2.5]" />
-              <span className="text-xs font-bold">Anotar Gasto</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Barra de Navegación Inferior (iOS Tab Bar Limpia y Equilibrada con 4 pestañas) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800">
-        <div className="w-full max-w-md mx-auto px-2 flex items-center justify-between h-16 pb-[env(safe-area-inset-bottom,0px)]">
-          
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-30 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800"
+        style={{ paddingBottom: "max(6px, env(safe-area-inset-bottom, 0px))" }}
+      >
+        <div
+          className="w-full max-w-md mx-auto px-2"
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            height: "58px",
+          }}
+        >
           {/* Tab 1: Hogar */}
           <button
             type="button"
             onClick={() => setActiveTab("hogar")}
-            className={`flex-1 h-full flex flex-col items-center justify-center transition active:scale-95 ${
-              activeTab === "hogar" ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+            className={`transition active:scale-95 ${
+              activeTab === "hogar" ? "text-blue-400 font-semibold" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
             <Wallet className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold tracking-tight">Hogar</span>
+            <span className="text-[11px] tracking-tight leading-none">Hogar</span>
           </button>
 
           {/* Tab 2: Análisis */}
           <button
             type="button"
             onClick={() => setActiveTab("analisis")}
-            className={`flex-1 h-full flex flex-col items-center justify-center transition active:scale-95 ${
-              activeTab === "analisis" ? "text-purple-400" : "text-zinc-500 hover:text-zinc-300"
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+            className={`transition active:scale-95 ${
+              activeTab === "analisis" ? "text-purple-400 font-semibold" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
             <BarChart3 className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold tracking-tight">Análisis</span>
+            <span className="text-[11px] tracking-tight leading-none">Análisis</span>
           </button>
 
           {/* Tab 3: Cuotas */}
           <button
             type="button"
             onClick={() => setActiveTab("cuotas")}
-            className={`flex-1 h-full flex flex-col items-center justify-center transition active:scale-95 ${
-              activeTab === "cuotas" ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-300"
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+            className={`transition active:scale-95 ${
+              activeTab === "cuotas" ? "text-indigo-400 font-semibold" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
             <CreditCard className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold tracking-tight">Cuotas</span>
+            <span className="text-[11px] tracking-tight leading-none">Cuotas</span>
           </button>
 
           {/* Tab 4: FCI */}
           <button
             type="button"
             onClick={() => setActiveTab("fci")}
-            className={`flex-1 h-full flex flex-col items-center justify-center transition active:scale-95 ${
-              activeTab === "fci" ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+            className={`transition active:scale-95 ${
+              activeTab === "fci" ? "text-emerald-400 font-semibold" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
             <PiggyBank className="w-5 h-5 mb-1" />
-            <span className="text-[11px] font-semibold tracking-tight">FCI</span>
+            <span className="text-[11px] tracking-tight leading-none">FCI</span>
           </button>
         </div>
       </nav>
