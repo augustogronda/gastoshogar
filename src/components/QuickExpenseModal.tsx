@@ -127,14 +127,16 @@ export function QuickExpenseModal({
           />
         </div>
 
-        {/* Selector de Pagador (Agus | Pareja | Fondo Común) */}
+        {/* Selector de Pagador (Solo los 2 miembros de la pareja) */}
         <div className="mb-4">
           <label className="block text-xs font-medium text-zinc-400 mb-2">
-            ¿QUIÉN PAGÓ?
+            ¿QUIÉN PAGÓ DE SU BOLSILLO?
           </label>
-          <div className="grid grid-cols-3 gap-2">
-            {users.map((u) => {
-              const isSelected = !isFromPoolFund && selectedPayerId === u.id;
+          <div className="grid grid-cols-2 gap-2.5">
+            {users.slice(0, 2).map((u, idx) => {
+              const isSelected = selectedPayerId === u.id;
+              const isFirst = idx === 0;
+
               return (
                 <button
                   key={u.id}
@@ -143,10 +145,12 @@ export function QuickExpenseModal({
                     setSelectedPayerId(u.id);
                     setIsFromPoolFund(false);
                   }}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-sm font-medium transition active:scale-95 ${
+                  className={`flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border text-sm font-semibold transition active:scale-95 ${
                     isSelected
-                      ? "bg-blue-600/20 border-blue-500 text-blue-400 shadow-sm"
-                      : "bg-zinc-800/50 border-zinc-700/40 text-zinc-400 hover:bg-zinc-800"
+                      ? isFirst
+                        ? "bg-blue-600/25 border-blue-500 text-blue-300 shadow-md ring-1 ring-blue-500/50"
+                        : "bg-pink-600/25 border-pink-500 text-pink-300 shadow-md ring-1 ring-pink-500/50"
+                      : "bg-zinc-800/60 border-zinc-700/50 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
                   }`}
                 >
                   <User className="w-4 h-4" />
@@ -154,20 +158,6 @@ export function QuickExpenseModal({
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() => {
-                setIsFromPoolFund(true);
-              }}
-              className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-sm font-medium transition active:scale-95 ${
-                isFromPoolFund
-                  ? "bg-emerald-600/20 border-emerald-500 text-emerald-400 shadow-sm"
-                  : "bg-zinc-800/50 border-zinc-700/40 text-zinc-400 hover:bg-zinc-800"
-              }`}
-            >
-              <Wallet className="w-4 h-4" />
-              <span className="truncate">Fondo Común</span>
-            </button>
           </div>
         </div>
 

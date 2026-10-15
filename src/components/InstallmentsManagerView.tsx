@@ -245,9 +245,9 @@ export function InstallmentsManagerView({
 
           {/* Pagador */}
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">¿Quién lo paga?</label>
-            <div className="grid grid-cols-3 gap-2">
-              {users.map((u) => (
+            <label className="block text-xs text-zinc-400 mb-1">¿Con la tarjeta de quién?</label>
+            <div className="grid grid-cols-2 gap-2">
+              {users.slice(0, 2).map((u, idx) => (
                 <button
                   key={u.id}
                   type="button"
@@ -255,26 +255,17 @@ export function InstallmentsManagerView({
                     setSelectedPayerId(u.id);
                     setIsFromPoolFund(false);
                   }}
-                  className={`py-2 px-2 rounded-xl text-xs font-medium border text-center truncate ${
-                    !isFromPoolFund && selectedPayerId === u.id
-                      ? "bg-blue-600/20 border-blue-500 text-blue-300"
-                      : "bg-zinc-800/40 border-zinc-700/40 text-zinc-400"
+                  className={`py-2.5 px-3 rounded-xl text-xs font-semibold border text-center truncate transition active:scale-95 ${
+                    selectedPayerId === u.id
+                      ? idx === 0
+                        ? "bg-blue-600/25 border-blue-500 text-blue-300 ring-1 ring-blue-500/50"
+                        : "bg-pink-600/25 border-pink-500 text-pink-300 ring-1 ring-pink-500/50"
+                      : "bg-zinc-800/50 border-zinc-700/50 text-zinc-400 hover:text-zinc-200"
                   }`}
                 >
                   {u.name}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => setIsFromPoolFund(true)}
-                className={`py-2 px-2 rounded-xl text-xs font-medium border text-center truncate ${
-                  isFromPoolFund
-                    ? "bg-emerald-600/20 border-emerald-500 text-emerald-300"
-                    : "bg-zinc-800/40 border-zinc-700/40 text-zinc-400"
-                }`}
-              >
-                Fondo Común
-              </button>
             </div>
           </div>
 

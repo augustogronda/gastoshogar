@@ -370,15 +370,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                               <span>{dateStr}</span>
                               <span>•</span>
                               <span
-                                className={`font-medium ${
-                                  exp.isFromPoolFund
-                                    ? "text-emerald-400"
-                                    : exp.paidBy.id === users[0]?.id
+                                className={`font-semibold ${
+                                  exp.paidBy.id === users[0]?.id
                                     ? "text-blue-400"
                                     : "text-pink-400"
                                 }`}
                               >
-                                {exp.isFromPoolFund ? "Fondo Común" : `Pagó ${exp.paidBy.name}`}
+                                Pagó {exp.paidBy.name}
                               </span>
                             </div>
                           </div>
@@ -487,64 +485,72 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         )}
       </main>
 
-      {/* Botón Flotante (FAB) para Cargar Gasto Rápido en la vista de Hogar */}
+      {/* Botón Flotante para Cargar Gasto (anclado ergonómicamente dentro del viewport) */}
       {activeTab === "hogar" && (
-        <button
-          onClick={() => setIsExpenseModalOpen(true)}
-          className="fixed right-5 bottom-20 z-40 bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-full shadow-2xl shadow-blue-600/50 active:scale-90 transition border-2 border-zinc-900 flex items-center gap-2"
-          aria-label="Cargar Gasto"
-        >
-          <Plus className="w-6 h-6 stroke-[2.5]" />
-          <span className="text-xs font-bold pr-1">Gasto</span>
-        </button>
+        <div className="fixed bottom-20 left-0 right-0 z-40 pointer-events-none">
+          <div className="max-w-md mx-auto px-4 flex justify-end">
+            <button
+              onClick={() => setIsExpenseModalOpen(true)}
+              className="pointer-events-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 rounded-full shadow-2xl shadow-blue-600/50 active:scale-95 transition border border-blue-400/30 flex items-center gap-2"
+              aria-label="Cargar Gasto"
+            >
+              <Plus className="w-5 h-5 stroke-[2.5]" />
+              <span className="text-xs font-bold">Anotar Gasto</span>
+            </button>
+          </div>
+        </div>
       )}
 
-      {/* Barra de Navegación Inferior (iOS Tab Bar Limpia y Equilibrada) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/80 pb-safe">
-        <div className="max-w-md mx-auto px-4 h-16 grid grid-cols-4 items-center">
+      {/* Barra de Navegación Inferior (iOS Tab Bar Limpia y Equilibrada con 4 pestañas) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800">
+        <div className="w-full max-w-md mx-auto px-2 flex items-center justify-between h-16 pb-[env(safe-area-inset-bottom,0px)]">
           
           {/* Tab 1: Hogar */}
           <button
+            type="button"
             onClick={() => setActiveTab("hogar")}
-            className={`flex flex-col items-center gap-1 transition active:scale-95 ${
+            className={`flex-1 h-full flex flex-col items-center justify-center transition active:scale-95 ${
               activeTab === "hogar" ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
-            <Wallet className="w-5 h-5" />
-            <span className="text-[10px] font-semibold">Hogar</span>
+            <Wallet className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-semibold tracking-tight">Hogar</span>
           </button>
 
           {/* Tab 2: Análisis */}
           <button
+            type="button"
             onClick={() => setActiveTab("analisis")}
-            className={`flex flex-col items-center gap-1 transition active:scale-95 ${
+            className={`flex-1 h-full flex flex-col items-center justify-center transition active:scale-95 ${
               activeTab === "analisis" ? "text-purple-400" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
-            <BarChart3 className="w-5 h-5" />
-            <span className="text-[10px] font-semibold">Análisis</span>
+            <BarChart3 className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-semibold tracking-tight">Análisis</span>
           </button>
 
           {/* Tab 3: Cuotas */}
           <button
+            type="button"
             onClick={() => setActiveTab("cuotas")}
-            className={`flex flex-col items-center gap-1 transition active:scale-95 ${
+            className={`flex-1 h-full flex flex-col items-center justify-center transition active:scale-95 ${
               activeTab === "cuotas" ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
-            <CreditCard className="w-5 h-5" />
-            <span className="text-[10px] font-semibold">Cuotas</span>
+            <CreditCard className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-semibold tracking-tight">Cuotas</span>
           </button>
 
           {/* Tab 4: FCI */}
           <button
+            type="button"
             onClick={() => setActiveTab("fci")}
-            className={`flex flex-col items-center gap-1 transition active:scale-95 ${
+            className={`flex-1 h-full flex flex-col items-center justify-center transition active:scale-95 ${
               activeTab === "fci" ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
-            <PiggyBank className="w-5 h-5" />
-            <span className="text-[10px] font-semibold">FCI</span>
+            <PiggyBank className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-semibold tracking-tight">FCI</span>
           </button>
         </div>
       </nav>
