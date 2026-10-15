@@ -29,10 +29,12 @@ import {
   Copy,
   RefreshCw,
   Repeat,
+  Search,
 } from "./ui/icons";
 import { forceCheckAppUpdate } from "./AppUpdateChecker";
 import currentAppVersion from "../../public/version.json";
 import { CategoryIcon } from "./ui/icons";
+import { ConfirmDialog, ToastBanner, useToast } from "./ui/ConfirmDialog";
 import { QuickExpenseModal } from "./QuickExpenseModal";
 import { SalaryConfigModal } from "./SalaryConfigModal";
 import { FCIInvestModal } from "./FCIInvestModal";
@@ -180,6 +182,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("hogar");
   const [personalTab, setPersonalTab] = useState<"gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones">("gastos");
   const [hogarFilter, setHogarFilter] = useState<string>("ALL");
+  const [hogarSearchQuery, setHogarSearchQuery] = useState<string>("");
   const [sharedInvestmentsTab, setSharedInvestmentsTab] = useState<"fci" | "portfolio">("fci");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
@@ -190,6 +193,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmHogarState, setConfirmHogarState] = useState<{
+    isOpen: boolean;
+    type: "deleteExpense" | "reopenMonth";
+    targetId?: string;
+    title: string;
+    description: string;
+  }>({ isOpen: false, type: "deleteExpense", title: "", description: "" });
+  const { toast, showToast } = useToast();
 
   // Precarga inteligente en segundo plano de los meses contiguos (-1 y +1)
   useEffect(() => {
@@ -304,15 +315,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const nextMonthYear = currentMonth === 12 ? currentYear + 1 : currentYear;
   const nextMonthName = MONTH_NAMES[nextMonthNumber - 1];
 
-  const handleDeleteExpense = async (id: string) => {
-    if (confirm("¿Eliminar este gasto?")) {
-      setDeletingId(id);
-      try {
-        await deleteExpenseAction(id);
-      } finally {
-        setDeletingId(null);
-      }
-    }
+  const handleDeleteExpense = (id: string, title?: string) => {
+    setConfirmHogarState({
+      isOpen: true,
+      type: "deleteExpense",
+      targetId: id,
+      title: `¿Eliminar "${title || "este gasto"}"?`,
+      description: "Se descontará del fondo común del mes y se recalcularán los saldos de bolsillo.",
+    });
   };
 
   const handleCloseMonth = async () => {
@@ -320,24 +330,44 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     try {
       await closeMonthAction(period.id);
       setIsCloseModalOpen(false);
+      showToast(`Mes de ${monthLabel} cerrado con éxito`, "success");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error al cerrar el mes");
+      showToast(err instanceof Error ? err.message : "Error al cerrar el mes", "error");
     } finally {
       setIsProcessingClose(false);
     }
   };
 
-  const handleReopenMonth = async () => {
-    if (
-      confirm(
-        "¿Reabrir este mes? Si se trasladó saldo remanente al mes siguiente, será restablecido si dicho mes sigue abierto."
-      )
-    ) {
+  const handleReopenMonth = () => {
+    setConfirmHogarState({
+      isOpen: true,
+      type: "reopenMonth",
+      title: `¿Reabrir ${monthLabel} ${currentYear}?`,
+      description: "Si se trasladó saldo remanente al mes siguiente, será restablecido si dicho mes sigue abierto.",
+    });
+  };
+
+  const executeHogarConfirmAction = async () => {
+    if (confirmHogarState.type === "deleteExpense" && confirmHogarState.targetId) {
+      const id = confirmHogarState.targetId;
+      setConfirmHogarState((prev) => ({ ...prev, isOpen: false }));
+      setDeletingId(id);
+      try {
+        await deleteExpenseAction(id);
+        showToast("Gasto eliminado", "success");
+      } catch (err: unknown) {
+        showToast(err instanceof Error ? err.message : "Error al eliminar", "error");
+      } finally {
+        setDeletingId(null);
+      }
+    } else if (confirmHogarState.type === "reopenMonth") {
+      setConfirmHogarState((prev) => ({ ...prev, isOpen: false }));
       setIsProcessingClose(true);
       try {
         await reopenMonthAction(period.id);
+        showToast(`Mes de ${monthLabel} reabierto`, "success");
       } catch (err: unknown) {
-        alert(err instanceof Error ? err.message : "Error al reabrir el mes");
+        showToast(err instanceof Error ? err.message : "Error al reabrir el mes", "error");
       } finally {
         setIsProcessingClose(false);
       }
@@ -742,7 +772,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   </div>
                 </section>
 
-                {/* Lista de Gastos con Filtros Rápidos */}
+                {/* Lista de Gastos con Buscador y Filtros Rápidos */}
                 <section className="space-y-2.5">
                   <div className="flex items-center justify-between px-1">
                     <h2 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
@@ -760,50 +790,99 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     </div>
                   </div>
 
-                  {/* Chips de Filtro Rápido en 1 toque (Por pagador o categoría) */}
-                  {period.expenses.length > 1 && (
-                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setHogarFilter("ALL")}
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
-                          hogarFilter === "ALL"
-                            ? "bg-blue-600 text-white shadow-sm"
-                            : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
-                        }`}
-                      >
-                        Todos ({period.expenses.length})
-                      </button>
-                      {users[0] && (
+                  {/* Buscador en Tiempo Real + Chips por Pagador y Categoría */}
+                  {period.expenses.length > 0 && (
+                    <div className="space-y-2">
+                      {/* Input de Búsqueda Rápida */}
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={hogarSearchQuery}
+                          onChange={(e) => setHogarSearchQuery(e.target.value)}
+                          placeholder="Buscar gasto por nombre, categoría o nota..."
+                          className="w-full pl-9 pr-8 py-2 rounded-2xl bg-zinc-900/90 border border-white/[0.08] focus:border-blue-500/50 text-xs text-white placeholder-zinc-500 focus:outline-none transition"
+                        />
+                        {hogarSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setHogarSearchQuery("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-zinc-400 hover:text-white bg-white/[0.06]"
+                            title="Limpiar búsqueda"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Chips de Filtro Rápido en 1 toque (Por pagador o categoría) */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                         <button
                           type="button"
-                          onClick={() =>
-                            setHogarFilter(hogarFilter === `USER:${users[0].id}` ? "ALL" : `USER:${users[0].id}`)
-                          }
+                          onClick={() => setHogarFilter("ALL")}
                           className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
-                            hogarFilter === `USER:${users[0].id}`
+                            hogarFilter === "ALL"
                               ? "bg-blue-600 text-white shadow-sm"
                               : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
                           }`}
                         >
-                          Pagó {users[0].name}
+                          Todos ({period.expenses.length})
                         </button>
-                      )}
-                      {users[1] && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setHogarFilter(hogarFilter === `USER:${users[1].id}` ? "ALL" : `USER:${users[1].id}`)
-                          }
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
-                            hogarFilter === `USER:${users[1].id}`
-                              ? "bg-rose-600 text-white shadow-sm"
-                              : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
-                          }`}
-                        >
-                          Pagó {users[1].name}
-                        </button>
-                      )}
+                        {users[0] && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setHogarFilter(hogarFilter === `USER:${users[0].id}` ? "ALL" : `USER:${users[0].id}`)
+                            }
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
+                              hogarFilter === `USER:${users[0].id}`
+                                ? "bg-blue-600 text-white shadow-sm"
+                                : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
+                            }`}
+                          >
+                            Pagó {users[0].name}
+                          </button>
+                        )}
+                        {users[1] && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setHogarFilter(hogarFilter === `USER:${users[1].id}` ? "ALL" : `USER:${users[1].id}`)
+                            }
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
+                              hogarFilter === `USER:${users[1].id}`
+                                ? "bg-rose-600 text-white shadow-sm"
+                                : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
+                            }`}
+                          >
+                            Pagó {users[1].name}
+                          </button>
+                        )}
+                        {/* Categorías con gastos en el mes */}
+                        {Array.from(
+                          new Map(
+                            period.expenses.map((e) => [e.category.id, e.category])
+                          ).values()
+                        ).map((cat) => {
+                          const count = period.expenses.filter((e) => e.category.id === cat.id).length;
+                          const isSelected = hogarFilter === `CAT:${cat.id}`;
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => setHogarFilter(isSelected ? "ALL" : `CAT:${cat.id}`)}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                                isSelected
+                                  ? "bg-blue-600 text-white shadow-sm"
+                                  : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
+                              }`}
+                            >
+                              <CategoryIcon name={cat.name} className="w-3 h-3" />
+                              <span>{cat.name} ({count})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -812,99 +891,141 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                       <CreditCard className="w-8 h-8 text-zinc-600 mx-auto mb-2 opacity-60" />
                       <p className="text-sm font-medium text-zinc-300">No hay gastos en este mes</p>
                       <p className="text-xs text-zinc-500 mt-1">
-                        Tocá el botón <span className="text-blue-400 font-semibold">+ Gasto</span> para cargar el primero.
+                        Tocá el botón <span className="text-blue-400 font-semibold">+ Nuevo Gasto</span> para cargar el primero.
                       </p>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {period.expenses
-                        .filter((exp) => {
-                          if (hogarFilter === "ALL") return true;
-                          if (hogarFilter.startsWith("USER:")) {
-                            return exp.paidBy.id === hogarFilter.replace("USER:", "");
-                          }
-                          return true;
-                        })
-                        .map((exp) => {
-                          const dateObj = new Date(exp.date);
-                          const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
-                          const isAgus = exp.paidBy.id === users[0]?.id;
+                  ) : (() => {
+                    const q = hogarSearchQuery.trim().toLowerCase();
+                    const filteredHogarExpenses = period.expenses.filter((exp) => {
+                      if (hogarFilter.startsWith("USER:") && exp.paidBy.id !== hogarFilter.replace("USER:", "")) {
+                        return false;
+                      }
+                      if (hogarFilter.startsWith("CAT:") && exp.category.id !== hogarFilter.replace("CAT:", "")) {
+                        return false;
+                      }
+                      if (q) {
+                        const matchTitle = exp.title.toLowerCase().includes(q);
+                        const matchCat = exp.category.name.toLowerCase().includes(q);
+                        const matchNotes = exp.notes?.toLowerCase().includes(q);
+                        const matchPayer = exp.paidBy.name.toLowerCase().includes(q);
+                        return matchTitle || matchCat || matchNotes || matchPayer;
+                      }
+                      return true;
+                    });
+                    const filteredSubtotal = filteredHogarExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-                          return (
-                            <div
-                              key={exp.id}
-                              onClick={() => {
-                                setSelectedExpense({
-                                  id: exp.id,
-                                  title: exp.title,
-                                  amount: exp.amount,
-                                  date: exp.date,
-                                  categoryId: exp.category.id,
-                                  category: exp.category,
-                                  paidById: exp.paidBy.id,
-                                  paidBy: exp.paidBy,
-                                  isFromPoolFund: exp.isFromPoolFund,
-                                  notes: exp.notes,
-                                  installmentNumber: exp.installmentNumber,
-                                  totalInstallments: exp.totalInstallments,
-                                  isPersonal: false,
-                                });
-                                setIsDetailModalOpen(true);
-                              }}
-                              className="super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition duration-150 cursor-pointer group"
-                            >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
-                            <CategoryIcon name={exp.category.name} className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <span className="text-sm font-semibold text-white block group-hover:text-blue-300 transition-colors">
-                              {exp.title}
+                    return (
+                      <div className="space-y-2">
+                        {(hogarFilter !== "ALL" || q !== "") && (
+                          <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-blue-950/30 border border-blue-500/20 text-[11px]">
+                            <span className="text-zinc-300">
+                              Mostrando <strong className="text-white">{filteredHogarExpenses.length}</strong> gasto(s)
                             </span>
-                            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-300 font-medium">
-                              <span>{dateStr}</span>
-                              <span>•</span>
-                              <span
-                                className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] border ${
-                                  isAgus
-                                    ? "bg-blue-500/20 text-blue-200 border-blue-400/30"
-                                    : "bg-rose-500/20 text-rose-200 border-rose-400/30"
-                                }`}
-                              >
-                                Pagó {exp.paidBy.name}
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-blue-300 tabular-nums">
+                                Subtotal: ${Math.round(filteredSubtotal).toLocaleString("es-AR")}
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setHogarFilter("ALL");
+                                  setHogarSearchQuery("");
+                                }}
+                                className="text-[10px] font-bold text-zinc-400 hover:text-white underline"
+                              >
+                                Limpiar
+                              </button>
                             </div>
-                            {exp.notes && (
-                              <p className="text-[11px] text-zinc-400 italic mt-1 line-clamp-1 flex items-center gap-1">
-                                <span>💬</span>
-                                <span>{exp.notes}</span>
-                              </p>
-                            )}
                           </div>
-                        </div>
+                        )}
 
-                        <div className="flex items-center gap-3">
-                          <span className="text-base font-bold text-white font-mono tabular-nums">
-                            ${Math.round(exp.amount).toLocaleString("es-AR")}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteExpense(exp.id);
-                            }}
-                            disabled={deletingId === exp.id}
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 active:scale-90 transition"
-                            title="Eliminar gasto"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        {filteredHogarExpenses.length === 0 ? (
+                          <div className="super-card-subtle rounded-2xl p-6 text-center">
+                            <p className="text-xs text-zinc-400">No se encontraron gastos con ese criterio.</p>
+                          </div>
+                        ) : (
+                          filteredHogarExpenses.map((exp) => {
+                            const dateObj = new Date(exp.date);
+                            const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
+                            const isAgus = exp.paidBy.id === users[0]?.id;
+
+                            return (
+                              <div
+                                key={exp.id}
+                                onClick={() => {
+                                  setSelectedExpense({
+                                    id: exp.id,
+                                    title: exp.title,
+                                    amount: exp.amount,
+                                    date: exp.date,
+                                    categoryId: exp.category.id,
+                                    category: exp.category,
+                                    paidById: exp.paidBy.id,
+                                    paidBy: exp.paidBy,
+                                    isFromPoolFund: exp.isFromPoolFund,
+                                    notes: exp.notes,
+                                    installmentNumber: exp.installmentNumber,
+                                    totalInstallments: exp.totalInstallments,
+                                    isPersonal: false,
+                                  });
+                                  setIsDetailModalOpen(true);
+                                }}
+                                className="super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition duration-150 cursor-pointer group"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
+                                    <CategoryIcon name={exp.category.name} className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <span className="text-sm font-semibold text-white block group-hover:text-blue-300 transition-colors">
+                                      {exp.title}
+                                    </span>
+                                    <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-300 font-medium">
+                                      <span>{dateStr}</span>
+                                      <span>•</span>
+                                      <span
+                                        className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] border ${
+                                          isAgus
+                                            ? "bg-blue-500/20 text-blue-200 border-blue-400/30"
+                                            : "bg-rose-500/20 text-rose-200 border-rose-400/30"
+                                        }`}
+                                      >
+                                        Pagó {exp.paidBy.name}
+                                      </span>
+                                    </div>
+                                    {exp.notes && (
+                                      <p className="text-[11px] text-zinc-400 italic mt-1 line-clamp-1 flex items-center gap-1">
+                                        <span>💬</span>
+                                        <span>{exp.notes}</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                  <span className="text-base font-bold text-white font-mono tabular-nums">
+                                    ${Math.round(exp.amount).toLocaleString("es-AR")}
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteExpense(exp.id, exp.title);
+                                    }}
+                                    disabled={deletingId === exp.id}
+                                    className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 active:scale-90 transition"
+                                    title="Eliminar gasto"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
                       </div>
                     );
-                  })}
-                </div>
-              )}
-            </section>
+                  })()}
+                </section>
           </div>
         )}
 
@@ -1444,6 +1565,38 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         currentMonth={currentMonth}
         onSelectMonth={switchMonth}
       />
+
+      {/* Botón de Acción Rápida Flotante (+) en Hogar Compartido */}
+      {spaceMode === "hogar" && (activeTab === "hogar" || activeTab === "analisis") && (
+        <div className="fixed bottom-[74px] left-0 right-0 z-20 pointer-events-none">
+          <div className="w-full max-w-md mx-auto px-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setIsExpenseModalOpen(true)}
+              className="pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-[0_8px_28px_rgba(37,99,235,0.55)] border border-blue-400/30 active:scale-95 transition-all"
+              title="Cargar nuevo gasto compartido"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Nuevo Gasto</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Diálogo de Confirmación Nativo Integrado (Hogar) */}
+      <ConfirmDialog
+        isOpen={confirmHogarState.isOpen}
+        title={confirmHogarState.title}
+        description={confirmHogarState.description}
+        confirmLabel={confirmHogarState.type === "reopenMonth" ? "Reabrir Mes" : "Eliminar"}
+        variant={confirmHogarState.type === "reopenMonth" ? "warning" : "danger"}
+        isLoading={isProcessingClose || !!deletingId}
+        onConfirm={executeHogarConfirmAction}
+        onCancel={() => setConfirmHogarState((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Notificación Flotante Toast */}
+      <ToastBanner toast={toast} />
     </div>
   );
 }

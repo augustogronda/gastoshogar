@@ -1,7 +1,4 @@
 {
-  "version": "1.6.0",
-  "build": 2026101508,
-  "releasedAt": "2026-10-15T23:35:00Z",
-  "title": "Navegación Inferior Unificada, Filtros Rápidos & UX Mobile",
-  "description": "Barra de navegación inferior fija unificada para Hogar y Personal, filtros rápidos por categoría y pagador, cabecera contextual en vivo y modal nativo de confirmación."
+  "version": "1.7.0",
+  "build": "2026-10-15T20:44:00Z"
 }

@@ -15,6 +15,7 @@ import {
   Plus,
 } from "./ui/icons";
 import { CategoryManagerModal } from "./CategoryManagerModal";
+import { useToast, ToastBanner } from "./ui/ConfirmDialog";
 import {
   updateExpenseAction,
   duplicateExpenseAction,
@@ -71,6 +72,7 @@ export function ExpenseDetailModal({
   categories,
   isPersonal = false,
 }: ExpenseDetailModalProps) {
+  const { toast, showToast } = useToast();
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -80,6 +82,7 @@ export function ExpenseDetailModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<"delete" | "duplicate" | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   useEffect(() => {
@@ -93,6 +96,7 @@ export function ExpenseDetailModal({
       setDate(d.toISOString().split("T")[0]);
       
       setNotes(expense.notes || "");
+      setPendingConfirm(null);
     }
   }, [expense, categories, users]);
 
@@ -102,7 +106,7 @@ export function ExpenseDetailModal({
     e.preventDefault();
     const parsedAmount = parseFloat(amount);
     if (!title || !parsedAmount || parsedAmount <= 0) {
-      alert("Completá el título y un monto válido.");
+      showToast("Completá el título y un monto válido.", "error");
       return;
     }
 
@@ -132,52 +136,59 @@ export function ExpenseDetailModal({
       onClose();
     } catch (err: unknown) {
       console.error(err);
-      alert(err instanceof Error ? err.message : "Error al actualizar gasto");
+      showToast(err instanceof Error ? err.message : "Error al actualizar gasto", "error");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDuplicate = async () => {
-    if (confirm("¿Duplicar este gasto para cargarlo nuevamente?")) {
-      setIsDuplicating(true);
-      try {
-        if (isPersonal) {
-          await duplicatePersonalExpenseAction(expense.id);
-        } else {
-          await duplicateExpenseAction(expense.id);
-        }
-        onClose();
-      } catch (err: unknown) {
-        console.error(err);
-        alert(err instanceof Error ? err.message : "Error al duplicar gasto");
-      } finally {
-        setIsDuplicating(false);
+    if (pendingConfirm !== "duplicate") {
+      setPendingConfirm("duplicate");
+      return;
+    }
+    setPendingConfirm(null);
+    setIsDuplicating(true);
+    try {
+      if (isPersonal) {
+        await duplicatePersonalExpenseAction(expense.id);
+      } else {
+        await duplicateExpenseAction(expense.id);
       }
+      onClose();
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al duplicar gasto", "error");
+    } finally {
+      setIsDuplicating(false);
     }
   };
 
   const handleDelete = async () => {
-    if (confirm("¿Estás seguro de eliminar este gasto definitivamente?")) {
-      setIsDeleting(true);
-      try {
-        if (isPersonal) {
-          await deletePersonalExpenseAction(expense.id);
-        } else {
-          await deleteExpenseAction(expense.id);
-        }
-        onClose();
-      } catch (err: unknown) {
-        console.error(err);
-        alert(err instanceof Error ? err.message : "Error al eliminar gasto");
-      } finally {
-        setIsDeleting(false);
+    if (pendingConfirm !== "delete") {
+      setPendingConfirm("delete");
+      return;
+    }
+    setPendingConfirm(null);
+    setIsDeleting(true);
+    try {
+      if (isPersonal) {
+        await deletePersonalExpenseAction(expense.id);
+      } else {
+        await deleteExpenseAction(expense.id);
       }
+      onClose();
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al eliminar gasto", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      <ToastBanner toast={toast} />
       <div className="w-full max-w-md super-card rounded-3xl p-6 shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto no-scrollbar">
         
         {/* Header */}
@@ -390,22 +401,42 @@ export function ExpenseDetailModal({
                 type="button"
                 onClick={handleDuplicate}
                 disabled={isSubmitting || isDuplicating || isDeleting}
-                className="py-3 px-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] border border-white/[0.08]"
+                className={`py-3 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] border ${
+                  pendingConfirm === "duplicate"
+                    ? "bg-indigo-600 text-white border-indigo-400/40 shadow-md shadow-indigo-600/30"
+                    : "bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 border-white/[0.08]"
+                }`}
                 title="Crear una copia exacta de este gasto"
               >
-                <Copy className="w-3.5 h-3.5 text-zinc-400" />
-                <span>{isDuplicating ? "Copiando..." : "Duplicar Gasto"}</span>
+                <Copy className="w-3.5 h-3.5" />
+                <span>
+                  {isDuplicating
+                    ? "Copiando..."
+                    : pendingConfirm === "duplicate"
+                    ? "¿Confirmar copia?"
+                    : "Duplicar Gasto"}
+                </span>
               </button>
 
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={isSubmitting || isDuplicating || isDeleting}
-                className="py-3 px-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] border border-rose-500/20"
+                className={`py-3 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] border ${
+                  pendingConfirm === "delete"
+                    ? "bg-rose-600 text-white border-rose-400/40 shadow-md shadow-rose-600/30"
+                    : "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/20"
+                }`}
                 title="Eliminar este gasto"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                <span>{isDeleting ? "Eliminando..." : "Eliminar"}</span>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>
+                  {isDeleting
+                    ? "Eliminando..."
+                    : pendingConfirm === "delete"
+                    ? "¿Confirmar borrar?"
+                    : "Eliminar"}
+                </span>
               </button>
             </div>
           </div>

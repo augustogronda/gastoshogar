@@ -19,7 +19,9 @@ import {
   Repeat,
   Tag,
   TrendingUp,
+  Search,
 } from "./ui/icons";
+import { ConfirmDialog, ToastBanner, useToast } from "./ui/ConfirmDialog";
 import { PersonalIncomeModal } from "./PersonalIncomeModal";
 import { PersonalExpenseModal } from "./PersonalExpenseModal";
 import { PersonalRecurringModal } from "./PersonalRecurringModal";
@@ -120,7 +122,9 @@ export function PersonalDashboardView({
   activeTab = "gastos",
 }: PersonalDashboardViewProps) {
   const personalTab = activeTab;
+  const { toast, showToast } = useToast();
   const [personalCategoryFilter, setPersonalCategoryFilter] = useState<string>("ALL");
+  const [personalSearchQuery, setPersonalSearchQuery] = useState<string>("");
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
@@ -130,6 +134,11 @@ export function PersonalDashboardView({
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<{
+    type: "deleteExpense" | "deleteRecurring" | "reopenMonth";
+    id?: string;
+    title?: string;
+  } | null>(null);
 
   const {
     basePersonalSalary,
@@ -157,13 +166,44 @@ export function PersonalDashboardView({
   const nextMonthNum = currentMonth === 12 ? 1 : currentMonth + 1;
   const nextMonthYear = currentMonth === 12 ? currentYear + 1 : currentYear;
 
-  const handleDeleteExpense = async (id: string) => {
-    if (confirm("¿Eliminar este gasto personal?")) {
-      setDeletingId(id);
+  const handleDeleteExpense = (id: string, expTitle?: string) => {
+    setConfirmState({ type: "deleteExpense", id, title: expTitle });
+  };
+
+  const handleExecuteConfirm = async () => {
+    if (!confirmState) return;
+    const current = confirmState;
+    setConfirmState(null);
+
+    if (current.type === "deleteExpense" && current.id) {
+      setDeletingId(current.id);
       try {
-        await deletePersonalExpenseAction(id);
+        await deletePersonalExpenseAction(current.id);
+        showToast("✓ Gasto personal eliminado");
+      } catch (err) {
+        showToast("Error al eliminar gasto", "error");
       } finally {
         setDeletingId(null);
+      }
+    } else if (current.type === "deleteRecurring" && current.id) {
+      setIsProcessing(true);
+      try {
+        await deletePersonalRecurringExpenseAction(current.id);
+        showToast("✓ Cuota / fijo eliminado");
+      } catch (err) {
+        showToast("Error al eliminar cuota", "error");
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (current.type === "reopenMonth") {
+      setIsProcessing(true);
+      try {
+        await reopenPersonalMonthAction(currentUser.id, currentYear, currentMonth);
+        showToast("✓ Mes personal reabierto");
+      } catch (err: unknown) {
+        showToast(err instanceof Error ? err.message : "Error al reabrir", "error");
+      } finally {
+        setIsProcessing(false);
       }
     }
   };
@@ -182,8 +222,9 @@ export function PersonalDashboardView({
         installmentNumber: rec.installmentNumber,
         totalInstallments: rec.totalInstallments,
       });
+      showToast(`✓ "${rec.title}" imputada al mes`);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error al imputar cuota");
+      showToast(err instanceof Error ? err.message : "Error al imputar cuota", "error");
     } finally {
       setIsProcessing(false);
     }
@@ -193,8 +234,9 @@ export function PersonalDashboardView({
     setIsProcessing(true);
     try {
       await unapplyPersonalRecurringExpenseAction(expenseId);
+      showToast("✓ Cuota desmarcada del mes", "info");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error al desmarcar cuota");
+      showToast(err instanceof Error ? err.message : "Error al desmarcar cuota", "error");
     } finally {
       setIsProcessing(false);
     }
@@ -205,24 +247,16 @@ export function PersonalDashboardView({
     try {
       await closePersonalMonthAction(currentUser.id, currentYear, currentMonth);
       setIsCloseModalOpen(false);
+      showToast("✓ Mes personal cerrado");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error al cerrar mes personal");
+      showToast(err instanceof Error ? err.message : "Error al cerrar mes personal", "error");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleReopenPersonalMonth = async () => {
-    if (confirm("¿Reabrir tu mes personal? Se recalculará el saldo disponible.")) {
-      setIsProcessing(true);
-      try {
-        await reopenPersonalMonthAction(currentUser.id, currentYear, currentMonth);
-      } catch (err: unknown) {
-        alert(err instanceof Error ? err.message : "Error al reabrir");
-      } finally {
-        setIsProcessing(false);
-      }
-    }
+  const handleReopenPersonalMonth = () => {
+    setConfirmState({ type: "reopenMonth" });
   };
 
   // Cálculo de análisis por categoría
@@ -238,13 +272,46 @@ export function PersonalDashboardView({
   const sortedCategories = Object.values(categoryTotals).sort((a, b) => b.amount - a.amount);
   const averagePersonalExpense = expenses.length > 0 ? Math.round(totalPersonalExpenses / expenses.length) : 0;
 
-  const filteredPersonalExpenses =
-    personalCategoryFilter === "ALL"
-      ? expenses
-      : expenses.filter((e) => (e.category?.name || "Varios") === personalCategoryFilter);
+  const normalizedQuery = personalSearchQuery.trim().toLowerCase();
+  const filteredPersonalExpenses = expenses.filter((e) => {
+    const catName = e.category?.name || "Varios";
+    const matchesCategory = personalCategoryFilter === "ALL" || catName === personalCategoryFilter;
+    const matchesSearch =
+      !normalizedQuery ||
+      e.title.toLowerCase().includes(normalizedQuery) ||
+      catName.toLowerCase().includes(normalizedQuery) ||
+      (e.notes && e.notes.toLowerCase().includes(normalizedQuery));
+    return matchesCategory && matchesSearch;
+  });
+
+  const isFilteringPersonal = personalCategoryFilter !== "ALL" || normalizedQuery.length > 0;
+  const filteredPersonalSubtotal = filteredPersonalExpenses.reduce((acc, e) => acc + e.amount, 0);
 
   return (
     <div className="space-y-4 animate-fade-in">
+      <ToastBanner toast={toast} />
+      <ConfirmDialog
+        isOpen={!!confirmState}
+        title={
+          confirmState?.type === "reopenMonth"
+            ? "¿Reabrir tu mes personal?"
+            : confirmState?.type === "deleteRecurring"
+            ? `¿Eliminar "${confirmState?.title || "cuota/fijo"}"?`
+            : `¿Eliminar "${confirmState?.title || "este gasto"}"?`
+        }
+        description={
+          confirmState?.type === "reopenMonth"
+            ? "Se volverá a habilitar el mes y se recalculará el saldo disponible."
+            : confirmState?.type === "deleteRecurring"
+            ? "Se quitará este plan de cuotas o suscripción fija de tu lista activa."
+            : "Esta acción descontará el monto de tus gastos personales del mes."
+        }
+        confirmLabel={confirmState?.type === "reopenMonth" ? "Sí, reabrir" : "Sí, eliminar"}
+        variant={confirmState?.type === "reopenMonth" ? "warning" : "danger"}
+        isLoading={isProcessing || !!deletingId}
+        onConfirm={handleExecuteConfirm}
+        onCancel={() => setConfirmState(null)}
+      />
 
       {/* PESTAÑA 1: GASTOS PERSONALES */}
       {personalTab === "gastos" && (
@@ -363,11 +430,11 @@ export function PersonalDashboardView({
             </button>
           </div>
 
-          {/* Lista de Gastos Personales */}
+          {/* Lista de Gastos Personales con Buscador y Filtro por Categoría */}
           <section className="space-y-2.5">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-                Gastos Personales de {monthName} ({filteredPersonalExpenses.length})
+                Gastos Personales de {monthName} ({expenses.length})
               </h2>
               <button
                 onClick={() => setIsCategoryModalOpen(true)}
@@ -379,48 +446,114 @@ export function PersonalDashboardView({
               </button>
             </div>
 
-            {/* Chips de filtro rápido por categoría (1 toque) */}
-            {sortedCategories.length > 1 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-                <button
-                  type="button"
-                  onClick={() => setPersonalCategoryFilter("ALL")}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
-                    personalCategoryFilter === "ALL"
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
-                  }`}
-                >
-                  Todos ({expenses.length})
-                </button>
-                {sortedCategories.map((cat) => (
-                  <button
-                    key={cat.name}
-                    type="button"
-                    onClick={() =>
-                      setPersonalCategoryFilter(
-                        personalCategoryFilter === cat.name ? "ALL" : cat.name
-                      )
-                    }
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition flex items-center gap-1 ${
-                      personalCategoryFilter === cat.name
-                        ? "bg-indigo-600 text-white shadow-sm"
-                        : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
-                    }`}
-                  >
-                    <span>{cat.name}</span>
-                    <span className="text-[10px] opacity-75">({cat.count})</span>
-                  </button>
-                ))}
+            {/* Buscador instantáneo + Chips de Categoría */}
+            {expenses.length > 0 && (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={personalSearchQuery}
+                    onChange={(e) => setPersonalSearchQuery(e.target.value)}
+                    placeholder="Buscar gasto por nombre, categoría o nota..."
+                    className="w-full bg-zinc-900/90 border border-white/[0.08] rounded-2xl py-2 pl-9 pr-8 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 transition"
+                  />
+                  {personalSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setPersonalSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-zinc-400 hover:text-white bg-white/[0.06]"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {sortedCategories.length > 1 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setPersonalCategoryFilter("ALL")}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
+                        personalCategoryFilter === "ALL"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
+                      }`}
+                    >
+                      Todos ({expenses.length})
+                    </button>
+                    {sortedCategories.map((cat) => (
+                      <button
+                        key={cat.name}
+                        type="button"
+                        onClick={() =>
+                          setPersonalCategoryFilter(
+                            personalCategoryFilter === cat.name ? "ALL" : cat.name
+                          )
+                        }
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                          personalCategoryFilter === cat.name
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
+                        }`}
+                      >
+                        <CategoryIcon name={cat.name} className="w-3 h-3" />
+                        <span>{cat.name}</span>
+                        <span className="text-[10px] opacity-75">({cat.count})</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Barra de Subtotal cuando hay búsqueda o filtro activo */}
+                {isFilteringPersonal && (
+                  <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-[11px]">
+                    <span className="text-indigo-200 font-medium">
+                      Mostrando <strong>{filteredPersonalExpenses.length}</strong> gasto(s) • Subtotal:{" "}
+                      <strong className="font-mono text-white">
+                        ${Math.round(filteredPersonalSubtotal).toLocaleString("es-AR")}
+                      </strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPersonalCategoryFilter("ALL");
+                        setPersonalSearchQuery("");
+                      }}
+                      className="text-indigo-300 hover:text-white font-bold underline ml-2"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
             {filteredPersonalExpenses.length === 0 ? (
               <div className="super-card rounded-2xl p-8 text-center">
                 <Wallet className="w-8 h-8 text-zinc-600 mx-auto mb-2 opacity-60" />
-                <p className="text-sm font-medium text-zinc-300">Sin gastos personales registrados</p>
+                <p className="text-sm font-medium text-zinc-300">
+                  {isFilteringPersonal
+                    ? "No se encontraron gastos con ese filtro"
+                    : "Sin gastos personales registrados"}
+                </p>
                 <p className="text-xs text-zinc-500 mt-1">
-                  Tocá el botón <span className="text-indigo-400 font-semibold">+ Gasto</span> para anotar compras propias.
+                  {isFilteringPersonal ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPersonalCategoryFilter("ALL");
+                        setPersonalSearchQuery("");
+                      }}
+                      className="text-indigo-400 font-semibold underline"
+                    >
+                      Ver todos los gastos del mes
+                    </button>
+                  ) : (
+                    <>
+                      Tocá el botón <span className="text-indigo-400 font-semibold">+ Gasto</span> para anotar compras propias.
+                    </>
+                  )}
                 </p>
               </div>
             ) : (
@@ -490,7 +623,7 @@ export function PersonalDashboardView({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteExpense(exp.id);
+                            handleDeleteExpense(exp.id, exp.title);
                           }}
                           disabled={deletingId === exp.id}
                           className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 active:scale-90 transition"
@@ -700,16 +833,13 @@ export function PersonalDashboardView({
                     )}
 
                     <button
-                      onClick={async () => {
-                        if (confirm(`¿Eliminar la cuota/fijo "${rec.title}"?`)) {
-                          setIsProcessing(true);
-                          try {
-                            await deletePersonalRecurringExpenseAction(rec.id);
-                          } finally {
-                            setIsProcessing(false);
-                          }
-                        }
-                      }}
+                      onClick={() =>
+                        setConfirmState({
+                          type: "deleteRecurring",
+                          id: rec.id,
+                          title: rec.title,
+                        })
+                      }
                       disabled={isProcessing}
                       className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 active:scale-90 transition"
                       title="Eliminar cuota/fijo"
@@ -721,6 +851,26 @@ export function PersonalDashboardView({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Botón de Acción Rápida Flotante (+) en Personal (ergonómico para el pulgar) */}
+      {(personalTab === "gastos" || personalTab === "analisis" || personalTab === "cuotas") && (
+        <div className="fixed bottom-[74px] left-0 right-0 z-30 pointer-events-none">
+          <div className="w-full max-w-md mx-auto px-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() =>
+                personalTab === "cuotas"
+                  ? setIsRecurringModalOpen(true)
+                  : setIsExpenseModalOpen(true)
+              }
+              className="pointer-events-auto h-12 px-4 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-xl shadow-indigo-600/40 border border-white/20 flex items-center gap-2 active:scale-95 transition"
+            >
+              <Plus className="w-4 h-4 stroke-[2.8]" />
+              <span>{personalTab === "cuotas" ? "Nueva Cuota" : "Nuevo Gasto"}</span>
+            </button>
+          </div>
         </div>
       )}
 

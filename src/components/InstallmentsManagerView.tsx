@@ -22,6 +22,7 @@ import {
   applyAllRecurringExpensesAction,
   unapplyRecurringExpenseAction,
 } from "@/app/actions";
+import { ConfirmDialog, ToastBanner, useToast } from "./ui/ConfirmDialog";
 
 interface Category {
   id: string;
@@ -86,8 +87,10 @@ export function InstallmentsManagerView({
   users,
   categories,
 }: InstallmentsManagerViewProps) {
+  const { toast, showToast } = useToast();
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "installments" | "fixed">("all");
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // Form states
   const [title, setTitle] = useState("");
@@ -144,9 +147,10 @@ export function InstallmentsManagerView({
       setRawAmountInput("");
       setCustomInstallments("");
       setIsAddingNew(false);
+      showToast("✓ Plan de cuotas / fijo creado");
     } catch (err) {
       console.error(err);
-      alert("Error al guardar la cuota/gasto recurrente");
+      showToast("Error al guardar la cuota/gasto recurrente", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -166,9 +170,10 @@ export function InstallmentsManagerView({
         installmentNumber: item.installmentNumber,
         totalInstallments: item.totalInstallments,
       });
+      showToast(`✓ "${item.title}" imputada al mes`);
     } catch (err) {
       console.error(err);
-      alert("Error al imputar la cuota al mes");
+      showToast("Error al imputar la cuota al mes", "error");
     } finally {
       setActionLoadingId(null);
     }
@@ -179,9 +184,10 @@ export function InstallmentsManagerView({
     setActionLoadingId(item.id);
     try {
       await unapplyRecurringExpenseAction(item.appliedExpenseId);
+      showToast(`✓ "${item.title}" desmarcada del mes`, "info");
     } catch (err) {
       console.error(err);
-      alert("Error al desimputar la cuota");
+      showToast("Error al desimputar la cuota", "error");
     } finally {
       setActionLoadingId(null);
     }
@@ -206,21 +212,29 @@ export function InstallmentsManagerView({
           totalInstallments: item.totalInstallments,
         }))
       );
+      showToast(`✓ ${pendingItems.length} cuotas imputadas al mes`);
     } catch (err) {
       console.error(err);
-      alert("Error al imputar todas las cuotas");
+      showToast("Error al imputar todas las cuotas", "error");
     } finally {
       setIsBatchApplying(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm("¿Eliminar este plan de cuotas/gasto fijo? Se mantendrán los meses ya registrados.")) {
-      try {
-        await deleteRecurringExpenseAction(id);
-      } catch (err) {
-        console.error(err);
-      }
+  const handleDelete = (id: string) => {
+    setDeleteTargetId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
+    const id = deleteTargetId;
+    setDeleteTargetId(null);
+    try {
+      await deleteRecurringExpenseAction(id);
+      showToast("✓ Plan eliminado");
+    } catch (err) {
+      console.error(err);
+      showToast("Error al eliminar el plan", "error");
     }
   };
 
@@ -266,6 +280,16 @@ export function InstallmentsManagerView({
 
   return (
     <div className="space-y-4 animate-fade-in pb-12">
+      <ToastBanner toast={toast} />
+      <ConfirmDialog
+        isOpen={!!deleteTargetId}
+        title="¿Eliminar plan de cuotas / fijo?"
+        description="Se eliminará el compromiso futuro pero se conservarán los gastos de meses ya registrados."
+        confirmLabel="Sí, eliminar"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTargetId(null)}
+      />
       {/* 1. Tarjeta Hero de Compromisos Fijos del Mes (Stripe Style) */}
       <section className="super-card rounded-3xl p-5 shadow-2xl relative overflow-hidden">
         {/* Glow de fondo sutil */}
