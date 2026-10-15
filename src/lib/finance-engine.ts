@@ -16,7 +16,8 @@ export interface PoolSummary {
   totalSalaries: number;
   salaryPool: number; // 60% de ambos sueldos
   carriedOverBalance: number; // Saldo no invertido arrastrado del mes anterior
-  totalAvailablePool: number; // salaryPool + carriedOverBalance
+  totalAvailablePool: number; // salaryPool + carriedOverBalance + fciWithdrawnToPool
+  fciWithdrawnToPool: number; // Retiros del FCI inyectados como saldo disponible este mes
   totalExpenses: number;
   investedInFCI: number; // Monto que ya fue transferido/marcado como invertido al FCI
   remainingPool: number; // Saldo disponible libre del mes (totalAvailablePool - totalExpenses - investedInFCI)
@@ -41,7 +42,8 @@ export function calculateMonthlyPool(
   }>,
   poolExpensesPaidFromCommonFund: number = 0,
   carriedOverBalance: number = 0,
-  investedInFCI: number = 0
+  investedInFCI: number = 0,
+  fciWithdrawnToPool: number = 0
 ): PoolSummary {
   const memberContributions: MemberContribution[] = members.map((m) => {
     const pct = m.contributionPct ?? 0.60;
@@ -58,8 +60,8 @@ export function calculateMonthlyPool(
   const totalSalaries = memberContributions.reduce((acc, m) => acc + m.salary, 0);
   const salaryPool = memberContributions.reduce((acc, m) => acc + m.committedAmount, 0);
   
-  // Fondo disponible total = 60% de este mes + saldo a favor no invertido del mes anterior
-  const totalAvailablePool = salaryPool + Math.max(0, carriedOverBalance);
+  // Fondo disponible total = 60% de este mes + saldo a favor no invertido del mes anterior + retiros inyectados al mes
+  const totalAvailablePool = salaryPool + Math.max(0, carriedOverBalance) + Math.max(0, fciWithdrawnToPool);
 
   const totalOutOfPocket = memberContributions.reduce((acc, m) => acc + m.outOfPocketPaid, 0);
   const totalExpenses = totalOutOfPocket + poolExpensesPaidFromCommonFund;
@@ -92,6 +94,7 @@ export function calculateMonthlyPool(
     salaryPool,
     carriedOverBalance,
     totalAvailablePool,
+    fciWithdrawnToPool,
     totalExpenses,
     investedInFCI,
     remainingPool,

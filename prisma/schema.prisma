@@ -53,6 +53,7 @@ model MonthlyPeriod {
   expenses           Expense[]
   settlement         Settlement?
   investmentTransfer InvestmentContribution?
+  fciWithdrawals     InvestmentWithdrawal[]
   createdAt          DateTime                @default(now())
 
   @@unique([householdId, year, month])
@@ -150,6 +151,7 @@ model InvestmentFund {
   name          String                   @default("FCI Ahorro Pareja")
   currentValue  Float                    @default(0)
   contributions InvestmentContribution[]
+  withdrawals   InvestmentWithdrawal[]
   updatedAt     DateTime                 @updatedAt
 }
 
@@ -163,6 +165,19 @@ model InvestmentContribution {
   userAQuota Float          // Cuota atribuible a A
   userBQuota Float          // Cuota atribuible a B
   investedAt DateTime       @default(now())
+}
+
+model InvestmentWithdrawal {
+  id          String         @id @default(cuid())
+  fundId      String
+  fund        InvestmentFund @relation(fields: [fundId], references: [id])
+  periodId    String?        // Vinculado al mes actual si se destinó a este
+  period      MonthlyPeriod? @relation(fields: [periodId], references: [id])
+  amount      Float          // Monto retirado del FCI
+  destination String         // "POOL_FUND" (al fondo del mes) o "CUSTOM_USE" (uso específico)
+  purpose     String?        // Detalle de para qué se usó
+  withdrawnAt DateTime       @default(now())
+  createdAt   DateTime       @default(now())
 }
 
 // Finanzas Personales (40% restante + extras/bonos)

@@ -73,12 +73,20 @@ interface DashboardClientProps {
       incomes: Array<{ userId: string; amount: number; contributionPct: number; targetPoolAmount: number }>;
       expenses: ExpenseItem[];
       investmentTransfer: { id: string; amount: number } | null;
+      fciWithdrawals?: Array<{
+        id: string;
+        amount: number;
+        destination: string;
+        purpose?: string | null;
+        withdrawnAt: Date | string;
+      }>;
     };
     poolSummary: {
       totalSalaries: number;
       salaryPool: number;
       carriedOverBalance: number;
       totalAvailablePool: number;
+      fciWithdrawnToPool?: number;
       investedInFCI: number;
       totalExpenses: number;
       remainingPool: number;
@@ -97,6 +105,13 @@ interface DashboardClientProps {
       name: string;
       currentValue: number;
       contributions: Array<{ id: string; amount: number; investedAt: Date | string }>;
+      withdrawals?: Array<{
+        id: string;
+        amount: number;
+        destination: string;
+        purpose?: string | null;
+        withdrawnAt: Date | string;
+      }>;
     } | null;
     recurringExpenses: Array<any>;
     personalData: any | null;
@@ -448,12 +463,19 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 </div>
               </div>
 
-              {/* Sub-desglose si hay saldo arrastrado o invertido */}
-              {(poolSummary.carriedOverBalance > 0 || poolSummary.investedInFCI > 0) && (
+              {/* Sub-desglose si hay saldo arrastrado, invertido o retiros del FCI */}
+              {(poolSummary.carriedOverBalance > 0 ||
+                poolSummary.investedInFCI > 0 ||
+                (poolSummary.fciWithdrawnToPool && poolSummary.fciWithdrawnToPool > 0)) && (
                 <div className="flex flex-wrap items-center gap-1.5 mb-3 text-[10px] font-medium">
                   {poolSummary.carriedOverBalance > 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 font-mono tabular-nums">
                       +${Math.round(poolSummary.carriedOverBalance).toLocaleString("es-AR")} mes anterior
+                    </span>
+                  )}
+                  {!!poolSummary.fciWithdrawnToPool && poolSummary.fciWithdrawnToPool > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono tabular-nums">
+                      +${Math.round(poolSummary.fciWithdrawnToPool).toLocaleString("es-AR")} retiro de FCI
                     </span>
                   )}
                   {poolSummary.investedInFCI > 0 && (
@@ -912,6 +934,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         isAlreadyTransferred={!!period.investmentTransfer}
         userABalance={{ name: userA.name, quotaPct: userA.fciQuotaSharePct }}
         userBBalance={{ name: userB.name, quotaPct: userB.fciQuotaSharePct }}
+        withdrawals={investmentFund?.withdrawals || []}
       />
 
       {/* Modal de Confirmación de Cierre Mensual */}

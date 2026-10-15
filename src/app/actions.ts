@@ -38,6 +38,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
         salaryPool: 0,
         carriedOverBalance: 0,
         totalAvailablePool: 0,
+        fciWithdrawnToPool: 0,
         investedInFCI: 0,
         totalExpenses: 0,
         remainingPool: 0,
@@ -78,6 +79,11 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
         },
       },
       investmentTransfer: true,
+      fciWithdrawals: {
+        orderBy: {
+          withdrawnAt: "desc",
+        },
+      },
     },
   });
 
@@ -129,6 +135,11 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
           },
         },
         investmentTransfer: true,
+        fciWithdrawals: {
+          orderBy: {
+            withdrawnAt: "desc",
+          },
+        },
       },
     });
   }
@@ -164,20 +175,27 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
 
   const investedInFCI = period.investmentTransfer ? period.investmentTransfer.amount : 0;
   const carriedOver = period.carriedOverBalance || 0;
+  const fciWithdrawnToPool = (period.fciWithdrawals || [])
+    .filter((w) => w.destination === "POOL_FUND")
+    .reduce((acc, w) => acc + w.amount, 0);
 
   const poolSummary = calculateMonthlyPool(
     engineMembers,
     poolFundExpenses,
     carriedOver,
-    investedInFCI
+    investedInFCI,
+    fciWithdrawnToPool
   );
 
-  // Obtener Fondo de Inversión
+  // Obtener Fondo de Inversión con aportes y retiros
   const investmentFund = await prisma.investmentFund.findFirst({
     where: { householdId: household.id },
     include: {
       contributions: {
         orderBy: { investedAt: "desc" },
+      },
+      withdrawals: {
+        orderBy: { withdrawnAt: "desc" },
       },
     },
   });
@@ -584,6 +602,85 @@ export async function transferSurplusToFCIAction(periodId: string, fundId: strin
 
   revalidatePath("/");
   return { success: true, surplus };
+}
+
+export async function createFCIWithdrawalAction(data: {
+  fundId: string;
+  periodId?: string;
+  amount: number;
+  destination: "POOL_FUND" | "CUSTOM_USE";
+  purpose?: string;
+}) {
+  const amount = Number(data.amount);
+  if (!data.fundId || isNaN(amount) || amount <= 0) {
+    throw new Error("El monto a retirar debe ser un número positivo.");
+  }
+
+  const fund = await prisma.investmentFund.findUnique({
+    where: { id: data.fundId },
+  });
+
+  if (!fund) {
+    throw new Error("Fondo Común de Inversión no encontrado.");
+  }
+
+  if (amount > fund.currentValue) {
+    throw new Error(
+      `El monto a retirar ($${Math.round(amount).toLocaleString("es-AR")}) supera el saldo actual del FCI ($${Math.round(fund.currentValue).toLocaleString("es-AR")}).`
+    );
+  }
+
+  // Crear el registro de retiro
+  const withdrawal = await prisma.investmentWithdrawal.create({
+    data: {
+      fundId: data.fundId,
+      periodId: data.periodId || null,
+      amount,
+      destination: data.destination,
+      purpose: data.purpose ? data.purpose.trim() : null,
+      withdrawnAt: new Date(),
+    },
+  });
+
+  // Descontar del saldo del FCI
+  await prisma.investmentFund.update({
+    where: { id: data.fundId },
+    data: {
+      currentValue: {
+        decrement: amount,
+      },
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true, withdrawal };
+}
+
+export async function deleteFCIWithdrawalAction(withdrawalId: string) {
+  if (!withdrawalId) throw new Error("ID de retiro requerido.");
+
+  const withdrawal = await prisma.investmentWithdrawal.findUnique({
+    where: { id: withdrawalId },
+  });
+
+  if (!withdrawal) throw new Error("Retiro no encontrado.");
+
+  // Reintegrar saldo al FCI
+  await prisma.investmentFund.update({
+    where: { id: withdrawal.fundId },
+    data: {
+      currentValue: {
+        increment: withdrawal.amount,
+      },
+    },
+  });
+
+  await prisma.investmentWithdrawal.delete({
+    where: { id: withdrawalId },
+  });
+
+  revalidatePath("/");
+  return { success: true };
 }
 
 export async function closeMonthAction(periodId: string) {
