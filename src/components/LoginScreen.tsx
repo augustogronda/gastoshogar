@@ -41,9 +41,6 @@ export function LoginScreen({ users }: LoginScreenProps) {
         <h1 className="text-2xl font-extrabold text-white tracking-tight">
           Gastos Hogar & Personal
         </h1>
-        <p className="text-xs text-zinc-400 mt-2 max-w-xs leading-relaxed">
-          Finanzas compartidas del 60% e independencia personal del 40% restante.
-        </p>
 
         {/* Perfiles de Acceso Rápido */}
         <div className="w-full mt-8 space-y-3">
