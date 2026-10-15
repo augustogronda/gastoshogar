@@ -50,12 +50,15 @@ export function CardStatementModal({
         cardData.period.statementAmountUsd ? String(cardData.period.statementAmountUsd) : ""
       );
 
-      // Formatear fechas a YYYY-MM-DD para input date
+      // Formatear fechas a YYYY-MM-DD para input date sin desfasajes de zona horaria
       const toIsoDate = (d?: Date | string | null) => {
         if (!d) return "";
         const dateObj = new Date(d);
         if (isNaN(dateObj.getTime())) return "";
-        return dateObj.toISOString().split("T")[0];
+        const y = dateObj.getUTCFullYear();
+        const m = String(dateObj.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(dateObj.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
       };
 
       setClosingDate(toIsoDate(cardData.period.closingDate));

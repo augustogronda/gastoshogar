@@ -120,7 +120,17 @@ export async function getCardsForUserAndMonth(
     where: { userId },
     include: {
       periods: {
-        where: { year, month },
+        where: {
+          OR: [
+            { year, month },
+            { year: { lt: year } },
+            { year, month: { lt: month } },
+          ],
+        },
+        orderBy: [
+          { year: "desc" },
+          { month: "desc" },
+        ],
       },
     },
     orderBy: [
@@ -129,24 +139,51 @@ export async function getCardsForUserAndMonth(
     ],
   });
 
-  // Para cada tarjeta, asegurar que tenga el registro del mes
+  // Para cada tarjeta, asegurar que tenga el registro del mes usando el mes anterior como base
   const cardsWithMonthData = await Promise.all(
     cards.map(async (c) => {
-      let period = c.periods[0];
-      if (!period) {
-        // Calcular fechas estimadas basadas en defaultClosingDay y defaultDueDay
-        const closingDay = c.defaultClosingDay || 20;
-        const dueDay = c.defaultDueDay || 5;
+      let currentPeriod = c.periods.find((p) => p.year === year && p.month === month);
+      const prevPeriod = c.periods.find(
+        (p) => p.year < year || (p.year === year && p.month < month)
+      );
 
-        // Fecha de cierre tentativa (mismo mes)
-        const closingDate = new Date(year, month - 1, closingDay);
+      if (!currentPeriod) {
+        let closingDay = c.defaultClosingDay || 20;
+        let dueDay = c.defaultDueDay || 5;
+        let dueMonthOffset = dueDay < closingDay ? 1 : 0;
 
-        // Fecha de vencimiento tentativa (mes siguiente si dueDay < closingDay)
-        const dueMonth = dueDay < closingDay ? (month === 12 ? 0 : month) : month - 1;
-        const dueYear = dueDay < closingDay && month === 12 ? year + 1 : year;
-        const dueDate = new Date(dueYear, dueMonth, dueDay);
+        if (prevPeriod) {
+          if (prevPeriod.closingDate) {
+            const prevClose = new Date(prevPeriod.closingDate);
+            closingDay = prevClose.getUTCDate();
+          }
+          if (prevPeriod.dueDate) {
+            const prevDue = new Date(prevPeriod.dueDate);
+            dueDay = prevDue.getUTCDate();
+            if (prevPeriod.closingDate) {
+              const prevClose = new Date(prevPeriod.closingDate);
+              const diff =
+                (prevDue.getUTCFullYear() - prevClose.getUTCFullYear()) * 12 +
+                (prevDue.getUTCMonth() - prevClose.getUTCMonth());
+              dueMonthOffset = Math.max(0, diff);
+            }
+          }
+        }
 
-        period = await prisma.cardMonthlyPeriod.create({
+        // Fecha de cierre tentativa para este mes
+        const maxCloseDays = new Date(year, month, 0).getDate();
+        const validCloseDay = Math.min(closingDay, maxCloseDays);
+        const closingDate = new Date(Date.UTC(year, month - 1, validCloseDay, 12, 0, 0));
+
+        // Fecha de vencimiento tentativa
+        const targetDueMonthIndex = (month - 1) + dueMonthOffset;
+        const targetDueYear = year + Math.floor(targetDueMonthIndex / 12);
+        const targetDueMonth = (targetDueMonthIndex % 12 + 12) % 12;
+        const maxDueDays = new Date(targetDueYear, targetDueMonth + 1, 0).getDate();
+        const validDueDay = Math.min(dueDay, maxDueDays);
+        const dueDate = new Date(Date.UTC(targetDueYear, targetDueMonth, validDueDay, 12, 0, 0));
+
+        currentPeriod = await prisma.cardMonthlyPeriod.create({
           data: {
             cardId: c.id,
             year,
@@ -162,7 +199,7 @@ export async function getCardsForUserAndMonth(
 
       return {
         ...c,
-        period,
+        period: currentPeriod,
       };
     })
   );

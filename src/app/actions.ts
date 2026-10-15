@@ -1814,16 +1814,95 @@ export async function updateCardStatementAction(data: {
     throw new Error("Período de tarjeta no encontrado.");
   }
 
+  const parseIsoDateMidday = (str?: string | null): Date | null => {
+    if (!str) return null;
+    const parts = str.split("T")[0].split("-");
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      return new Date(Date.UTC(y, m, d, 12, 0, 0));
+    }
+    return new Date(str);
+  };
+
+  const newClosingDate = data.closingDate ? parseIsoDateMidday(data.closingDate) : existing.closingDate;
+  const newDueDate = data.dueDate ? parseIsoDateMidday(data.dueDate) : existing.dueDate;
+
   const updated = await prisma.cardMonthlyPeriod.update({
     where: { id: data.cardMonthlyPeriodId },
     data: {
       statementAmount: isNaN(statementAmount) ? 0 : Math.max(0, statementAmount),
       statementAmountUsd: isNaN(statementAmountUsd) ? 0 : Math.max(0, statementAmountUsd),
-      closingDate: data.closingDate ? new Date(data.closingDate) : existing.closingDate,
-      dueDate: data.dueDate ? new Date(data.dueDate) : existing.dueDate,
+      closingDate: newClosingDate,
+      dueDate: newDueDate,
       notes: data.notes !== undefined ? (data.notes ? data.notes.trim() : null) : existing.notes,
     },
   });
+
+  // Guardar días en la tarjeta como nuevo base por defecto
+  const closingDay = newClosingDate ? newClosingDate.getUTCDate() : existing.card.defaultClosingDay;
+  const dueDay = newDueDate ? newDueDate.getUTCDate() : existing.card.defaultDueDay;
+
+  if (closingDay || dueDay) {
+    await prisma.personalCreditCard.update({
+      where: { id: existing.card.id },
+      data: {
+        ...(closingDay ? { defaultClosingDay: closingDay } : {}),
+        ...(dueDay ? { defaultDueDay: dueDay } : {}),
+      },
+    });
+
+    // Si el mes siguiente ya existe y no está pagado ni con monto cargado, alinear sus fechas también
+    const nextMonth = existing.month === 12 ? 1 : existing.month + 1;
+    const nextYear = existing.month === 12 ? existing.year + 1 : existing.year;
+
+    const nextPeriod = await prisma.cardMonthlyPeriod.findUnique({
+      where: {
+        cardId_year_month: {
+          cardId: existing.card.id,
+          year: nextYear,
+          month: nextMonth,
+        },
+      },
+    });
+
+    if (nextPeriod && !nextPeriod.isPaid && nextPeriod.statementAmount === 0) {
+      let nextClosingDate: Date | null = null;
+      let nextDueDate: Date | null = null;
+
+      if (closingDay) {
+        const maxClose = new Date(nextYear, nextMonth, 0).getDate();
+        const validCloseDay = Math.min(closingDay, maxClose);
+        nextClosingDate = new Date(Date.UTC(nextYear, nextMonth - 1, validCloseDay, 12, 0, 0));
+      }
+
+      if (dueDay) {
+        const offset =
+          newDueDate && newClosingDate
+            ? (newDueDate.getUTCFullYear() - newClosingDate.getUTCFullYear()) * 12 +
+              (newDueDate.getUTCMonth() - newClosingDate.getUTCMonth())
+            : dueDay < (closingDay || 20)
+            ? 1
+            : 0;
+
+        const targetDueMonthIndex = nextMonth - 1 + Math.max(0, offset);
+        const targetDueYear = nextYear + Math.floor(targetDueMonthIndex / 12);
+        const targetDueMonth = ((targetDueMonthIndex % 12) + 12) % 12;
+        const maxDue = new Date(targetDueYear, targetDueMonth + 1, 0).getDate();
+        const validDueDay = Math.min(dueDay, maxDue);
+        nextDueDate = new Date(Date.UTC(targetDueYear, targetDueMonth, validDueDay, 12, 0, 0));
+      }
+
+      await prisma.cardMonthlyPeriod.update({
+        where: { id: nextPeriod.id },
+        data: {
+          ...(nextClosingDate ? { closingDate: nextClosingDate } : {}),
+          ...(nextDueDate ? { dueDate: nextDueDate } : {}),
+        },
+      });
+    }
+  }
 
   // Si ya estaba marcada como pagada y tenía un gasto vinculado, actualizar el monto del gasto
   if (existing.isPaid && existing.linkedExpenseId) {
