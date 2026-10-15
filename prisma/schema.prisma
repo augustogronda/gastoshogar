@@ -1,4 +1,4 @@
-// Prisma Schema para Finanzas de Pareja (Fondo Común 60% + FCI)
+// Prisma Schema para Finanzas de Pareja (Fondo Común 60% + FCI + Cuotas/Recurrentes)
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
@@ -9,27 +9,29 @@ generator client {
 }
 
 model Household {
-  id              String          @id @default(cuid())
-  name            String          @default("Nuestro Hogar")
-  currency        String          @default("ARS")
-  defaultRate     Float           @default(0.60) // 60% por defecto
-  createdAt       DateTime        @default(now())
-  users           User[]
-  periods         MonthlyPeriod[]
-  categories      Category[]
-  investments     InvestmentFund[]
+  id                String             @id @default(cuid())
+  name              String             @default("Nuestro Hogar")
+  currency          String             @default("ARS")
+  defaultRate       Float              @default(0.60) // 60% por defecto
+  createdAt         DateTime           @default(now())
+  users             User[]
+  periods           MonthlyPeriod[]
+  categories        Category[]
+  investments       InvestmentFund[]
+  recurringExpenses RecurringExpense[]
 }
 
 model User {
-  id            String       @id @default(cuid())
-  email         String       @unique
+  id            String             @id @default(cuid())
+  email         String             @unique
   name          String
-  avatarColor   String       @default("#3b82f6")
+  avatarColor   String             @default("#3b82f6")
   householdId   String
-  household     Household    @relation(fields: [householdId], references: [id])
+  household     Household          @relation(fields: [householdId], references: [id])
   incomes       Income[]
-  expensesPaid  Expense[]    @relation("ExpensePayer")
-  createdAt     DateTime     @default(now())
+  expensesPaid  Expense[]          @relation("ExpensePayer")
+  recurringPaid RecurringExpense[] @relation("RecurringPayer")
+  createdAt     DateTime           @default(now())
 }
 
 model MonthlyPeriod {
@@ -63,29 +65,53 @@ model Income {
 }
 
 model Category {
-  id          String    @id @default(cuid())
-  name        String    // Supermercado, Alquiler, Salidas, etc.
-  icon        String?   // Lucide icon name
-  color       String?   // Hex
-  householdId String
-  household   Household @relation(fields: [householdId], references: [id])
-  expenses    Expense[]
+  id                String             @id @default(cuid())
+  name              String             // Supermercado, Alquiler, Salidas, etc.
+  icon              String?            // Lucide icon name
+  color             String?            // Hex
+  householdId       String
+  household         Household          @relation(fields: [householdId], references: [id])
+  expenses          Expense[]
+  recurringExpenses RecurringExpense[]
 }
 
 model Expense {
-  id             String        @id @default(cuid())
-  title          String
-  amount         Float
-  date           DateTime      @default(now())
-  paidById       String
-  paidBy         User          @relation("ExpensePayer", fields: [paidById], references: [id])
-  isFromPoolFund Boolean       @default(false)
-  categoryId     String
-  category       Category      @relation(fields: [categoryId], references: [id])
-  periodId       String
-  period         MonthlyPeriod @relation(fields: [periodId], references: [id])
-  notes          String?
-  createdAt      DateTime      @default(now())
+  id                 String            @id @default(cuid())
+  title              String
+  amount             Float
+  date               DateTime          @default(now())
+  paidById           String
+  paidBy             User              @relation("ExpensePayer", fields: [paidById], references: [id])
+  isFromPoolFund     Boolean           @default(false)
+  categoryId         String
+  category           Category          @relation(fields: [categoryId], references: [id])
+  periodId           String
+  period             MonthlyPeriod     @relation(fields: [periodId], references: [id])
+  recurringExpenseId String?
+  installmentNumber  Int?              // Ej. cuota 2
+  totalInstallments  Int?              // Ej. de 6
+  notes              String?
+  createdAt          DateTime          @default(now())
+}
+
+// Gastos recurrentes (Alquiler, Servicios fijos) y Cuotas de Tarjeta de Crédito
+model RecurringExpense {
+  id                String     @id @default(cuid())
+  title             String
+  installmentAmount Float      // Monto mensual de la cuota o servicio
+  totalInstallments Int?       // ej: 6 cuotas. Null si es recurrente mensual fijo
+  startYear         Int
+  startMonth        Int
+  paidById          String
+  paidBy            User       @relation("RecurringPayer", fields: [paidById], references: [id])
+  isFromPoolFund    Boolean    @default(false)
+  categoryId        String
+  category          Category   @relation(fields: [categoryId], references: [id])
+  householdId       String
+  household         Household  @relation(fields: [householdId], references: [id])
+  isActive          Boolean    @default(true)
+  notes             String?
+  createdAt         DateTime   @default(now())
 }
 
 model Settlement {

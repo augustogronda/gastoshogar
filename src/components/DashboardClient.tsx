@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Wallet,
   PiggyBank,
@@ -15,11 +16,15 @@ import {
   Sparkles,
   Users,
   CreditCard,
+  BarChart3,
+  Repeat,
 } from "./ui/icons";
 import { CategoryIcon } from "./ui/icons";
 import { QuickExpenseModal } from "./QuickExpenseModal";
 import { SalaryConfigModal } from "./SalaryConfigModal";
 import { FCIInvestModal } from "./FCIInvestModal";
+import { MonthlyAnalyticsView } from "./MonthlyAnalyticsView";
+import { InstallmentsManagerView } from "./InstallmentsManagerView";
 import { deleteExpenseAction } from "@/app/actions";
 
 interface ExpenseItem {
@@ -31,6 +36,8 @@ interface ExpenseItem {
   category: { id: string; name: string; icon?: string | null; color?: string | null };
   isFromPoolFund: boolean;
   notes?: string | null;
+  installmentNumber?: number | null;
+  totalInstallments?: number | null;
 }
 
 interface DashboardClientProps {
@@ -75,6 +82,7 @@ interface DashboardClientProps {
       currentValue: number;
       contributions: Array<{ id: string; amount: number; investedAt: Date | string }>;
     } | null;
+    recurringExpenses: Array<any>;
     currentYear: number;
     currentMonth: number;
   };
@@ -90,13 +98,40 @@ const SHORT_MONTHS = [
   "jul", "ago", "sep", "oct", "nov", "dic"
 ];
 
-export function DashboardClient({ initialData }: DashboardClientProps) {
-  const { household, users, categories, period, poolSummary, investmentFund, currentYear, currentMonth } = initialData;
+type ActiveTab = "hogar" | "analisis" | "cuotas" | "fci";
 
+export function DashboardClient({ initialData }: DashboardClientProps) {
+  const router = useRouter();
+  const {
+    household,
+    users,
+    categories,
+    period,
+    poolSummary,
+    investmentFund,
+    recurringExpenses,
+    currentYear,
+    currentMonth,
+  } = initialData;
+
+  const [activeTab, setActiveTab] = useState<ActiveTab>("hogar");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
   const [isFCIModalOpen, setIsFCIModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Navegación de meses
+  const handlePrevMonth = () => {
+    const prevM = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevY = currentMonth === 1 ? currentYear - 1 : currentYear;
+    router.push(`/?year=${prevY}&month=${prevM}`);
+  };
+
+  const handleNextMonth = () => {
+    const nextM = currentMonth === 12 ? 1 : currentMonth + 1;
+    const nextY = currentMonth === 12 ? currentYear + 1 : currentYear;
+    router.push(`/?year=${nextY}&month=${nextM}`);
+  };
 
   const handleDeleteExpense = async (id: string) => {
     if (confirm("¿Eliminar este gasto?")) {
@@ -116,25 +151,53 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       ? "bg-amber-500"
       : "bg-emerald-500";
 
-  const userA = poolSummary.memberBalances[0] || { name: users[0]?.name || "Él", outOfPocketPaid: 0, committedAmount: 0, fciQuotaSharePct: 50 };
-  const userB = poolSummary.memberBalances[1] || { name: users[1]?.name || "Ella", outOfPocketPaid: 0, committedAmount: 0, fciQuotaSharePct: 50 };
+  const userA = poolSummary.memberBalances[0] || {
+    name: users[0]?.name || "Él",
+    outOfPocketPaid: 0,
+    committedAmount: 0,
+    fciQuotaSharePct: 50,
+  };
+  const userB = poolSummary.memberBalances[1] || {
+    name: users[1]?.name || "Ella",
+    outOfPocketPaid: 0,
+    committedAmount: 0,
+    fciQuotaSharePct: 50,
+  };
+
+  const monthLabel = MONTH_NAMES[currentMonth - 1];
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col justify-between">
-      {/* Contenedor optimizado para pantalla de iPhone 15/16 Pro */}
-      <main className="w-full max-w-md mx-auto px-4 pt-safe pb-32 flex-1 flex flex-col gap-5">
+      {/* Contenedor optimizado para iPhone 15/16 Pro */}
+      <main className="w-full max-w-md mx-auto px-4 pt-safe pb-28 flex-1 flex flex-col gap-4">
         
-        {/* Cabecera Superior (Mes & Botón de Ajuste de Sueldos) */}
-        <header className="flex items-center justify-between pt-2">
-          <div>
-            <span className="text-xs uppercase tracking-wider text-zinc-400 font-semibold block">
-              Fondo Común 60%
-            </span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <h1 className="text-2xl font-bold tracking-tight text-white">
-                {MONTH_NAMES[currentMonth - 1]} {currentYear}
+        {/* Cabecera Superior: Selector de Mes con Flechas y Botón de Sueldos */}
+        <header className="flex items-center justify-between pt-1">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePrevMonth}
+              className="p-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white active:scale-95 transition"
+              title="Mes anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold block">
+                Finanzas del Hogar
+              </span>
+              <h1 className="text-xl font-bold tracking-tight text-white leading-tight">
+                {monthLabel} {currentYear}
               </h1>
             </div>
+
+            <button
+              onClick={handleNextMonth}
+              className="p-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white active:scale-95 transition"
+              title="Mes siguiente"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
           <button
@@ -146,257 +209,342 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           </button>
         </header>
 
-        {/* Tarjeta Principal: Termómetro del Fondo Común */}
-        <section className="bg-gradient-to-br from-zinc-900 to-zinc-900/90 border border-zinc-800/90 rounded-3xl p-5 shadow-xl relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Wallet className="w-4 h-4 text-blue-400" />
-              Presupuesto del Hogar
-            </span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-300 font-medium border border-zinc-700/50">
-              {Math.round(poolSummary.burnRatePct)}% consumido
-            </span>
-          </div>
+        {/* CONTENIDO SEGÚN LA PESTAÑA ACTIVA */}
 
-          <div className="flex items-baseline justify-between mb-4">
-            <div>
-              <span className="text-xs text-zinc-400 block mb-0.5">Gastado hasta hoy:</span>
-              <span className="text-3xl font-extrabold text-white tracking-tight">
-                ${Math.round(poolSummary.totalExpenses).toLocaleString("es-AR")}
-              </span>
-            </div>
-            <div className="text-right">
-              <span className="text-xs text-zinc-400 block mb-0.5">Fondo total (60%):</span>
-              <span className="text-lg font-semibold text-zinc-300">
-                ${Math.round(poolSummary.totalCommittedPool).toLocaleString("es-AR")}
-              </span>
-            </div>
-          </div>
-
-          {/* Barra de Progreso del Fondo */}
-          <div className="w-full bg-zinc-800 h-2.5 rounded-full overflow-hidden mb-4">
-            <div
-              className={`h-full transition-all duration-500 rounded-full ${burnRateColor}`}
-              style={{ width: `${Math.min(100, poolSummary.burnRatePct)}%` }}
-            />
-          </div>
-
-          {/* Banner de Remanente para FCI */}
-          <div
-            onClick={() => setIsFCIModalOpen(true)}
-            className="cursor-pointer bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-800/40 rounded-2xl p-3 flex items-center justify-between transition active:scale-98"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
-                <PiggyBank className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400 block">
-                  Remanente para FCI
+        {/* TAB 1: HOGAR / GASTOS PRINCIPALES */}
+        {activeTab === "hogar" && (
+          <div className="space-y-4 animate-fade-in">
+            {/* Tarjeta Principal: Termómetro del Fondo Común */}
+            <section className="bg-gradient-to-br from-zinc-900 to-zinc-900/90 border border-zinc-800/90 rounded-3xl p-5 shadow-xl relative overflow-hidden">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Wallet className="w-4 h-4 text-blue-400" />
+                  Presupuesto Común (60%)
                 </span>
-                <span className="text-base font-bold text-white">
-                  ${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")}
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-300 font-medium border border-zinc-700/50">
+                  {Math.round(poolSummary.burnRatePct)}% gastado
                 </span>
               </div>
-            </div>
-            <div className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
-              <span>Invertir</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-        </section>
 
-        {/* Tarjeta de Balances y Compensación Mensual */}
-        <section className="bg-zinc-900/80 border border-zinc-800/80 rounded-3xl p-5 shadow-lg">
-          <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-pink-400" />
-            Aportes y Gastos de Bolsillo
-          </h2>
-
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {/* User A */}
-            <div className="bg-zinc-800/40 border border-zinc-700/30 rounded-2xl p-3">
-              <span className="text-xs font-semibold text-blue-400 block truncate">
-                {userA.name}
-              </span>
-              <span className="text-lg font-bold text-white block mt-1">
-                ${Math.round(userA.outOfPocketPaid).toLocaleString("es-AR")}
-              </span>
-              <span className="text-[10px] text-zinc-400 block mt-0.5">
-                Meta 60%: ${Math.round(userA.committedAmount).toLocaleString("es-AR")}
-              </span>
-            </div>
-
-            {/* User B */}
-            <div className="bg-zinc-800/40 border border-zinc-700/30 rounded-2xl p-3">
-              <span className="text-xs font-semibold text-pink-400 block truncate">
-                {userB.name}
-              </span>
-              <span className="text-lg font-bold text-white block mt-1">
-                ${Math.round(userB.outOfPocketPaid).toLocaleString("es-AR")}
-              </span>
-              <span className="text-[10px] text-zinc-400 block mt-0.5">
-                Meta 60%: ${Math.round(userB.committedAmount).toLocaleString("es-AR")}
-              </span>
-            </div>
-          </div>
-
-          {/* Sugerencia de Compensación */}
-          {poolSummary.settlementSuggestion.amount > 0 ? (
-            <div className="bg-blue-950/30 border border-blue-900/40 rounded-xl p-3 text-xs text-blue-200 flex items-start gap-2">
-              <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold block text-blue-300">Compensación Sugerida:</span>
-                <p className="mt-0.5 text-zinc-300">{poolSummary.settlementSuggestion.explanation}</p>
+              <div className="flex items-baseline justify-between mb-4">
+                <div>
+                  <span className="text-xs text-zinc-400 block mb-0.5">Gastado:</span>
+                  <span className="text-3xl font-extrabold text-white tracking-tight">
+                    ${Math.round(poolSummary.totalExpenses).toLocaleString("es-AR")}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-zinc-400 block mb-0.5">Fondo disponible:</span>
+                  <span className="text-lg font-semibold text-zinc-300">
+                    ${Math.round(poolSummary.totalCommittedPool).toLocaleString("es-AR")}
+                  </span>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="text-xs text-zinc-400 text-center py-1">
-              Las cuentas van parejas este mes.
-            </div>
-          )}
-        </section>
 
-        {/* Tarjeta de Patrimonio FCI Pareja */}
-        {investmentFund && (
-          <section
-            onClick={() => setIsFCIModalOpen(true)}
-            className="cursor-pointer bg-gradient-to-r from-emerald-950/30 via-zinc-900 to-zinc-900 border border-emerald-900/30 rounded-3xl p-4 flex items-center justify-between hover:border-emerald-700/50 transition active:scale-98"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <TrendingUp className="w-5 h-5" />
+              {/* Barra de Progreso */}
+              <div className="w-full bg-zinc-800 h-2.5 rounded-full overflow-hidden mb-4">
+                <div
+                  className={`h-full transition-all duration-500 rounded-full ${burnRateColor}`}
+                  style={{ width: `${Math.min(100, poolSummary.burnRatePct)}%` }}
+                />
               </div>
-              <div>
-                <span className="text-xs text-zinc-400 block">Total en FCI Pareja</span>
-                <span className="text-xl font-extrabold text-white">
-                  ${Math.round(investmentFund.currentValue).toLocaleString("es-AR")}
-                </span>
+
+              {/* Banner Remanente FCI */}
+              <div
+                onClick={() => setIsFCIModalOpen(true)}
+                className="cursor-pointer bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-800/40 rounded-2xl p-3 flex items-center justify-between transition active:scale-98"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                    <PiggyBank className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400 block">
+                      Remanente para FCI
+                    </span>
+                    <span className="text-base font-bold text-white">
+                      ${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                  <span>Invertir</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
               </div>
-            </div>
-            <span className="text-xs font-medium text-emerald-400 bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-800/40">
-              Ver FCI
-            </span>
-          </section>
-        )}
+            </section>
 
-        {/* Lista de Gastos del Mes */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Gastos Anotados ({period.expenses.length})
-            </h2>
-            <button
-              onClick={() => setIsExpenseModalOpen(true)}
-              className="text-xs font-semibold text-blue-400 hover:text-blue-300 active:scale-95"
-            >
-              + Agregar
-            </button>
-          </div>
+            {/* Balances y Compensación */}
+            <section className="bg-zinc-900/80 border border-zinc-800/80 rounded-3xl p-5 shadow-lg">
+              <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-pink-400" />
+                Gastos del Bolsillo de Cada Uno
+              </h2>
 
-          {period.expenses.length === 0 ? (
-            <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-8 text-center">
-              <CreditCard className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-zinc-300">No hay gastos anotados todavía</p>
-              <p className="text-xs text-zinc-500 mt-1">
-                Tocá el botón central <span className="text-blue-400 font-semibold">+</span> para registrar el primero.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {period.expenses.map((exp) => {
-                const dateObj = new Date(exp.date);
-                const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-zinc-800/40 border border-zinc-700/30 rounded-2xl p-3">
+                  <span className="text-xs font-semibold text-blue-400 block truncate">
+                    {userA.name}
+                  </span>
+                  <span className="text-lg font-bold text-white block mt-1">
+                    ${Math.round(userA.outOfPocketPaid).toLocaleString("es-AR")}
+                  </span>
+                  <span className="text-[10px] text-zinc-400 block mt-0.5">
+                    Meta 60%: ${Math.round(userA.committedAmount).toLocaleString("es-AR")}
+                  </span>
+                </div>
 
-                return (
-                  <div
-                    key={exp.id}
-                    className="bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800/80 rounded-2xl p-3.5 flex items-center justify-between transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-zinc-700/50 flex items-center justify-center text-zinc-200">
-                        <CategoryIcon name={exp.category.name} className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <span className="text-sm font-semibold text-white block">
-                          {exp.title}
-                        </span>
-                        <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-400">
-                          <span>{dateStr}</span>
-                          <span>•</span>
-                          <span
-                            className={`font-medium ${
-                              exp.isFromPoolFund
-                                ? "text-emerald-400"
-                                : exp.paidBy.id === users[0]?.id
-                                ? "text-blue-400"
-                                : "text-pink-400"
-                            }`}
-                          >
-                            {exp.isFromPoolFund ? "Fondo Común" : `Pagó ${exp.paidBy.name}`}
+                <div className="bg-zinc-800/40 border border-zinc-700/30 rounded-2xl p-3">
+                  <span className="text-xs font-semibold text-pink-400 block truncate">
+                    {userB.name}
+                  </span>
+                  <span className="text-lg font-bold text-white block mt-1">
+                    ${Math.round(userB.outOfPocketPaid).toLocaleString("es-AR")}
+                  </span>
+                  <span className="text-[10px] text-zinc-400 block mt-0.5">
+                    Meta 60%: ${Math.round(userB.committedAmount).toLocaleString("es-AR")}
+                  </span>
+                </div>
+              </div>
+
+              {poolSummary.settlementSuggestion.amount > 0 ? (
+                <div className="bg-blue-950/30 border border-blue-900/40 rounded-xl p-3 text-xs text-blue-200 flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold block text-blue-300">Compensación:</span>
+                    <p className="mt-0.5 text-zinc-300">
+                      {poolSummary.settlementSuggestion.explanation}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-zinc-400 text-center py-1">
+                  Gastos nivelados al 60% proporcional este mes.
+                </div>
+              )}
+            </section>
+
+            {/* Lista de Gastos */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                  Gastos de {monthLabel} ({period.expenses.length})
+                </h2>
+                <button
+                  onClick={() => setIsExpenseModalOpen(true)}
+                  className="text-xs font-semibold text-blue-400 hover:text-blue-300 active:scale-95 flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Anotar Gasto</span>
+                </button>
+              </div>
+
+              {period.expenses.length === 0 ? (
+                <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-8 text-center">
+                  <CreditCard className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-zinc-300">No hay gastos en este mes</p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Tocá el botón <span className="text-blue-400 font-semibold">+ Anotar Gasto</span> para cargar uno.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {period.expenses.map((exp) => {
+                    const dateObj = new Date(exp.date);
+                    const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
+
+                    return (
+                      <div
+                        key={exp.id}
+                        className="bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800/80 rounded-2xl p-3.5 flex items-center justify-between transition"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-zinc-700/50 flex items-center justify-center text-zinc-200">
+                            <CategoryIcon name={exp.category.name} className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <span className="text-sm font-semibold text-white block">
+                              {exp.title}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-400">
+                              <span>{dateStr}</span>
+                              <span>•</span>
+                              <span
+                                className={`font-medium ${
+                                  exp.isFromPoolFund
+                                    ? "text-emerald-400"
+                                    : exp.paidBy.id === users[0]?.id
+                                    ? "text-blue-400"
+                                    : "text-pink-400"
+                                }`}
+                              >
+                                {exp.isFromPoolFund ? "Fondo Común" : `Pagó ${exp.paidBy.name}`}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className="text-base font-bold text-white">
+                            ${Math.round(exp.amount).toLocaleString("es-AR")}
                           </span>
+                          <button
+                            onClick={() => handleDeleteExpense(exp.id)}
+                            disabled={deletingId === exp.id}
+                            className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 active:scale-95 transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
-                    </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
 
-                    <div className="flex items-center gap-3">
-                      <span className="text-base font-bold text-white">
-                        ${Math.round(exp.amount).toLocaleString("es-AR")}
-                      </span>
-                      <button
-                        onClick={() => handleDeleteExpense(exp.id)}
-                        disabled={deletingId === exp.id}
-                        className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 active:scale-95 transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+        {/* TAB 2: ANÁLISIS MENSUAL */}
+        {activeTab === "analisis" && (
+          <MonthlyAnalyticsView
+            monthName={monthLabel}
+            year={currentYear}
+            totalSpent={poolSummary.totalExpenses}
+            totalCommittedPool={poolSummary.totalCommittedPool}
+            remainingPool={poolSummary.remainingPool}
+            burnRatePct={poolSummary.burnRatePct}
+            expenses={period.expenses}
+            users={users}
+          />
+        )}
+
+        {/* TAB 3: CUOTAS & GASTOS RECURRENTES */}
+        {activeTab === "cuotas" && (
+          <InstallmentsManagerView
+            periodId={period.id}
+            currentYear={currentYear}
+            currentMonth={currentMonth}
+            monthName={monthLabel}
+            recurringExpenses={recurringExpenses}
+            users={users}
+            categories={categories}
+          />
+        )}
+
+        {/* TAB 4: FCI INVERSIÓN */}
+        {activeTab === "fci" && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="bg-gradient-to-br from-emerald-950/40 via-zinc-900 to-zinc-900 border border-emerald-800/40 rounded-3xl p-5 shadow-xl">
+              <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block mb-1">
+                Fondo Común de Inversión Pareja
+              </span>
+              <span className="text-3xl font-extrabold text-white block mt-2">
+                ${Math.round(investmentFund?.currentValue || 0).toLocaleString("es-AR")}
+              </span>
+              <p className="text-xs text-zinc-400 mt-2">
+                Patrimonio acumulado con los remanentes mensuales del 60%.
+              </p>
+              <button
+                onClick={() => setIsFCIModalOpen(true)}
+                className="mt-4 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-sm font-semibold shadow-md active:scale-95 transition"
+              >
+                Gestionar Ahorro e Inversión
+              </button>
             </div>
-          )}
-        </section>
+
+            {/* Historial de Aportes al FCI */}
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 shadow-lg">
+              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                Historial de Remanentes Invertidos
+              </h3>
+              {!investmentFund?.contributions || investmentFund.contributions.length === 0 ? (
+                <p className="text-xs text-zinc-500 italic py-2">
+                  Aún no se han transferido remanentes al FCI.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {investmentFund.contributions.map((c) => {
+                    const d = new Date(c.investedAt);
+                    return (
+                      <div
+                        key={c.id}
+                        className="flex justify-between items-center text-xs py-2 border-b border-zinc-800/60 last:border-0"
+                      >
+                        <span className="text-zinc-300 font-medium">
+                          Traspaso {d.getDate()}/{d.getMonth() + 1}/{d.getFullYear()}
+                        </span>
+                        <span className="font-bold text-emerald-400">
+                          +${Math.round(c.amount).toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
-      {/* Barra de Navegación Inferior (iOS Tab Bar fija con Safe Area) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-md border-t border-zinc-800 pb-safe">
-        <div className="max-w-md mx-auto px-6 h-16 flex items-center justify-between relative">
+      {/* Botón Flotante (FAB) para Cargar Gasto Rápido en la vista de Hogar */}
+      {activeTab === "hogar" && (
+        <button
+          onClick={() => setIsExpenseModalOpen(true)}
+          className="fixed right-5 bottom-20 z-40 bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-full shadow-2xl shadow-blue-600/50 active:scale-90 transition border-2 border-zinc-900 flex items-center gap-2"
+          aria-label="Cargar Gasto"
+        >
+          <Plus className="w-6 h-6 stroke-[2.5]" />
+          <span className="text-xs font-bold pr-1">Gasto</span>
+        </button>
+      )}
+
+      {/* Barra de Navegación Inferior (iOS Tab Bar Limpia y Equilibrada) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/80 pb-safe">
+        <div className="max-w-md mx-auto px-4 h-16 grid grid-cols-4 items-center">
           
-          {/* Tab 1: Dashboard */}
+          {/* Tab 1: Hogar */}
           <button
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="flex flex-col items-center gap-1 text-blue-400 active:scale-95 transition"
+            onClick={() => setActiveTab("hogar")}
+            className={`flex flex-col items-center gap-1 transition active:scale-95 ${
+              activeTab === "hogar" ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"
+            }`}
           >
             <Wallet className="w-5 h-5" />
             <span className="text-[10px] font-semibold">Hogar</span>
           </button>
 
-          {/* Botón Central Flotante Táctil (+ GASTO - Ergonómico para Pulgar de iPhone) */}
+          {/* Tab 2: Análisis */}
           <button
-            onClick={() => setIsExpenseModalOpen(true)}
-            className="absolute left-1/2 -translate-x-1/2 -top-5 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-600/40 active:scale-90 transition border-4 border-zinc-950"
-            aria-label="Cargar Gasto"
+            onClick={() => setActiveTab("analisis")}
+            className={`flex flex-col items-center gap-1 transition active:scale-95 ${
+              activeTab === "analisis" ? "text-purple-400" : "text-zinc-500 hover:text-zinc-300"
+            }`}
           >
-            <Plus className="w-7 h-7 stroke-[2.5]" />
+            <BarChart3 className="w-5 h-5" />
+            <span className="text-[10px] font-semibold">Análisis</span>
           </button>
 
-          {/* Tab 2: FCI / Ahorro */}
+          {/* Tab 3: Cuotas */}
           <button
-            onClick={() => setIsFCIModalOpen(true)}
-            className="flex flex-col items-center gap-1 text-zinc-400 hover:text-emerald-400 active:scale-95 transition"
+            onClick={() => setActiveTab("cuotas")}
+            className={`flex flex-col items-center gap-1 transition active:scale-95 ${
+              activeTab === "cuotas" ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <CreditCard className="w-5 h-5" />
+            <span className="text-[10px] font-semibold">Cuotas</span>
+          </button>
+
+          {/* Tab 4: FCI */}
+          <button
+            onClick={() => setActiveTab("fci")}
+            className={`flex flex-col items-center gap-1 transition active:scale-95 ${
+              activeTab === "fci" ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+            }`}
           >
             <PiggyBank className="w-5 h-5" />
             <span className="text-[10px] font-semibold">FCI</span>
-          </button>
-
-          {/* Tab 3: Ajustes / Sueldos */}
-          <button
-            onClick={() => setIsSalaryModalOpen(true)}
-            className="flex flex-col items-center gap-1 text-zinc-400 hover:text-white active:scale-95 transition"
-          >
-            <Settings className="w-5 h-5" />
-            <span className="text-[10px] font-semibold">Ajustes</span>
           </button>
         </div>
       </nav>
@@ -414,6 +562,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         isOpen={isSalaryModalOpen}
         onClose={() => setIsSalaryModalOpen(false)}
         periodId={period.id}
+        monthName={monthLabel}
+        year={currentYear}
         users={users}
         incomes={period.incomes}
       />

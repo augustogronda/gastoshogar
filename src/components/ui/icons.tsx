@@ -27,6 +27,13 @@ import {
   CreditCard,
   User,
   Users,
+  BarChart3,
+  PieChart,
+  Repeat,
+  Layers,
+  AlertCircle,
+  Receipt,
+  Copy,
 } from "lucide-react";
 
 export const CategoryIcon = ({
@@ -97,4 +104,11 @@ export {
   CreditCard,
   User,
   Users,
+  BarChart3,
+  PieChart,
+  Repeat,
+  Layers,
+  AlertCircle,
+  Receipt,
+  Copy,
 };

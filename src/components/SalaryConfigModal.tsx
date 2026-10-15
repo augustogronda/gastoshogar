@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Check, Percent, Users } from "./ui/icons";
+import { X, Check, Percent, Users, Calendar } from "./ui/icons";
 import { updateSalariesAction, updateMemberNamesAction } from "@/app/actions";
 
 interface HouseholdUser {
@@ -19,6 +19,8 @@ interface SalaryConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   periodId: string;
+  monthName?: string;
+  year?: number;
   users: HouseholdUser[];
   incomes: IncomeRecord[];
 }
@@ -27,6 +29,8 @@ export function SalaryConfigModal({
   isOpen,
   onClose,
   periodId,
+  monthName = "Mes actual",
+  year = 2026,
   users,
   incomes,
 }: SalaryConfigModalProps) {
@@ -76,9 +80,15 @@ export function SalaryConfigModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
       <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar">
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-400" />
-            <h2 className="text-lg font-semibold text-white">Sueldos y Aporte Común</h2>
+          <div>
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-400" />
+              <h2 className="text-lg font-semibold text-white">Sueldos del Mes</h2>
+            </div>
+            <span className="text-xs font-semibold text-blue-400 flex items-center gap-1 mt-0.5">
+              <Calendar className="w-3.5 h-3.5" />
+              Período: {monthName} {year}
+            </span>
           </div>
           <button
             onClick={onClose}
@@ -89,7 +99,7 @@ export function SalaryConfigModal({
         </div>
 
         <p className="text-xs text-zinc-400 mt-3 mb-4">
-          Ingresen el sueldo neto cobrado este mes. El sistema calculará el {pct}% de cada uno para financiar el hogar.
+          Ingresen el sueldo neto que cobró cada uno en <strong>{monthName} {year}</strong>. El fondo común se calculará al {pct}% de cada uno.
         </p>
 
         <form onSubmit={handleSave} className="space-y-4">
@@ -148,7 +158,7 @@ export function SalaryConfigModal({
           {/* Resumen Proyectado */}
           <div className="bg-blue-950/30 border border-blue-900/50 rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <span className="text-xs text-blue-300 block">FONDO COMÚN PROYECTADO</span>
+              <span className="text-xs text-blue-300 block">FONDO COMÚN ({monthName})</span>
               <span className="text-2xl font-bold text-white">
                 ${totalPool.toLocaleString("es-AR")}
               </span>
@@ -165,7 +175,7 @@ export function SalaryConfigModal({
             className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-semibold text-base shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-98 transition mt-2"
           >
             <Check className="w-5 h-5" />
-            <span>Guardar Configuración</span>
+            <span>Guardar Sueldos de {monthName}</span>
           </button>
         </form>
       </div>
