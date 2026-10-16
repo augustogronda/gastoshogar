@@ -151,15 +151,61 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isChangingMonth, setIsChangingMonth] = useState(false);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
 
-  // Caché de meses en memoria cliente para respuesta instantánea (0ms)
+  // Caché de meses en memoria cliente y almacenamiento local del teléfono
   const dataCacheRef = useRef<Map<string, typeof initialData>>(new Map());
 
-  // Sincronizar datos si initialData se actualiza desde el servidor (ej: revalidatePath tras agregar gasto)
+  // 1. Al montar el componente, hidratar meses previamente cacheados en el teléfono
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("gastoshogar_months_cache");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        Object.entries(parsed).forEach(([k, v]) => {
+          dataCacheRef.current.set(k, v as typeof initialData);
+        });
+      }
+    } catch (e) {
+      console.warn("Error leyendo caché local:", e);
+    }
+  }, []);
+
+  // 2. Sincronizar datos si initialData se actualiza desde el servidor y persistir en el dispositivo
   useEffect(() => {
     setDashboardData(initialData);
-    const key = `${initialData.currentYear}-${initialData.currentMonth}`;
-    dataCacheRef.current.set(key, initialData);
+    if (initialData?.currentUser) {
+      const key = `${initialData.currentYear}-${initialData.currentMonth}`;
+      dataCacheRef.current.set(key, initialData);
+
+      try {
+        localStorage.setItem("gastoshogar_cached_dashboard_v2", JSON.stringify(initialData));
+        const storedMap: Record<string, any> = {};
+        dataCacheRef.current.forEach((val, k) => {
+          storedMap[k] = val;
+        });
+        localStorage.setItem("gastoshogar_months_cache", JSON.stringify(storedMap));
+      } catch (e) {
+        console.warn("Error persistiendo caché en teléfono:", e);
+      }
+    }
   }, [initialData]);
+
+  // 3. Persistir automáticamente cualquier cambio o mutación optimista local
+  useEffect(() => {
+    if (dashboardData?.currentUser) {
+      try {
+        localStorage.setItem("gastoshogar_cached_dashboard_v2", JSON.stringify(dashboardData));
+        const key = `${dashboardData.currentYear}-${dashboardData.currentMonth}`;
+        dataCacheRef.current.set(key, dashboardData);
+        const storedMap: Record<string, any> = {};
+        dataCacheRef.current.forEach((val, k) => {
+          storedMap[k] = val;
+        });
+        localStorage.setItem("gastoshogar_months_cache", JSON.stringify(storedMap));
+      } catch (e) {
+        console.warn("Error sincronizando cambios con almacenamiento local:", e);
+      }
+    }
+  }, [dashboardData]);
 
   const {
     household,
@@ -213,14 +259,20 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     setIsRefreshing(true);
     setPullDistance(55);
     try {
-      // 1. Limpiar caché en memoria de meses
+      // 1. Limpiar caché en memoria de meses y almacenamiento local del teléfono
       dataCacheRef.current.clear();
+      try {
+        localStorage.removeItem("gastoshogar_months_cache");
+      } catch (e) {}
 
       // 2. Traer datos frescos del servidor
       const freshData = await getDashboardData(currentYear, currentMonth);
       if (freshData) {
         setDashboardData(freshData);
         dataCacheRef.current.set(`${currentYear}-${currentMonth}`, freshData);
+        try {
+          localStorage.setItem("gastoshogar_cached_dashboard_v2", JSON.stringify(freshData));
+        } catch (e) {}
       }
       router.refresh();
       showToast("Datos y caché actualizados", "success");
@@ -397,6 +449,11 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
+    try {
+      localStorage.removeItem("gastoshogar_cached_dashboard_v2");
+      localStorage.removeItem("gastoshogar_months_cache");
+      dataCacheRef.current.clear();
+    } catch (e) {}
     await logoutAction();
     window.location.href = "/";
   };

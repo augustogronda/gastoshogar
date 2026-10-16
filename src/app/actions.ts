@@ -204,43 +204,81 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     fciWithdrawnToPool
   );
 
-  // Obtener Fondo de Inversión con aportes y retiros
-  const investmentFund = await prisma.investmentFund.findFirst({
+  // Identificar usuario conectado (Augusto o Agus)
+  const currentUser = household.users.find((u: any) => u.id === loggedUserId) || null;
+
+  // Ejecutar todas las consultas independientes concurrentemente en paralelo
+  const investmentFundPromise = prisma.investmentFund.findFirst({
     where: { householdId: household.id },
     include: {
-      contributions: {
-        orderBy: { investedAt: "desc" },
-      },
-      withdrawals: {
-        orderBy: { withdrawnAt: "desc" },
-      },
+      contributions: { orderBy: { investedAt: "desc" } },
+      withdrawals: { orderBy: { withdrawnAt: "desc" } },
     },
   });
 
-  // Obtener Cuotas y Gastos Recurrentes activos del hogar
-  const recurringExpenses = await prisma.recurringExpense.findMany({
-    where: {
-      householdId: household.id,
-      isActive: true,
-    },
-    include: {
-      paidBy: true,
-      category: true,
-    },
+  const recurringExpensesPromise = prisma.recurringExpense.findMany({
+    where: { householdId: household.id, isActive: true },
+    include: { paidBy: true, category: true },
     orderBy: { createdAt: "desc" },
   });
 
-  // Calcular si cada cuota recurrente ya fue cargada o qué número de cuota toca este mes
+  const sortedCategoriesPromise = prisma.category.findMany({
+    where: { householdId: household.id },
+    orderBy: [{ lastUsedAt: "desc" }, { createdAt: "desc" }],
+  });
+
+  const rawSharedInvestmentsPromise = prisma.sharedInvestment.findMany({
+    where: { householdId: household.id },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Consultas personales paralelas si hay usuario conectado
+  const personalQueriesPromise = currentUser
+    ? Promise.all([
+        prisma.personalIncome.findUnique({
+          where: { userId_year_month: { userId: currentUser.id, year, month } },
+        }),
+        prisma.personalExpense.findMany({
+          where: { userId: currentUser.id, year, month },
+          include: { category: true },
+          orderBy: { date: "desc" },
+        }),
+        prisma.personalRecurringExpense.findMany({
+          where: { userId: currentUser.id, isActive: true },
+          include: { category: true, creditCard: true },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.personalInvestment.findMany({
+          where: { userId: currentUser.id },
+          orderBy: { createdAt: "desc" },
+        }),
+        getCardsForUserAndMonth(currentUser.id, currentUser.name, year, month),
+      ])
+    : Promise.resolve(null);
+
+  // Esperar consultas concurrentes de base de datos
+  const [
+    investmentFund,
+    recurringExpenses,
+    sortedCategories,
+    rawSharedInvestments,
+    personalRawResults,
+  ] = await Promise.all([
+    investmentFundPromise,
+    recurringExpensesPromise,
+    sortedCategoriesPromise,
+    rawSharedInvestmentsPromise,
+    personalQueriesPromise,
+  ]);
+
+  // Calcular si cada cuota recurrente del hogar ya fue cargada o qué número de cuota toca este mes
   const activeInstallmentsWithStatus = recurringExpenses.map((rec) => {
-    // Meses transcurridos desde el inicio
     const monthsElapsed = (year - rec.startYear) * 12 + (month - rec.startMonth);
     const installmentNumber = monthsElapsed + 1;
-
     const isApplicableThisMonth =
       monthsElapsed >= 0 &&
       (!rec.totalInstallments || installmentNumber <= rec.totalInstallments);
 
-    // Verificar si ya existe un gasto en este período imputado a esta cuota
     const alreadyAppliedExpense = period.expenses.find(
       (e) => e.recurringExpenseId === rec.id
     );
@@ -254,23 +292,20 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     };
   });
 
-  // Autenticación: Identificar usuario conectado (Augusto o Agus)
-  const currentUser = household.users.find((u: any) => u.id === loggedUserId) || null;
+  // Procesar espacio personal e hidratar cotizaciones concurrentemente
+  let personalData: any = null;
+  let rawPersonalInvestments: any[] = [];
 
-  // Si hay usuario conectado, cargar/calcular su espacio personal
-  let personalData = null;
+  if (currentUser && personalRawResults) {
+    let [
+      personalIncome,
+      personalExpenses,
+      personalRecurringExpenses,
+      personalInvestments,
+      cardsData,
+    ] = personalRawResults;
 
-  if (currentUser) {
-    // Buscar o inicializar PersonalIncome para este mes
-    let personalIncome = await prisma.personalIncome.findUnique({
-      where: {
-        userId_year_month: {
-          userId: currentUser.id,
-          year,
-          month,
-        },
-      },
-    });
+    rawPersonalInvestments = personalInvestments;
 
     if (!personalIncome) {
       personalIncome = await prisma.personalIncome.create({
@@ -284,51 +319,20 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       });
     }
 
-    // Calcular el 40% base restante a partir del sueldo declarado en Hogar
     const userHogarIncome = period.incomes.find((i) => i.userId === currentUser.id);
     const hogarSalary = userHogarIncome?.amount ?? 0;
     const contributionPct = userHogarIncome?.contributionPct ?? 0.60;
-    const personalRate = Math.max(0, 1 - contributionPct); // 40% restante por defecto
+    const personalRate = Math.max(0, 1 - contributionPct);
     const basePersonalSalary = hogarSalary * personalRate;
     const extraIncome = personalIncome.extraAmount || 0;
     const carriedOverPersonal = personalIncome.carriedOverBalance || 0;
     const totalPersonalAvailable = basePersonalSalary + extraIncome + carriedOverPersonal;
-
-    // Gastos personales
-    const personalExpenses = await prisma.personalExpense.findMany({
-      where: {
-        userId: currentUser.id,
-        year,
-        month,
-      },
-      include: {
-        category: true,
-      },
-      orderBy: {
-        date: "desc",
-      },
-    });
 
     const totalPersonalExpenses = personalExpenses.reduce((acc, e) => acc + e.amount, 0);
     const remainingPersonalPool = Math.max(0, totalPersonalAvailable - totalPersonalExpenses);
     const personalBurnRatePct = totalPersonalAvailable > 0
       ? (totalPersonalExpenses / totalPersonalAvailable) * 100
       : 0;
-
-    // Cuotas y gastos recurrentes personales
-    const personalRecurringExpenses = await prisma.personalRecurringExpense.findMany({
-      where: {
-        userId: currentUser.id,
-        isActive: true,
-      },
-      include: {
-        category: true,
-        creditCard: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
 
     const activePersonalInstallments = personalRecurringExpenses.map((rec) => {
       const monthsElapsed = (year - rec.startYear) * 12 + (month - rec.startMonth);
@@ -350,23 +354,6 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       };
     });
 
-    // Inversiones Personales (CEDEARs, Acciones, Bonos, FCIs, Cripto)
-    const rawPersonalInvestments = await prisma.personalInvestment.findMany({
-      where: { userId: currentUser.id },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const { investments: hydratedInvestments, summary: investmentsSummary } =
-      await hydrateInvestments(rawPersonalInvestments);
-
-    // Tarjetas de Crédito Personales (Santander, Galicia, BBVA, etc.)
-    const cardsData = await getCardsForUserAndMonth(
-      currentUser.id,
-      currentUser.name,
-      year,
-      month
-    );
-
     personalData = {
       incomeRecord: personalIncome,
       hogarSalary,
@@ -381,56 +368,41 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       personalBurnRatePct,
       expenses: personalExpenses,
       recurringExpenses: activePersonalInstallments,
-      investments: hydratedInvestments,
-      investmentsSummary,
+      investments: [],
+      investmentsSummary: null,
       cardsData,
       isClosed: personalIncome.status === "CLOSED",
     };
   }
 
-  // Backfill inicial para categorías preexistentes sin lastUsedAt (ejecutado una sola vez por proceso)
-  if (!categoriesBackfilled) {
-    const uninitializedCategories = await prisma.category.findMany({
-      where: { householdId: household.id, lastUsedAt: null },
-      include: {
-        expenses: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
-        personalExpenses: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
-      },
-    });
+  // Hidratar cotizaciones de inversiones personales y compartidas en paralelo
+  const [hydratedPersonal, hydratedShared] = await Promise.all([
+    rawPersonalInvestments.length > 0
+      ? hydrateInvestments(rawPersonalInvestments)
+      : Promise.resolve({ investments: [], summary: null }),
+    rawSharedInvestments.length > 0
+      ? hydrateInvestments(rawSharedInvestments)
+      : Promise.resolve({
+          investments: [],
+          summary: {
+            totalValuationArs: 0,
+            totalValuationUsd: 0,
+            totalCostArs: 0,
+            totalGainLossArs: 0,
+            totalGainLossPct: 0,
+            rates: { mep: 1530, ccl: 1610, blue: 1540, oficial: 1500, updatedAt: "" },
+            assetTypeBreakdown: [],
+          },
+        }),
+  ]);
 
-    for (const cat of uninitializedCategories) {
-      const dates: Date[] = [];
-      if (cat.expenses[0]?.date) dates.push(new Date(cat.expenses[0].date));
-      if (cat.personalExpenses[0]?.date) dates.push(new Date(cat.personalExpenses[0].date));
-      const mostRecent = dates.length > 0
-        ? new Date(Math.max(...dates.map((d) => d.getTime())))
-        : (cat.createdAt || new Date());
-
-      await prisma.category.update({
-        where: { id: cat.id },
-        data: { lastUsedAt: mostRecent },
-      });
-    }
-    categoriesBackfilled = true;
+  if (personalData) {
+    personalData.investments = hydratedPersonal.investments;
+    personalData.investmentsSummary = hydratedPersonal.summary;
   }
 
-  // Categorías ordenadas por uso reciente primero (las más nuevas o recién usadas al principio)
-  const sortedCategories = await prisma.category.findMany({
-    where: { householdId: household.id },
-    orderBy: [
-      { lastUsedAt: "desc" },
-      { createdAt: "desc" },
-    ],
-  });
-
-  // Inversiones Compartidas del Hogar (CEDEARs, Acciones, Bonos, etc.)
-  const rawSharedInvestments = await prisma.sharedInvestment.findMany({
-    where: { householdId: household.id },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const { investments: sharedInvestments, summary: sharedInvestmentsSummary } =
-    await hydrateInvestments(rawSharedInvestments);
+  const sharedInvestments = hydratedShared.investments;
+  const sharedInvestmentsSummary = hydratedShared.summary;
 
   return {
     household,

@@ -67,6 +67,7 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
   try {
     const res = await fetch("https://dolarapi.com/v1/dolares", {
       next: { revalidate: 180 }, // 3 minutos
+      signal: AbortSignal.timeout(1800),
     });
 
     if (res.ok) {
@@ -125,6 +126,7 @@ export async function fetchTickerQuote(ticker: string): Promise<MarketQuote | nu
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
       next: { revalidate: 180 },
+      signal: AbortSignal.timeout(1800),
     });
 
     if (!res.ok) {
