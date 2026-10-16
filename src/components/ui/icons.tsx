@@ -58,6 +58,7 @@ import {
   Baby,
   Search,
   ChevronDown,
+  ChevronUp,
   RefreshCw,
   Clock,
 } from "lucide-react";
@@ -289,6 +290,7 @@ export {
   Baby,
   Search,
   ChevronDown,
+  ChevronUp,
   RefreshCw,
   Clock,
 };

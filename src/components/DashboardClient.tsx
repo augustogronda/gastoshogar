@@ -774,6 +774,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               categories={categories}
               personalData={personalData}
               activeTab={personalTab}
+              onTabChange={setPersonalTab}
             />
           )
         ) : (

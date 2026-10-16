@@ -29,6 +29,7 @@ import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
 import { CategoryManagerModal } from "./CategoryManagerModal";
 import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
 import { PersonalCardsView } from "./PersonalCardsView";
+import { CardShoppingAdvisorBanner } from "./CardShoppingAdvisorBanner";
 import {
   deletePersonalExpenseAction,
   deletePersonalRecurringExpenseAction,
@@ -105,6 +106,7 @@ interface PersonalDashboardViewProps {
     isClosed: boolean;
   };
   activeTab?: "gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones";
+  onTabChange?: (tab: "gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones") => void;
 }
 
 const SHORT_MONTHS = [
@@ -120,6 +122,7 @@ export function PersonalDashboardView({
   categories,
   personalData,
   activeTab = "gastos",
+  onTabChange,
 }: PersonalDashboardViewProps) {
   const personalTab = activeTab;
   const { toast, showToast } = useToast();
@@ -449,6 +452,15 @@ export function PersonalDashboardView({
               <span>Gasto</span>
             </button>
           </div>
+
+          {/* Consejo Inteligente de Compras Hoy (Acceso Rápido desde Gastos) */}
+          {cardsData?.cards && cardsData.cards.length > 0 && (
+            <CardShoppingAdvisorBanner
+              cards={cardsData.cards}
+              compact={true}
+              onNavigateToCards={() => onTabChange?.("tarjetas")}
+            />
+          )}
 
           {/* Lista de Gastos Personales con Buscador y Filtro por Categoría */}
           <section className="space-y-2.5">

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { CreditCard, Check, Sparkles, Calendar, Plus, ArrowRight, X, Repeat } from "./ui/icons";
 import { CreditCardVisual } from "./CreditCardVisual";
 import { CardStatementModal } from "./CardStatementModal";
+import { CardShoppingAdvisorBanner } from "./CardShoppingAdvisorBanner";
+import { computeCardShoppingStrategy } from "@/lib/card-recommendation";
 import { toggleCardPaidAction, advanceCardToNextSummaryAction } from "@/app/actions";
 
 const MONTH_NAMES = [
@@ -361,6 +363,21 @@ export function PersonalCardsView({
         </div>
       </section>
 
+      {/* Consejo Inteligente de Compras Hoy (Cuál tarjeta usar para maximizar días de pago) */}
+      {localCards.length > 0 && (
+        <CardShoppingAdvisorBanner
+          cards={localCards}
+          onSelectCard={(cardId) => {
+            setHighlightedCardId(cardId);
+            setTimeout(() => setHighlightedCardId(null), 1800);
+            const el = document.getElementById(`card-${cardId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }}
+        />
+      )}
+
       {/* Lista de Tarjetas */}
       <section className="space-y-4">
         <div className="flex items-center justify-between px-1">
@@ -378,34 +395,52 @@ export function PersonalCardsView({
             <p className="text-sm font-medium text-zinc-300">Sin tarjetas configuradas</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {localCards.map((card) => (
-              <CreditCardVisual
-                key={card.id}
-                bank={card.bank}
-                brand={card.brand}
-                lastDigits={card.lastDigits}
-                cardholderName={userName}
-                statementAmount={card.period.statementAmount}
-                statementAmountUsd={card.period.statementAmountUsd}
-                closingDate={card.period.closingDate}
-                dueDate={card.period.dueDate}
-                periodMonth={card.period.month}
-                periodYear={card.period.year}
-                isPaid={card.period.isPaid}
-                linkedInstallments={card.linkedInstallments}
-                linkedInstallmentsTotal={card.linkedInstallmentsTotal}
-                onEdit={() => {
-                  setSelectedCardForEdit(card);
-                  setIsModalOpen(true);
-                }}
-                onTogglePaid={() => handleTogglePaid(card)}
-                onNextSummary={() => setCardForNextSummary(card)}
-                isProcessing={processingCardId === card.id}
-                isHighlighted={highlightedCardId === card.id}
-              />
-            ))}
-          </div>
+          (() => {
+            const cardStrategy = computeCardShoppingStrategy(localCards);
+            return (
+              <div className="space-y-4">
+                {localCards.map((card) => {
+                  const isBest = cardStrategy.bestCard?.cardId === card.id;
+                  const isClosingSoon =
+                    cardStrategy.worstCard?.cardId === card.id &&
+                    cardStrategy.worstCard?.status === "CLOSING_SOON";
+                  const advice = cardStrategy.ranking.find((r) => r.cardId === card.id);
+
+                  return (
+                    <div key={card.id} id={`card-${card.id}`}>
+                      <CreditCardVisual
+                        bank={card.bank}
+                        brand={card.brand}
+                        lastDigits={card.lastDigits}
+                        cardholderName={userName}
+                        statementAmount={card.period.statementAmount}
+                        statementAmountUsd={card.period.statementAmountUsd}
+                        closingDate={card.period.closingDate}
+                        dueDate={card.period.dueDate}
+                        periodMonth={card.period.month}
+                        periodYear={card.period.year}
+                        isPaid={card.period.isPaid}
+                        linkedInstallments={card.linkedInstallments}
+                        linkedInstallmentsTotal={card.linkedInstallmentsTotal}
+                        onEdit={() => {
+                          setSelectedCardForEdit(card);
+                          setIsModalOpen(true);
+                        }}
+                        onTogglePaid={() => handleTogglePaid(card)}
+                        onNextSummary={() => setCardForNextSummary(card)}
+                        isProcessing={processingCardId === card.id}
+                        isHighlighted={highlightedCardId === card.id}
+                        isBestForShopping={isBest}
+                        shoppingDays={advice?.daysUntilPayment}
+                        isClosingSoon={isClosingSoon}
+                        daysUntilClose={advice?.daysUntilClose}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()
         )}
       </section>
 

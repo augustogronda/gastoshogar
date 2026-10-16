@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check, Clock, Calendar, AlertCircle, ArrowRight, Repeat } from "./ui/icons";
+import { Check, Clock, Calendar, AlertCircle, ArrowRight, Repeat, Sparkles } from "./ui/icons";
 import { BANK_THEMES } from "@/lib/cards-service";
 
 const SHORT_MONTHS_ES = [
@@ -37,6 +37,10 @@ interface CreditCardVisualProps {
   onNextSummary?: () => void;
   isProcessing?: boolean;
   isHighlighted?: boolean;
+  isBestForShopping?: boolean;
+  shoppingDays?: number;
+  isClosingSoon?: boolean;
+  daysUntilClose?: number;
 }
 
 export function CreditCardVisual({
@@ -58,6 +62,10 @@ export function CreditCardVisual({
   onNextSummary,
   isProcessing = false,
   isHighlighted = false,
+  isBestForShopping = false,
+  shoppingDays,
+  isClosingSoon = false,
+  daysUntilClose,
 }: CreditCardVisualProps) {
   const bankTheme = BANK_THEMES[bank] || BANK_THEMES.Otro;
   const upperBrand = (brand || "VISA").toUpperCase();
@@ -265,6 +273,31 @@ export function CreditCardVisual({
             </div>
           </div>
         </div>
+
+        {/* Badge Inteligente de Compra Hoy */}
+        {isBestForShopping && (
+          <div className="mt-3 px-3 py-1.5 rounded-2xl bg-emerald-500/25 border border-emerald-400/40 relative z-10 flex items-center justify-between shadow-sm backdrop-blur-md">
+            <span className="text-[11px] font-extrabold text-emerald-200 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+              <span>¡Mejor tarjeta para comprar hoy!</span>
+            </span>
+            <span className="text-[11px] font-mono font-black text-emerald-100 tabular-nums">
+              {shoppingDays} días de plazo
+            </span>
+          </div>
+        )}
+
+        {!isBestForShopping && isClosingSoon && (
+          <div className="mt-3 px-3 py-1.5 rounded-2xl bg-amber-500/20 border border-amber-400/35 relative z-10 flex items-center justify-between shadow-sm backdrop-blur-md">
+            <span className="text-[11px] font-bold text-amber-200 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-300" />
+              <span>Cierra {daysUntilClose === 0 ? "hoy" : `en ${daysUntilClose} días`}</span>
+            </span>
+            <span className="text-[10px] text-amber-300/90 font-medium">
+              Vence pronto
+            </span>
+          </div>
+        )}
 
         {/* Desglose de Cuotas / Gastos Fijos Asociados a esta tarjeta */}
         {linkedInstallments.length > 0 && (
