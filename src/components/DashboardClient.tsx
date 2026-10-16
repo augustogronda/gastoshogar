@@ -202,6 +202,97 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   }>({ isOpen: false, type: "deleteExpense", title: "", description: "" });
   const { toast, showToast } = useToast();
 
+  // Pull-to-Refresh: Actualizar datos y limpiar caché deslizando hacia abajo
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartRef = useRef<number | null>(null);
+  const hasTriggeredHapticRef = useRef(false);
+
+  const executeManualRefresh = async () => {
+    setIsRefreshing(true);
+    setPullDistance(55);
+    try {
+      // 1. Limpiar caché en memoria de meses
+      dataCacheRef.current.clear();
+
+      // 2. Traer datos frescos del servidor
+      const freshData = await getDashboardData(currentYear, currentMonth);
+      if (freshData) {
+        setDashboardData(freshData);
+        dataCacheRef.current.set(`${currentYear}-${currentMonth}`, freshData);
+      }
+      router.refresh();
+      showToast("Datos y caché actualizados", "success");
+    } catch (e) {
+      showToast("Error al refrescar datos", "error");
+    } finally {
+      setTimeout(() => {
+        setPullDistance(0);
+        setIsRefreshing(false);
+        setIsPulling(false);
+        hasTriggeredHapticRef.current = false;
+      }, 450);
+    }
+  };
+
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      if (window.scrollY <= 2 && !isRefreshing) {
+        touchStartRef.current = e.touches[0].clientY;
+        hasTriggeredHapticRef.current = false;
+      } else {
+        touchStartRef.current = null;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (touchStartRef.current === null || isRefreshing) return;
+
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - touchStartRef.current;
+
+      if (diff > 0 && window.scrollY <= 2) {
+        const pull = Math.min(Math.pow(diff, 0.85) * 1.5, 85);
+        setPullDistance(pull);
+        setIsPulling(true);
+
+        if (pull >= 60 && !hasTriggeredHapticRef.current) {
+          if (typeof navigator !== "undefined" && navigator.vibrate) {
+            navigator.vibrate(12);
+          }
+          hasTriggeredHapticRef.current = true;
+        }
+      } else if (diff <= 0) {
+        setPullDistance(0);
+        setIsPulling(false);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (touchStartRef.current === null || isRefreshing) return;
+      touchStartRef.current = null;
+
+      if (pullDistance >= 60) {
+        executeManualRefresh();
+      } else {
+        setPullDistance(0);
+        setIsPulling(false);
+        hasTriggeredHapticRef.current = false;
+      }
+    };
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [currentYear, currentMonth, isRefreshing, pullDistance]);
+
   // Precarga inteligente en segundo plano de los meses contiguos (-1 y +1)
   useEffect(() => {
     const currentKey = `${currentYear}-${currentMonth}`;
@@ -397,9 +488,41 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const monthLabel = MONTH_NAMES[currentMonth - 1];
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30">
-      {/* Contenedor mobile-first refinado */}
-      <main className="w-full max-w-md mx-auto px-4 pt-safe pb-36 flex-1 flex flex-col gap-3.5">
+    <div className="min-h-screen bg-black text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30 relative">
+      {/* Indicador Pull-to-Refresh Flotante (Estilo iOS Dynamic Island) */}
+      <div
+        className="fixed top-0 left-0 right-0 z-50 pointer-events-none flex justify-center"
+        style={{
+          transform: `translateY(${pullDistance > 0 ? Math.min(pullDistance + 12, 68) : -48}px)`,
+          opacity: pullDistance > 12 || isRefreshing ? 1 : 0,
+          transition: isPulling ? "none" : "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease",
+        }}
+      >
+        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/95 border border-white/[0.15] shadow-2xl backdrop-blur-md text-xs font-semibold text-white">
+          <RefreshCw
+            className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-blue-400" : "text-zinc-400"}`}
+            style={{
+              transform: isRefreshing ? undefined : `rotate(${pullDistance * 4.5}deg)`,
+            }}
+          />
+          <span className="text-[11px] font-medium text-zinc-200">
+            {isRefreshing
+              ? "Actualizando datos..."
+              : pullDistance >= 60
+              ? "Soltá para actualizar"
+              : "Deslizá para actualizar"}
+          </span>
+        </div>
+      </div>
+
+      {/* Contenedor mobile-first refinado con efecto elástico */}
+      <main
+        className="w-full max-w-md mx-auto px-4 pt-safe pb-36 flex-1 flex flex-col gap-3.5"
+        style={{
+          transform: pullDistance > 0 ? `translateY(${pullDistance * 0.4}px)` : undefined,
+          transition: isPulling ? "none" : "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
+      >
         
         {/* Cabecera Superior: Logo + Usuario Conectado + Selector de Mes */}
         <header className="flex items-center justify-between pt-2">
