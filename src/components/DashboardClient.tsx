@@ -399,7 +399,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   return (
     <div className="min-h-screen bg-black text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30">
       {/* Contenedor mobile-first refinado */}
-      <main className="w-full max-w-md mx-auto px-4 pt-safe pb-28 flex-1 flex flex-col gap-3.5">
+      <main className="w-full max-w-md mx-auto px-4 pt-safe pb-36 flex-1 flex flex-col gap-3.5">
         
         {/* Cabecera Superior: Logo + Usuario Conectado + Selector de Mes */}
         <header className="flex items-center justify-between pt-2">
@@ -1568,15 +1568,18 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
       {/* Botón de Acción Rápida Flotante (+) en Hogar Compartido */}
       {spaceMode === "hogar" && (activeTab === "hogar" || activeTab === "analisis") && (
-        <div className="fixed bottom-[74px] left-0 right-0 z-20 pointer-events-none">
+        <div
+          className="fixed left-0 right-0 z-40 pointer-events-none"
+          style={{ bottom: "calc(68px + max(8px, env(safe-area-inset-bottom, 0px)))" }}
+        >
           <div className="w-full max-w-md mx-auto px-4 flex justify-end">
             <button
               type="button"
               onClick={() => setIsExpenseModalOpen(true)}
-              className="pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-[0_8px_28px_rgba(37,99,235,0.55)] border border-blue-400/30 active:scale-95 transition-all"
+              className="pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-[0_10px_30px_rgba(37,99,235,0.6)] border border-blue-400/40 active:scale-95 transition-all"
               title="Cargar nuevo gasto compartido"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <Plus className="w-4 h-4 stroke-[2.8]" />
               <span>Nuevo Gasto</span>
             </button>
           </div>

@@ -856,7 +856,10 @@ export function PersonalDashboardView({
 
       {/* Botón de Acción Rápida Flotante (+) en Personal (ergonómico para el pulgar) */}
       {(personalTab === "gastos" || personalTab === "analisis" || personalTab === "cuotas") && (
-        <div className="fixed bottom-[74px] left-0 right-0 z-30 pointer-events-none">
+        <div
+          className="fixed left-0 right-0 z-40 pointer-events-none"
+          style={{ bottom: "calc(68px + max(8px, env(safe-area-inset-bottom, 0px)))" }}
+        >
           <div className="w-full max-w-md mx-auto px-4 flex justify-end">
             <button
               type="button"
@@ -865,7 +868,7 @@ export function PersonalDashboardView({
                   ? setIsRecurringModalOpen(true)
                   : setIsExpenseModalOpen(true)
               }
-              className="pointer-events-auto h-12 px-4 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-xl shadow-indigo-600/40 border border-white/20 flex items-center gap-2 active:scale-95 transition"
+              className="pointer-events-auto h-12 px-4 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-[0_10px_30px_rgba(79,70,229,0.55)] border border-white/25 flex items-center gap-2 active:scale-95 transition"
             >
               <Plus className="w-4 h-4 stroke-[2.8]" />
               <span>{personalTab === "cuotas" ? "Nueva Cuota" : "Nuevo Gasto"}</span>
