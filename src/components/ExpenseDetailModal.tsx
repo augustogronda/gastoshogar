@@ -111,6 +111,7 @@ export function ExpenseDetailModal({
     }
 
     setIsSubmitting(true);
+    onClose();
     try {
       if (isPersonal) {
         await updatePersonalExpenseAction({
@@ -133,7 +134,6 @@ export function ExpenseDetailModal({
           isFromPoolFund: expense.isFromPoolFund,
         });
       }
-      onClose();
     } catch (err: unknown) {
       console.error(err);
       showToast(err instanceof Error ? err.message : "Error al actualizar gasto", "error");
@@ -149,13 +149,13 @@ export function ExpenseDetailModal({
     }
     setPendingConfirm(null);
     setIsDuplicating(true);
+    onClose();
     try {
       if (isPersonal) {
         await duplicatePersonalExpenseAction(expense.id);
       } else {
         await duplicateExpenseAction(expense.id);
       }
-      onClose();
     } catch (err: unknown) {
       console.error(err);
       showToast(err instanceof Error ? err.message : "Error al duplicar gasto", "error");
@@ -171,13 +171,13 @@ export function ExpenseDetailModal({
     }
     setPendingConfirm(null);
     setIsDeleting(true);
+    onClose();
     try {
       if (isPersonal) {
         await deletePersonalExpenseAction(expense.id);
       } else {
         await deleteExpenseAction(expense.id);
       }
-      onClose();
     } catch (err: unknown) {
       console.error(err);
       showToast(err instanceof Error ? err.message : "Error al eliminar gasto", "error");

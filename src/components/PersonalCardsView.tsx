@@ -71,6 +71,7 @@ export function PersonalCardsView({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [cardForNextSummary, setCardForNextSummary] = useState<any | null>(null);
   const [processingCardId, setProcessingCardId] = useState<string | null>(null);
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
 
   // Sincronizar estado local cuando llegan datos nuevos del servidor
@@ -132,7 +133,10 @@ export function PersonalCardsView({
     const nextIsPaid = !cardItem.period.isPaid;
     const previousCards = [...localCards];
 
-    // 1. Impacto visual inmediato
+    // 1. Impacto visual inmediato (0ms)
+    setHighlightedCardId(cardItem.id);
+    setTimeout(() => setHighlightedCardId(null), 1200);
+
     setLocalCards((prev) =>
       prev.map((c) =>
         c.id === cardItem.id
@@ -176,6 +180,8 @@ export function PersonalCardsView({
     const cardItem = cardForNextSummary;
     setCardForNextSummary(null);
     setProcessingCardId(cardItem.id);
+    setHighlightedCardId(cardItem.id);
+    setTimeout(() => setHighlightedCardId(null), 1200);
 
     try {
       const res = await advanceCardToNextSummaryAction({
@@ -224,6 +230,9 @@ export function PersonalCardsView({
       notes: string | null;
     }
   ) => {
+    setHighlightedCardId(cardId);
+    setTimeout(() => setHighlightedCardId(null), 1200);
+
     setLocalCards((prev) =>
       prev.map((c) =>
         c.id === cardId
@@ -393,6 +402,7 @@ export function PersonalCardsView({
                 onTogglePaid={() => handleTogglePaid(card)}
                 onNextSummary={() => setCardForNextSummary(card)}
                 isProcessing={processingCardId === card.id}
+                isHighlighted={highlightedCardId === card.id}
               />
             ))}
           </div>

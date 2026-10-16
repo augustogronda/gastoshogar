@@ -443,11 +443,39 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       const id = confirmHogarState.targetId;
       setConfirmHogarState((prev) => ({ ...prev, isOpen: false }));
       setDeletingId(id);
+
+      // 1. IMPACTO INMEDIATO EN CACHÉ Y ESTADO LOCAL (0ms de latencia)
+      const previousData = dashboardData;
+      const targetExpense = period.expenses.find((e) => e.id === id);
+      const deletedAmount = targetExpense ? targetExpense.amount : 0;
+      const updatedExpenses = period.expenses.filter((e) => e.id !== id);
+
+      const optimisticData = {
+        ...dashboardData,
+        period: {
+          ...dashboardData.period,
+          expenses: updatedExpenses,
+        },
+        poolSummary: {
+          ...dashboardData.poolSummary,
+          totalExpenses: Math.max(0, dashboardData.poolSummary.totalExpenses - deletedAmount),
+          remainingPool: Math.max(0, dashboardData.poolSummary.remainingPool + deletedAmount),
+        },
+      };
+
+      setDashboardData(optimisticData);
+      const cacheKey = `${currentYear}-${currentMonth}`;
+      dataCacheRef.current.set(cacheKey, optimisticData);
+      showToast("Gasto eliminado", "success");
+
+      // 2. Persistencia en segundo plano en la base de datos
       try {
         await deleteExpenseAction(id);
-        showToast("Gasto eliminado", "success");
       } catch (err: unknown) {
-        showToast(err instanceof Error ? err.message : "Error al eliminar", "error");
+        // En caso de error de red, revertir caché y estado
+        setDashboardData(previousData);
+        dataCacheRef.current.set(cacheKey, previousData);
+        showToast(err instanceof Error ? err.message : "Error al eliminar gasto", "error");
       } finally {
         setDeletingId(null);
       }
@@ -1093,7 +1121,11 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                                   });
                                   setIsDetailModalOpen(true);
                                 }}
-                                className="super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition duration-150 cursor-pointer group"
+                                className={`super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition-all duration-300 cursor-pointer group ${
+                                  deletingId === exp.id
+                                    ? "opacity-0 -translate-x-6 scale-95 pointer-events-none"
+                                    : "opacity-100"
+                                }`}
                               >
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Wallet,
   Plus,
@@ -145,16 +145,28 @@ export function PersonalDashboardView({
     extraIncome,
     carriedOverPersonal,
     totalPersonalAvailable,
-    totalPersonalExpenses,
-    remainingPersonalPool,
-    personalBurnRatePct,
-    expenses,
+    totalPersonalExpenses: initialTotalPersonalExpenses,
+    remainingPersonalPool: initialRemainingPersonalPool,
+    personalBurnRatePct: initialPersonalBurnRatePct,
+    expenses: serverExpenses,
     recurringExpenses,
     investments = [],
     investmentsSummary = null,
     cardsData = null,
     isClosed,
   } = personalData;
+
+  const [localExpenses, setLocalExpenses] = useState<PersonalExpenseItem[]>(serverExpenses || []);
+
+  useEffect(() => {
+    if (serverExpenses) {
+      setLocalExpenses(serverExpenses);
+    }
+  }, [serverExpenses]);
+
+  const totalPersonalExpenses = localExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const remainingPersonalPool = Math.max(0, totalPersonalAvailable - totalPersonalExpenses);
+  const personalBurnRatePct = totalPersonalAvailable > 0 ? (totalPersonalExpenses / totalPersonalAvailable) * 100 : 0;
 
   const burnColor =
     personalBurnRatePct > 90
@@ -176,11 +188,19 @@ export function PersonalDashboardView({
     setConfirmState(null);
 
     if (current.type === "deleteExpense" && current.id) {
-      setDeletingId(current.id);
+      const id = current.id;
+      setDeletingId(id);
+      const previousList = [...localExpenses];
+
+      // 1. IMPACTO INMEDIATO EN UI (0ms de latencia)
+      setLocalExpenses((prev) => prev.filter((e) => e.id !== id));
+      showToast("✓ Gasto personal eliminado");
+
+      // 2. Persistencia en segundo plano en la base de datos
       try {
-        await deletePersonalExpenseAction(current.id);
-        showToast("✓ Gasto personal eliminado");
+        await deletePersonalExpenseAction(id);
       } catch (err) {
+        setLocalExpenses(previousList);
         showToast("Error al eliminar gasto", "error");
       } finally {
         setDeletingId(null);
@@ -261,7 +281,7 @@ export function PersonalDashboardView({
 
   // Cálculo de análisis por categoría
   const categoryTotals: Record<string, { name: string; amount: number; count: number }> = {};
-  for (const exp of expenses) {
+  for (const exp of localExpenses) {
     const catName = exp.category?.name || "Varios";
     if (!categoryTotals[catName]) {
       categoryTotals[catName] = { name: catName, amount: 0, count: 0 };
@@ -270,10 +290,10 @@ export function PersonalDashboardView({
     categoryTotals[catName].count += 1;
   }
   const sortedCategories = Object.values(categoryTotals).sort((a, b) => b.amount - a.amount);
-  const averagePersonalExpense = expenses.length > 0 ? Math.round(totalPersonalExpenses / expenses.length) : 0;
+  const averagePersonalExpense = localExpenses.length > 0 ? Math.round(totalPersonalExpenses / localExpenses.length) : 0;
 
   const normalizedQuery = personalSearchQuery.trim().toLowerCase();
-  const filteredPersonalExpenses = expenses.filter((e) => {
+  const filteredPersonalExpenses = localExpenses.filter((e) => {
     const catName = e.category?.name || "Varios";
     const matchesCategory = personalCategoryFilter === "ALL" || catName === personalCategoryFilter;
     const matchesSearch =
@@ -434,7 +454,7 @@ export function PersonalDashboardView({
           <section className="space-y-2.5">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-                Gastos Personales de {monthName} ({expenses.length})
+                Gastos Personales de {monthName} ({localExpenses.length})
               </h2>
               <button
                 onClick={() => setIsCategoryModalOpen(true)}
@@ -447,7 +467,7 @@ export function PersonalDashboardView({
             </div>
 
             {/* Buscador instantáneo + Chips de Categoría */}
-            {expenses.length > 0 && (
+            {localExpenses.length > 0 && (
               <div className="space-y-2">
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -480,7 +500,7 @@ export function PersonalDashboardView({
                           : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
                       }`}
                     >
-                      Todos ({expenses.length})
+                      Todos ({localExpenses.length})
                     </button>
                     {sortedCategories.map((cat) => (
                       <button
@@ -580,7 +600,11 @@ export function PersonalDashboardView({
                         });
                         setIsDetailModalOpen(true);
                       }}
-                      className="super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition duration-150 cursor-pointer group"
+                      className={`super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition-all duration-300 cursor-pointer group ${
+                        deletingId === exp.id
+                          ? "opacity-0 -translate-x-6 scale-95 pointer-events-none"
+                          : "opacity-100"
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
@@ -651,7 +675,7 @@ export function PersonalDashboardView({
                 Diagnóstico Personal • {monthName} {currentYear}
               </span>
               <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/[0.08] text-white font-bold border border-white/[0.12] tabular-nums">
-                {expenses.length} gastos
+                {localExpenses.length} gastos
               </span>
             </div>
 

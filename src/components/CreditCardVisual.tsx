@@ -36,6 +36,7 @@ interface CreditCardVisualProps {
   onTogglePaid?: () => void;
   onNextSummary?: () => void;
   isProcessing?: boolean;
+  isHighlighted?: boolean;
 }
 
 export function CreditCardVisual({
@@ -56,6 +57,7 @@ export function CreditCardVisual({
   onTogglePaid,
   onNextSummary,
   isProcessing = false,
+  isHighlighted = false,
 }: CreditCardVisualProps) {
   const bankTheme = BANK_THEMES[bank] || BANK_THEMES.Otro;
   const upperBrand = (brand || "VISA").toUpperCase();
@@ -102,9 +104,17 @@ export function CreditCardVisual({
     <div className="relative group w-full select-none">
       {/* Tarjeta Visual de Crédito */}
       <div
-        className={`w-full rounded-3xl p-5 bg-gradient-to-br ${bankTheme.gradient} text-white shadow-xl border border-white/[0.15] relative overflow-hidden transition-all duration-300 hover:scale-[1.01]`}
+        className={`w-full rounded-3xl p-5 bg-gradient-to-br ${bankTheme.gradient} text-white shadow-xl border relative overflow-hidden transition-all duration-500 ease-out ${
+          isHighlighted
+            ? "scale-[1.025] ring-2 ring-emerald-400 border-emerald-300 shadow-[0_0_35px_rgba(52,211,153,0.5)]"
+            : isProcessing
+            ? "opacity-75 scale-[0.99] border-white/[0.2]"
+            : "border-white/[0.15] hover:scale-[1.01]"
+        }`}
         style={{
-          boxShadow: isPaid
+          boxShadow: isHighlighted
+            ? "0 0 35px rgba(52, 211, 153, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3)"
+            : isPaid
             ? "0 12px 30px -8px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2)"
             : "0 12px 30px -8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2)",
         }}
