@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleMcpRpcRequest } from "@/lib/mcp-server";
+import { validateGemAuth } from "@/lib/gem-service";
 
 export const dynamic = "force-dynamic";
 
@@ -18,14 +19,27 @@ export async function OPTIONS() {
 
 // GET: Maneja la conexión SSE (Server-Sent Events) del estándar MCP o status descriptivo
 export async function GET(req: Request) {
+  if (!validateGemAuth(req)) {
+    return NextResponse.json(
+      {
+        error: "No autorizado. Se requiere token secreto (ej: ?key=tu_clave o header x-api-key).",
+      },
+      { status: 401, headers: CORS_HEADERS }
+    );
+  }
+
   const url = new URL(req.url);
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || `${url.protocol}//${url.host}`;
   const acceptHeader = req.headers.get("accept") || "";
 
+  // Preservar la clave de autenticación para que el cliente la use en sus POST subsiguientes
+  const key = url.searchParams.get("key") || url.searchParams.get("token") || "";
+  const keyParam = key ? `&key=${encodeURIComponent(key)}` : "";
+
   // Si el cliente pide SSE (flujo estándar de MCP)
   if (acceptHeader.includes("text/event-stream")) {
     const sessionId = url.searchParams.get("sessionId") || crypto.randomUUID();
-    const messageEndpoint = `${baseUrl}/api/mcp?sessionId=${sessionId}`;
+    const messageEndpoint = `${baseUrl}/api/mcp?sessionId=${sessionId}${keyParam}`;
 
     const stream = new ReadableStream({
       start(controller) {
@@ -51,8 +65,7 @@ export async function GET(req: Request) {
       name: "Gastos Hogar MCP Server",
       protocolVersion: "2024-11-05",
       status: "ready",
-      sseEndpoint: `${baseUrl}/api/mcp`,
-      postEndpoint: `${baseUrl}/api/mcp`,
+      authenticated: true,
       availableTools: [
         "get_financial_status",
         "query_expenses",
@@ -60,8 +73,6 @@ export async function GET(req: Request) {
         "create_recurring_expense",
         "update_card_statement",
       ],
-      instructions:
-        "Pegá esta URL en la configuración de Gemini MCP: " + `${baseUrl}/api/mcp` + " o " + `${baseUrl}/mcp`,
     },
     { headers: CORS_HEADERS }
   );
@@ -69,6 +80,20 @@ export async function GET(req: Request) {
 
 // POST: Maneja las solicitudes JSON-RPC 2.0 de MCP
 export async function POST(req: Request) {
+  if (!validateGemAuth(req)) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32000,
+          message: "No autorizado. Se requiere token secreto (ej: ?key=tu_clave o header x-api-key).",
+        },
+      },
+      { status: 401, headers: CORS_HEADERS }
+    );
+  }
+
   try {
     const body = await req.json();
 
