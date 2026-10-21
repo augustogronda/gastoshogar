@@ -23,7 +23,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "Finanzas Hogar",
-  description: "Fondo Común 60% e Inversión Conjunta (FCI) para Parejas",
+  description: "Fondo Común e Inversión Conjunta (FCI) para Parejas",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

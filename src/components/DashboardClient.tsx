@@ -73,7 +73,7 @@ interface ExpenseItem {
 
 interface DashboardClientProps {
   initialData: {
-    household: { id: string; name: string; currency: string };
+    household: { id: string; name: string; currency: string; defaultRate?: number };
     users: Array<{ id: string; name: string; avatarColor: string; email?: string | null }>;
     currentUser: { id: string; name: string; avatarColor: string; email?: string | null } | null;
     categories: Array<{ id: string; name: string; icon?: string | null; color?: string | null }>;
@@ -561,7 +561,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         expenseId,
         targetUserId: currentUser?.id,
       });
-      showToast("Duplicado a tus gastos personales (40%)", "success");
+      showToast("Duplicado a tus gastos personales", "success");
       router.refresh();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Error al duplicar a personal", "error");
@@ -783,6 +783,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   };
 
   const monthLabel = MONTH_NAMES[currentMonth - 1];
+  const hogarPct = Math.round(
+    (period.incomes[0]?.contributionPct ?? household.defaultRate ?? 0.60) * 100
+  );
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30 relative">
@@ -1174,7 +1177,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
                       <Wallet className="w-3.5 h-3.5 text-blue-400" />
-                      Presupuesto Común (60%)
+                      Presupuesto Común ({hogarPct}%)
                     </span>
                     <div className="flex items-center gap-2">
                       {isClosed && (
@@ -1527,6 +1530,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             remainingPool={poolSummary.remainingPool}
             investedInFCI={poolSummary.investedInFCI}
             burnRatePct={poolSummary.burnRatePct}
+            contributionPct={hogarPct}
             expenses={period.expenses}
             users={users}
             memberBalances={poolSummary.memberBalances}
@@ -1606,7 +1610,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     ${Math.round(investmentFund?.currentValue || 0).toLocaleString("es-AR")}
                   </span>
                   <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-                    Patrimonio acumulado con los remanentes mensuales del 60%.
+                    Patrimonio acumulado con los remanentes mensuales del Fondo Común.
                   </p>
                   <button
                     onClick={() => setIsFCIModalOpen(true)}
@@ -1666,7 +1670,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                         ? `Si cerraran ${monthLabel} hoy, podrían sumar $${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")} extra al FCI.`
                         : poolSummary.investedInFCI > 0
                         ? `Ya transfirieron todo el remanente disponible de ${monthLabel} al FCI.`
-                        : `Actualmente no queda excedente libre del 60% en ${monthLabel}.`}
+                        : `Actualmente no queda excedente libre del Fondo Común en ${monthLabel}.`}
                     </p>
                     {poolSummary.remainingPool > 0 && (
                       <button
@@ -1985,6 +1989,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         year={currentYear}
         users={users}
         incomes={period.incomes}
+        defaultRate={household.defaultRate ?? 0.60}
       />
 
       <FCIInvestModal

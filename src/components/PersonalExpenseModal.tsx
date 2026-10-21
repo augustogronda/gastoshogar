@@ -165,7 +165,7 @@ export function PersonalExpenseModal({
                 Nuevo Gasto Personal
               </h2>
               <p className="text-[11px] text-indigo-300/90 font-medium">
-                Espacio privado de {userName} (40%)
+                Espacio privado de {userName}
               </p>
             </div>
             <button

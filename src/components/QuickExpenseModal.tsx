@@ -154,7 +154,7 @@ export function QuickExpenseModal({
           <div className="flex items-center justify-between pt-0.5">
             <div>
               <h2 className="text-base font-bold text-white tracking-tight">Nuevo Gasto</h2>
-              <p className="text-[11px] text-blue-300/90 font-medium">Fondo Compartido Hogar (60%)</p>
+              <p className="text-[11px] text-blue-300/90 font-medium">Fondo Compartido Hogar</p>
             </div>
             <button
               type="button"

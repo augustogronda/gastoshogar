@@ -159,6 +159,7 @@ export function PersonalDashboardView({
   } | null>(null);
 
   const {
+    personalRate = 0.40,
     basePersonalSalary,
     extraIncome,
     carriedOverPersonal,
@@ -486,7 +487,7 @@ export function PersonalDashboardView({
             <div className="flex items-center justify-between mb-3.5">
               <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Wallet className="w-3.5 h-3.5 text-indigo-400" />
-                Presupuesto Personal (40% + Extras)
+                Presupuesto Personal ({Math.round(personalRate * 100)}% + Extras)
               </span>
               <div className="flex items-center gap-2">
                 {isClosed && (
@@ -530,7 +531,7 @@ export function PersonalDashboardView({
             {/* Sub-desglose del ingreso personal */}
             <div className="flex flex-wrap items-center gap-1.5 mb-3 text-[10px] font-medium">
               <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-mono tabular-nums">
-                Base 40%: ${Math.round(basePersonalSalary).toLocaleString("es-AR")}
+                Base {Math.round(personalRate * 100)}%: ${Math.round(basePersonalSalary).toLocaleString("es-AR")}
               </span>
               {extraIncome > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-mono tabular-nums">
@@ -877,7 +878,7 @@ export function PersonalDashboardView({
                             className="flex-1 min-h-[38px] py-2 px-3 rounded-xl btn-hogar-gradient font-semibold text-xs tracking-[-0.01em] text-blue-100 flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98]"
                           >
                             <Users className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
-                            <span className="truncate">Duplicar a Hogar (60%)</span>
+                            <span className="truncate">Duplicar a Hogar</span>
                           </button>
                           <button
                             type="button"
@@ -920,7 +921,7 @@ export function PersonalDashboardView({
                   ${Math.round(totalPersonalExpenses).toLocaleString("es-AR")}
                 </span>
                 <span className="text-[10px] text-zinc-400 font-medium block mt-0.5 tabular-nums">
-                  {Math.round(personalBurnRatePct)}% de tu 40% + extras
+                  {Math.round(personalBurnRatePct)}% de tu presupuesto + extras
                 </span>
               </div>
 
@@ -951,7 +952,7 @@ export function PersonalDashboardView({
                   </p>
                 ) : (
                   <p>
-                    <strong className="text-rose-300">Atención:</strong> Superaste tu presupuesto del 40% + bonos este mes.
+                    <strong className="text-rose-300">Atención:</strong> Superaste tu presupuesto personal + bonos este mes.
                   </p>
                 )}
               </div>
@@ -1290,7 +1291,7 @@ export function PersonalDashboardView({
                 </div>
               ) : (
                 <div className="bg-zinc-900/60 border border-white/[0.08] rounded-2xl p-4 text-xs text-zinc-400">
-                  Utilizaste la totalidad de tu presupuesto del mes. El próximo mes iniciará con el 40% de tu sueldo nuevo.
+                  Utilizaste la totalidad de tu presupuesto del mes. El próximo mes iniciará con el {Math.round(personalRate * 100)}% de tu sueldo nuevo.
                 </div>
               )}
             </div>

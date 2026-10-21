@@ -281,7 +281,7 @@ export function FCIInvestModal({
                 <div className="space-y-2 border-t border-white/[0.06] pt-3">
                   <div className="text-xs text-zinc-300 flex items-center gap-1.5 mb-2">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Distribución proporcional según aportes del 60%:</span>
+                    <span>Distribución proporcional según aportes al Fondo Común:</span>
                   </div>
                   <div className="flex justify-between text-xs text-zinc-200 font-mono tabular-nums">
                     <span className="font-sans">{userABalance.name} ({Math.round(userABalance.quotaPct)}%):</span>

@@ -1,7 +1,7 @@
 {
-  "version": "1.16.4",
-  "build": 2026102111,
-  "releasedAt": "2026-10-21T19:08:00Z",
-  "title": "Menú Contextual Superior y Gestión en Análisis",
-  "description": "Movimos Configurar Sueldos / Ingreso y Cerrar / Reabrir Mes al menú superior izquierdo (Casita + Usuario) y a la pestaña de Análisis para dejar las tarjetas principales ultra limpias."
+  "version": "1.17.0",
+  "build": 2026102112,
+  "releasedAt": "2026-10-21T19:21:00Z",
+  "title": "Porcentaje de Fondo Común Editable (60% por Defecto)",
+  "description": "Ahora podés configurar el porcentaje de aporte al Fondo Común (60% por defecto) desde Configurar Sueldos, y toda la aplicación adapta automáticamente los cálculos y etiquetas de Hogar y Personal."
 }

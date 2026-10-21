@@ -42,6 +42,7 @@ interface MonthlyAnalyticsViewProps {
   remainingPool: number;
   investedInFCI?: number;
   burnRatePct: number;
+  contributionPct?: number;
   expenses: ExpenseItem[];
   users: Array<{ id: string; name: string }>;
   memberBalances?: MemberBalanceItem[];
@@ -60,6 +61,7 @@ export function MonthlyAnalyticsView({
   remainingPool,
   investedInFCI = 0,
   burnRatePct,
+  contributionPct = 60,
   expenses,
   users,
   memberBalances = [],
@@ -123,7 +125,7 @@ export function MonthlyAnalyticsView({
               ${Math.round(totalSpent).toLocaleString("es-AR")}
             </span>
             <span className="text-[10px] text-zinc-400 font-medium block mt-0.5 tabular-nums">
-              {Math.round(burnRatePct)}% del fondo del 60%
+              {Math.round(burnRatePct)}% del fondo común ({contributionPct}%)
             </span>
           </div>
 
@@ -154,7 +156,7 @@ export function MonthlyAnalyticsView({
               </p>
             ) : (
               <p>
-                <strong className="text-amber-300">Atención:</strong> Los gastos superaron el 60% presupuestado. Convendría revisar categorías secundarias.
+                <strong className="text-amber-300">Atención:</strong> Los gastos superaron el presupuesto común ({contributionPct}%). Convendría revisar categorías secundarias.
               </p>
             )}
           </div>
@@ -264,7 +266,7 @@ export function MonthlyAnalyticsView({
               Desembolsos de Bolsillo
             </h3>
             <span className="text-[10px] font-semibold text-zinc-400 px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08]">
-              Aporte 60% c/u
+              Aporte {contributionPct}% c/u
             </span>
           </div>
 
@@ -280,7 +282,7 @@ export function MonthlyAnalyticsView({
                 ${Math.round(memberBalances[0].outOfPocketPaid).toLocaleString("es-AR")}
               </span>
               <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
-                Meta 60%: ${Math.round(memberBalances[0].committedAmount).toLocaleString("es-AR")}
+                Meta ({contributionPct}%): ${Math.round(memberBalances[0].committedAmount).toLocaleString("es-AR")}
               </span>
             </div>
 
@@ -295,7 +297,7 @@ export function MonthlyAnalyticsView({
                 ${Math.round(memberBalances[1].outOfPocketPaid).toLocaleString("es-AR")}
               </span>
               <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
-                Meta 60%: ${Math.round(memberBalances[1].committedAmount).toLocaleString("es-AR")}
+                Meta ({contributionPct}%): ${Math.round(memberBalances[1].committedAmount).toLocaleString("es-AR")}
               </span>
             </div>
           </div>

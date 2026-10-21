@@ -133,7 +133,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
           create: household.users.map((u: any) => {
             const prevIncome = prevPeriod?.incomes.find((i) => i.userId === u.id);
             const amount = prevIncome?.amount ?? 0;
-            const pct = prevIncome?.contributionPct ?? 0.60;
+            const pct = prevIncome?.contributionPct ?? household.defaultRate ?? 0.60;
             return {
               userId: u.id,
               amount,
@@ -190,7 +190,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       userId: u.id,
       name: u.name,
       salary: incomeRecord?.amount ?? 0,
-      contributionPct: incomeRecord?.contributionPct ?? 0.60,
+      contributionPct: incomeRecord?.contributionPct ?? household.defaultRate ?? 0.60,
       outOfPocketPaid: outOfPocketByUser[u.id] ?? 0,
     };
   });
@@ -326,7 +326,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
 
     const userHogarIncome = period.incomes.find((i) => i.userId === currentUser.id);
     const hogarSalary = userHogarIncome?.amount ?? 0;
-    const contributionPct = userHogarIncome?.contributionPct ?? 0.60;
+    const contributionPct = userHogarIncome?.contributionPct ?? household.defaultRate ?? 0.60;
     const personalRate = Math.max(0, 1 - contributionPct);
     const basePersonalSalary = hogarSalary * personalRate;
     const extraIncome = personalIncome.extraAmount || 0;
@@ -605,8 +605,12 @@ export async function updateSalariesAction(
   periodId: string,
   salaries: Array<{ userId: string; amount: number; pct?: number }>
 ) {
+  let latestPct: number | null = null;
+
   for (const s of salaries) {
-    const pct = s.pct ?? 0.60;
+    const rawPct = s.pct ?? 0.60;
+    const pct = Math.min(1, Math.max(0.05, rawPct));
+    latestPct = pct;
     const targetPoolAmount = s.amount * pct;
 
     await prisma.income.upsert({
@@ -629,6 +633,24 @@ export async function updateSalariesAction(
         targetPoolAmount,
       },
     });
+  }
+
+  if (latestPct !== null) {
+    try {
+      const period = await prisma.monthlyPeriod.findUnique({
+        where: { id: periodId },
+        select: { householdId: true },
+      });
+      if (period?.householdId) {
+        await prisma.household.update({
+          where: { id: period.householdId },
+          data: { defaultRate: latestPct },
+        });
+        invalidateHouseholdCache();
+      }
+    } catch (e) {
+      console.warn("No se pudo actualizar defaultRate en household:", e);
+    }
   }
 
   revalidatePath("/");

@@ -41,7 +41,7 @@ export function AppSplashScreen({ message = "Iniciando tu espacio financiero..."
         <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.1] shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
           <span className="text-[11px] font-medium text-zinc-300 tracking-wide uppercase">
-            Fondo 60% & Pareja
+            Fondo Común & Pareja
           </span>
         </div>
 

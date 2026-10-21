@@ -323,7 +323,7 @@ export function ExpenseDetailModal({
                   isPersonal ? "text-indigo-300/90" : "text-blue-300/90"
                 }`}
               >
-                {isPersonal ? "Espacio Personal (40%)" : "Fondo Compartido Hogar (60%)"}
+                {isPersonal ? "Espacio Personal" : "Fondo Compartido Hogar"}
               </span>
             </div>
           </div>
@@ -619,7 +619,7 @@ export function ExpenseDetailModal({
                   </span>
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-sky-400/20 text-sky-200 border border-sky-400/30 text-[10px] font-extrabold tracking-wide">
-                  60% Hogar
+                  Hogar
                 </span>
               </button>
             ) : (
@@ -647,7 +647,7 @@ export function ExpenseDetailModal({
                   </span>
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-indigo-400/20 text-indigo-200 border border-indigo-400/30 text-[10px] font-extrabold tracking-wide">
-                  40% Personal
+                  Personal
                 </span>
               </button>
             )}

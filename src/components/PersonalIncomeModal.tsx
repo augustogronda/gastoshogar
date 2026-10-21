@@ -115,7 +115,7 @@ export function PersonalIncomeModal({
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                 <span className="text-xs font-bold text-indigo-300">
-                  Base 40% para gastos personales:
+                  Base {Math.max(0, Math.round((1 - contributionPct) * 100))}% para gastos personales:
                 </span>
               </div>
               <span className="text-sm font-extrabold text-white font-mono tabular-nums">
