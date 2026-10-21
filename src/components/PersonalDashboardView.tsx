@@ -1349,6 +1349,27 @@ export function PersonalDashboardView({
         onClose={() => setIsCategoryModalOpen(false)}
         categories={categories}
       />
+
+      {/* Botón de Acción Rápida Flotante (+) en Espacio Personal */}
+      {(activeTab === "gastos" || activeTab === "analisis") && (
+        <div
+          className="fixed left-0 right-0 z-40 pointer-events-none"
+          style={{ bottom: "calc(68px + max(8px, env(safe-area-inset-bottom, 0px)))" }}
+        >
+          <div className="w-full max-w-md mx-auto px-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setIsExpenseModalOpen(true)}
+              aria-label="Cargar nuevo gasto personal"
+              className="pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-full apple-segment-active-personal hover:brightness-110 text-white font-bold text-xs shadow-[0_10px_30px_rgba(94,92,230,0.6)] border border-indigo-400/40 active:scale-95 transition-all"
+              title="Cargar nuevo gasto personal"
+            >
+              <Plus className="w-4 h-4 stroke-[2.8]" />
+              <span>Nuevo Gasto</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

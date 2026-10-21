@@ -1,7 +1,7 @@
 {
-  "version": "1.15.0",
-  "build": 2026102102,
-  "releasedAt": "2026-10-21T17:50:00Z",
-  "title": "Diseño Apple HIG (Liquid Glass & Dark Mode)",
-  "description": "Sistema visual inspirado en Apple HIG: Liquid Glass en navegación y sheets, Segmented Control nativo, paleta semántica Dark Mode y mejoras de accesibilidad."
+  "version": "1.15.1",
+  "build": 2026102103,
+  "releasedAt": "2026-10-21T18:13:00Z",
+  "title": "Botón Flotante Nuevo Gasto en Personal + Apple HIG",
+  "description": "Se incorpora el botón flotante (+ Nuevo Gasto) en la vista de Gastos Personales, junto con las mejoras Apple HIG y modo oscuro."
 }
