@@ -435,7 +435,7 @@ export function PersonalDashboardView({
   );
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <>
       <ToastBanner toast={toast} />
       <ConfirmDialog
         isOpen={!!confirmState}
@@ -459,6 +459,8 @@ export function PersonalDashboardView({
         onConfirm={handleExecuteConfirm}
         onCancel={() => setConfirmState(null)}
       />
+
+      <div className="space-y-4 animate-fade-in">
 
       {/* PESTAÑA 1: GASTOS PERSONALES */}
       {personalTab === "gastos" && (
@@ -1162,29 +1164,6 @@ export function PersonalDashboardView({
         </div>
       )}
 
-      {/* Botón de Acción Rápida Flotante (+) en Personal (ergonómico para el pulgar) */}
-      {(personalTab === "gastos" || personalTab === "analisis" || personalTab === "cuotas") && (
-        <div
-          className="fixed left-0 right-0 z-40 pointer-events-none"
-          style={{ bottom: "calc(68px + max(8px, env(safe-area-inset-bottom, 0px)))" }}
-        >
-          <div className="w-full max-w-md mx-auto px-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() =>
-                personalTab === "cuotas"
-                  ? setIsRecurringModalOpen(true)
-                  : setIsExpenseModalOpen(true)
-              }
-              className="pointer-events-auto h-12 px-4 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-[0_10px_30px_rgba(79,70,229,0.55)] border border-white/25 flex items-center gap-2 active:scale-95 transition"
-            >
-              <Plus className="w-4 h-4 stroke-[2.8]" />
-              <span>{personalTab === "cuotas" ? "Nueva Cuota" : "Nuevo Gasto"}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* PESTAÑA 4: TARJETAS DE CRÉDITO PERSONALES */}
       {personalTab === "tarjetas" && (
         <PersonalCardsView
@@ -1206,6 +1185,31 @@ export function PersonalDashboardView({
           investments={investments}
           summary={investmentsSummary}
         />
+      )}
+      </div>
+
+      {/* Botón de Acción Rápida Flotante (+) en Personal (fuera del contenedor animado para mantener position: fixed real) */}
+      {(personalTab === "gastos" || personalTab === "analisis" || personalTab === "cuotas") && (
+        <div
+          className="fixed left-0 right-0 z-40 pointer-events-none"
+          style={{ bottom: "calc(68px + max(8px, env(safe-area-inset-bottom, 0px)))" }}
+        >
+          <div className="w-full max-w-md mx-auto px-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() =>
+                personalTab === "cuotas"
+                  ? setIsRecurringModalOpen(true)
+                  : setIsExpenseModalOpen(true)
+              }
+              aria-label={personalTab === "cuotas" ? "Cargar nueva cuota" : "Cargar nuevo gasto personal"}
+              className="pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-full apple-segment-active-personal hover:brightness-110 text-white font-bold text-xs shadow-[0_10px_30px_rgba(94,92,230,0.6)] border border-indigo-400/40 active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4 stroke-[2.8]" />
+              <span>{personalTab === "cuotas" ? "Nueva Cuota" : "Nuevo Gasto"}</span>
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Modales Personales */}
@@ -1349,27 +1353,6 @@ export function PersonalDashboardView({
         onClose={() => setIsCategoryModalOpen(false)}
         categories={categories}
       />
-
-      {/* Botón de Acción Rápida Flotante (+) en Espacio Personal */}
-      {(activeTab === "gastos" || activeTab === "analisis") && (
-        <div
-          className="fixed left-0 right-0 z-40 pointer-events-none"
-          style={{ bottom: "calc(68px + max(8px, env(safe-area-inset-bottom, 0px)))" }}
-        >
-          <div className="w-full max-w-md mx-auto px-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setIsExpenseModalOpen(true)}
-              aria-label="Cargar nuevo gasto personal"
-              className="pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-full apple-segment-active-personal hover:brightness-110 text-white font-bold text-xs shadow-[0_10px_30px_rgba(94,92,230,0.6)] border border-indigo-400/40 active:scale-95 transition-all"
-              title="Cargar nuevo gasto personal"
-            >
-              <Plus className="w-4 h-4 stroke-[2.8]" />
-              <span>Nuevo Gasto</span>
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

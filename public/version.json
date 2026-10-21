@@ -1,7 +1,7 @@
 {
-  "version": "1.15.2",
-  "build": 2026102104,
-  "releasedAt": "2026-10-21T18:15:00Z",
-  "title": "Modal de Nuevo Gasto Unificado (Hogar & Personal)",
-  "description": "El modal de Nuevo Gasto Personal ahora usa el mismo diseño rápido con teclado numérico táctil, chips de categorías y Liquid Glass que Hogar."
+  "version": "1.15.3",
+  "build": 2026102105,
+  "releasedAt": "2026-10-21T18:17:00Z",
+  "title": "Fix Botón Flotante en Personal + Modal Unificado",
+  "description": "Corrección de posicionamiento fixed del botón flotante (+ Nuevo Gasto) en la vista Personal y modal con teclado numérico táctil."
 }
