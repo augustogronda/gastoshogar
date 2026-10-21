@@ -1,7 +1,7 @@
 {
-  "version": "1.16.2",
-  "build": 2026102109,
-  "releasedAt": "2026-10-21T18:34:30Z",
-  "title": "Desembolsos de Bolsillo en Análisis Mensual",
-  "description": "Movimos la tarjeta de Desembolsos de Bolsillo a la pestaña de Análisis para dejar la pantalla principal de Hogar limpia y enfocada en los gastos."
+  "version": "1.16.3",
+  "build": 2026102110,
+  "releasedAt": "2026-10-21T18:36:50Z",
+  "title": "Remanente FCI en Análisis y Proyección en Pestaña FCI",
+  "description": "Movimos el banner de Remanente para FCI a la pestaña de Análisis y sumamos en la pestaña FCI una tarjeta con el remanente hipotético del mes en curso."
 }

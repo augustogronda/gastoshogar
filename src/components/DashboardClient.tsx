@@ -1076,17 +1076,28 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     </div>
                   </div>
 
-                  <div className="flex items-baseline justify-between mb-2">
+                  <div className="grid grid-cols-2 gap-3 mb-3">
                     <div>
-                      <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">Gastado:</span>
-                      <span className="text-3xl font-extrabold text-white tracking-tight font-mono tabular-nums">
+                      <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">
+                        Gastado del Mes
+                      </span>
+                      <span className="text-[28px] leading-tight font-extrabold text-white tracking-[-0.03em] font-mono tabular-nums block">
                         ${Math.round(poolSummary.totalExpenses).toLocaleString("es-AR")}
                       </span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">Fondo Disponible:</span>
-                      <span className="text-base font-bold text-zinc-100 font-mono tabular-nums">
-                        ${Math.round(poolSummary.totalAvailablePool).toLocaleString("es-AR")}
+                    <div className="text-right bg-blue-500/[0.08] border border-blue-400/20 rounded-2xl px-3.5 py-2 flex flex-col justify-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-300 block mb-0.5">
+                        Remanente Libre
+                      </span>
+                      <span
+                        className={`text-lg leading-tight font-extrabold font-mono tabular-nums tracking-[-0.02em] ${
+                          poolSummary.remainingPool < 0 ? "text-rose-400" : "text-white"
+                        }`}
+                      >
+                        ${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-mono tabular-nums mt-0.5">
+                        de ${Math.round(poolSummary.totalAvailablePool).toLocaleString("es-AR")} disp.
                       </span>
                     </div>
                   </div>
@@ -1123,7 +1134,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   </div>
 
                   {/* Acciones Integradas en la Tarjeta de Presupuesto (consistente con Personal) */}
-                  <div className="grid grid-cols-2 gap-2 pb-3.5 mb-3.5 border-b border-white/[0.06]">
+                  <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-white/[0.06]">
                     <button
                       onClick={() => setIsSalaryModalOpen(true)}
                       className="py-2 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-xs font-semibold text-zinc-200 flex items-center justify-center gap-1.5 transition active:scale-95 border border-white/[0.08]"
@@ -1151,55 +1162,6 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                       </button>
                     )}
                   </div>
-
-                  {/* Banner Remanente para Invertir en FCI */}
-                  {poolSummary.investedInFCI > 0 && poolSummary.remainingPool === 0 ? (
-                    <div
-                      onClick={() => setIsFCIModalOpen(true)}
-                      className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          <Check className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
-                            Excedente Invertido en FCI
-                          </span>
-                          <span className="text-base font-bold text-white font-mono tabular-nums">
-                            ${Math.round(poolSummary.investedInFCI).toLocaleString("es-AR")} asignados
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-emerald-300 font-semibold group-hover:translate-x-0.5 transition-transform">
-                        <span>Ver FCI</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => setIsFCIModalOpen(true)}
-                      className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          <PiggyBank className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
-                            Remanente para FCI
-                          </span>
-                          <span className="text-lg font-bold text-white font-mono tabular-nums">
-                            ${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-emerald-300 font-bold group-hover:translate-x-0.5 transition-transform">
-                        <span>Invertir</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                  )}
                 </section>
 
                 {/* Lista de Gastos con Buscador estilo iOS y Filtros Rápidos */}
@@ -1481,10 +1443,12 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             totalSpent={poolSummary.totalExpenses}
             totalAvailablePool={poolSummary.totalAvailablePool}
             remainingPool={poolSummary.remainingPool}
+            investedInFCI={poolSummary.investedInFCI}
             burnRatePct={poolSummary.burnRatePct}
             expenses={period.expenses}
             users={users}
             memberBalances={poolSummary.memberBalances}
+            onOpenFCIModal={() => setIsFCIModalOpen(true)}
           />
         )}
 
@@ -1558,6 +1522,71 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   >
                     Gestionar Ahorro e Inversión
                   </button>
+                </div>
+
+                {/* Card de Remanente Hipotético del Mes en Curso */}
+                <div className="super-card rounded-3xl p-5 border border-emerald-500/25 bg-gradient-to-br from-emerald-950/30 via-zinc-900/90 to-zinc-950">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                        <PiggyBank className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-300 block">
+                          Remanente Hipotético • {monthLabel}
+                        </span>
+                        <span className="text-[11px] text-zinc-400">
+                          Proyección actual del mes en curso
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 tabular-nums">
+                      {Math.max(0, 100 - Math.round(poolSummary.burnRatePct))}% libre
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="bg-black/30 border border-white/[0.07] rounded-2xl p-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 block">
+                        Disponible p/ Transferir
+                      </span>
+                      <span
+                        className={`text-xl font-extrabold font-mono tabular-nums mt-1 block ${
+                          poolSummary.remainingPool > 0 ? "text-emerald-400" : "text-zinc-400"
+                        }`}
+                      >
+                        ${Math.round(Math.max(0, poolSummary.remainingPool)).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                    <div className="bg-black/30 border border-white/[0.07] rounded-2xl p-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 block">
+                        Ya Invertido en {monthLabel}
+                      </span>
+                      <span className="text-xl font-extrabold text-white font-mono tabular-nums mt-1 block">
+                        ${Math.round(poolSummary.investedInFCI || 0).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.06]">
+                    <p className="text-[11px] text-zinc-300 leading-snug">
+                      {poolSummary.remainingPool > 0
+                        ? `Si cerraran ${monthLabel} hoy, podrían sumar $${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")} extra al FCI.`
+                        : poolSummary.investedInFCI > 0
+                        ? `Ya transfirieron todo el remanente disponible de ${monthLabel} al FCI.`
+                        : `Actualmente no queda excedente libre del 60% en ${monthLabel}.`}
+                    </p>
+                    {poolSummary.remainingPool > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsFCIModalOpen(true)}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/35 text-xs font-bold shrink-0 flex items-center gap-1 active:scale-95 transition"
+                      >
+                        <span>Invertir</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Historial de Aportes al FCI */}

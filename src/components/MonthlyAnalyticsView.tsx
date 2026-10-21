@@ -1,7 +1,19 @@
 "use client";
 
 import React from "react";
-import { CategoryIcon, PieChart, TrendingUp, AlertCircle, Sparkles, User, Users, Wallet } from "./ui/icons";
+import {
+  CategoryIcon,
+  PieChart,
+  TrendingUp,
+  AlertCircle,
+  Sparkles,
+  User,
+  Users,
+  Wallet,
+  PiggyBank,
+  Check,
+  ArrowRight,
+} from "./ui/icons";
 
 interface ExpenseItem {
   id: string;
@@ -25,10 +37,12 @@ interface MonthlyAnalyticsViewProps {
   totalSpent: number;
   totalAvailablePool: number;
   remainingPool: number;
+  investedInFCI?: number;
   burnRatePct: number;
   expenses: ExpenseItem[];
   users: Array<{ id: string; name: string }>;
   memberBalances?: MemberBalanceItem[];
+  onOpenFCIModal?: () => void;
 }
 
 export function MonthlyAnalyticsView({
@@ -37,10 +51,12 @@ export function MonthlyAnalyticsView({
   totalSpent,
   totalAvailablePool,
   remainingPool,
+  investedInFCI = 0,
   burnRatePct,
   expenses,
   users,
   memberBalances = [],
+  onOpenFCIModal,
 }: MonthlyAnalyticsViewProps) {
   // Agrupar gastos por categoría
   const categoryTotals: Record<string, { name: string; amount: number; count: number; color?: string | null }> = {};
@@ -132,6 +148,59 @@ export function MonthlyAnalyticsView({
             )}
           </div>
         </div>
+
+        {/* Banner Remanente para Invertir en FCI (movido desde pantalla principal) */}
+        {onOpenFCIModal && (
+          <div className="mt-3.5">
+            {investedInFCI > 0 && remainingPool === 0 ? (
+              <div
+                onClick={onOpenFCIModal}
+                className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <Check className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
+                      Excedente Invertido en FCI
+                    </span>
+                    <span className="text-base font-bold text-white font-mono tabular-nums">
+                      ${Math.round(investedInFCI).toLocaleString("es-AR")} asignados
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-emerald-300 font-semibold group-hover:translate-x-0.5 transition-transform">
+                  <span>Ver FCI</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={onOpenFCIModal}
+                className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <PiggyBank className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
+                      Remanente para FCI
+                    </span>
+                    <span className="text-lg font-bold text-white font-mono tabular-nums">
+                      ${Math.round(remainingPool).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-emerald-300 font-bold group-hover:translate-x-0.5 transition-transform">
+                  <span>Invertir</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Desembolsos de Bolsillo (Agus & Pareja) */}
