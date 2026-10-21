@@ -73,6 +73,8 @@ interface ExpenseDetailModalProps {
   users?: HouseholdUserItem[];
   categories: CategoryItem[];
   isPersonal?: boolean;
+  onDeleteExpense?: (expenseId: string) => Promise<void> | void;
+  onUpdateExpense?: (updated: EditableExpense) => void;
 }
 
 export function ExpenseDetailModal({
@@ -82,6 +84,8 @@ export function ExpenseDetailModal({
   users = [],
   categories,
   isPersonal = false,
+  onDeleteExpense,
+  onUpdateExpense,
 }: ExpenseDetailModalProps) {
   const { toast, showToast } = useToast();
   const [title, setTitle] = useState("");
@@ -130,16 +134,28 @@ export function ExpenseDetailModal({
     }
 
     setIsSubmitting(true);
+    const selectedCategory = categories.find((c) => c.id === categoryId) || expense.category || null;
+    const selectedPayer = users.find((u) => u.id === paidById) || expense.paidBy;
+    let finalNotesToSave = notes.trim() || undefined;
+    if (isPersonal && isReviewPending) {
+      const cardTag = cardSource ? `[Tarjeta ${cardSource}] ` : "";
+      finalNotesToSave = `[POR_REVISAR] ${cardTag}${notes.trim()}`.trim();
+    }
+
+    onUpdateExpense?.({
+      ...expense,
+      title,
+      amount: parsedAmount,
+      categoryId: categoryId || undefined,
+      category: selectedCategory,
+      paidById: paidById || users[0]?.id,
+      paidBy: selectedPayer ? { id: selectedPayer.id, name: selectedPayer.name } : expense.paidBy,
+      date: date ? new Date(`${date}T12:00:00`).toISOString() : expense.date,
+      notes: finalNotesToSave ?? null,
+    });
     onClose();
     try {
       if (isPersonal) {
-        // Preservar tags internos si el gasto aún no fue revisado
-        let finalNotesToSave = notes.trim() || undefined;
-        if (isReviewPending) {
-          const cardTag = cardSource ? `[Tarjeta ${cardSource}] ` : "";
-          finalNotesToSave = `[POR_REVISAR] ${cardTag}${notes.trim()}`.trim();
-        }
-
         await updatePersonalExpenseAction({
           id: expense.id,
           title,
@@ -273,14 +289,22 @@ export function ExpenseDetailModal({
       setPendingConfirm("delete");
       return;
     }
+    const targetId = expense.id;
     setPendingConfirm(null);
     setIsDeleting(true);
     onClose();
+
+    if (onDeleteExpense) {
+      await onDeleteExpense(targetId);
+      setIsDeleting(false);
+      return;
+    }
+
     try {
       if (isPersonal) {
-        await deletePersonalExpenseAction(expense.id);
+        await deletePersonalExpenseAction(targetId);
       } else {
-        await deleteExpenseAction(expense.id);
+        await deleteExpenseAction(targetId);
       }
     } catch (err: unknown) {
       console.error(err);

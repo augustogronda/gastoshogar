@@ -594,47 +594,74 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     });
   };
 
+  const handleOptimisticDeleteHogarExpense = async (id: string) => {
+    setDeletingId(id);
+
+    // 1. IMPACTO INMEDIATO EN CACHÉ Y ESTADO LOCAL (0ms de latencia)
+    const previousData = dashboardData;
+    const targetExpense = period.expenses.find((e) => e.id === id);
+    const deletedAmount = targetExpense ? targetExpense.amount : 0;
+    const updatedExpenses = period.expenses.filter((e) => e.id !== id);
+
+    const newTotalExpenses = Math.max(0, dashboardData.poolSummary.totalExpenses - deletedAmount);
+    const newRemainingPool = Math.max(
+      0,
+      dashboardData.poolSummary.totalAvailablePool - newTotalExpenses - dashboardData.poolSummary.investedInFCI
+    );
+    const newBurnRatePct =
+      dashboardData.poolSummary.totalAvailablePool > 0
+        ? (newTotalExpenses / dashboardData.poolSummary.totalAvailablePool) * 100
+        : 0;
+
+    const updatedMemberBalances = dashboardData.poolSummary.memberBalances.map((mb) => {
+      if (targetExpense && !targetExpense.isFromPoolFund && mb.userId === targetExpense.paidBy.id) {
+        const newOutOfPocket = Math.max(0, mb.outOfPocketPaid - deletedAmount);
+        return {
+          ...mb,
+          outOfPocketPaid: newOutOfPocket,
+          netBalance: newOutOfPocket - mb.committedAmount,
+        };
+      }
+      return mb;
+    });
+
+    const optimisticData = {
+      ...dashboardData,
+      period: {
+        ...dashboardData.period,
+        expenses: updatedExpenses,
+      },
+      poolSummary: {
+        ...dashboardData.poolSummary,
+        totalExpenses: newTotalExpenses,
+        remainingPool: newRemainingPool,
+        burnRatePct: newBurnRatePct,
+        memberBalances: updatedMemberBalances,
+      },
+    };
+
+    setDashboardData(optimisticData);
+    const cacheKey = `${currentYear}-${currentMonth}`;
+    dataCacheRef.current.set(cacheKey, optimisticData);
+    showToast("✓ Gasto eliminado", "success");
+
+    // 2. Persistencia en segundo plano en la base de datos
+    try {
+      await deleteExpenseAction(id);
+    } catch (err: unknown) {
+      setDashboardData(previousData);
+      dataCacheRef.current.set(cacheKey, previousData);
+      showToast(err instanceof Error ? err.message : "Error al eliminar gasto", "error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const executeHogarConfirmAction = async () => {
     if (confirmHogarState.type === "deleteExpense" && confirmHogarState.targetId) {
       const id = confirmHogarState.targetId;
       setConfirmHogarState((prev) => ({ ...prev, isOpen: false }));
-      setDeletingId(id);
-
-      // 1. IMPACTO INMEDIATO EN CACHÉ Y ESTADO LOCAL (0ms de latencia)
-      const previousData = dashboardData;
-      const targetExpense = period.expenses.find((e) => e.id === id);
-      const deletedAmount = targetExpense ? targetExpense.amount : 0;
-      const updatedExpenses = period.expenses.filter((e) => e.id !== id);
-
-      const optimisticData = {
-        ...dashboardData,
-        period: {
-          ...dashboardData.period,
-          expenses: updatedExpenses,
-        },
-        poolSummary: {
-          ...dashboardData.poolSummary,
-          totalExpenses: Math.max(0, dashboardData.poolSummary.totalExpenses - deletedAmount),
-          remainingPool: Math.max(0, dashboardData.poolSummary.remainingPool + deletedAmount),
-        },
-      };
-
-      setDashboardData(optimisticData);
-      const cacheKey = `${currentYear}-${currentMonth}`;
-      dataCacheRef.current.set(cacheKey, optimisticData);
-      showToast("Gasto eliminado", "success");
-
-      // 2. Persistencia en segundo plano en la base de datos
-      try {
-        await deleteExpenseAction(id);
-      } catch (err: unknown) {
-        // En caso de error de red, revertir caché y estado
-        setDashboardData(previousData);
-        dataCacheRef.current.set(cacheKey, previousData);
-        showToast(err instanceof Error ? err.message : "Error al eliminar gasto", "error");
-      } finally {
-        setDeletingId(null);
-      }
+      await handleOptimisticDeleteHogarExpense(id);
     } else if (confirmHogarState.type === "reopenMonth") {
       setConfirmHogarState((prev) => ({ ...prev, isOpen: false }));
       setIsProcessingClose(true);
@@ -2121,6 +2148,51 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         users={users}
         categories={categories}
         isPersonal={false}
+        onDeleteExpense={handleOptimisticDeleteHogarExpense}
+        onUpdateExpense={(updated) => {
+          setDashboardData((curr) => {
+            const oldExp = curr.period.expenses.find((e) => e.id === updated.id);
+            const diff = oldExp ? updated.amount - oldExp.amount : 0;
+            const updatedExpenses = curr.period.expenses.map((e) =>
+              e.id === updated.id
+                ? {
+                    ...e,
+                    title: updated.title,
+                    amount: updated.amount,
+                    date: updated.date,
+                    category: updated.category || e.category,
+                    paidBy: updated.paidBy || e.paidBy,
+                    notes: updated.notes,
+                  }
+                : e
+            );
+            const newTotalExpenses = Math.max(0, curr.poolSummary.totalExpenses + diff);
+            const newRemainingPool = Math.max(
+              0,
+              curr.poolSummary.totalAvailablePool - newTotalExpenses - curr.poolSummary.investedInFCI
+            );
+            const newBurnRatePct =
+              curr.poolSummary.totalAvailablePool > 0
+                ? (newTotalExpenses / curr.poolSummary.totalAvailablePool) * 100
+                : 0;
+            const nextState = {
+              ...curr,
+              period: {
+                ...curr.period,
+                expenses: updatedExpenses,
+              },
+              poolSummary: {
+                ...curr.poolSummary,
+                totalExpenses: newTotalExpenses,
+                remainingPool: newRemainingPool,
+                burnRatePct: newBurnRatePct,
+              },
+            };
+            dataCacheRef.current.set(`${currentYear}-${currentMonth}`, nextState);
+            return nextState;
+          });
+          showToast("✓ Gasto actualizado", "success");
+        }}
       />
 
       {/* Modal de Gestión de Categorías */}

@@ -1327,6 +1327,38 @@ export function PersonalDashboardView({
         expense={selectedPersonalExpense}
         categories={categories}
         isPersonal={true}
+        onDeleteExpense={async (id) => {
+          const previousList = [...localExpenses];
+          setDeletingId(id);
+          setLocalExpenses((prev) => prev.filter((e) => e.id !== id));
+          showToast("✓ Gasto personal eliminado");
+          try {
+            await deletePersonalExpenseAction(id);
+          } catch (err) {
+            setLocalExpenses(previousList);
+            showToast("Error al eliminar gasto", "error");
+          } finally {
+            setDeletingId(null);
+          }
+        }}
+        onUpdateExpense={(updated) => {
+          setLocalExpenses((prev) =>
+            prev.map((e) =>
+              e.id === updated.id
+                ? {
+                    ...e,
+                    title: updated.title,
+                    amount: updated.amount,
+                    date: updated.date,
+                    categoryId: updated.categoryId,
+                    category: updated.category,
+                    notes: updated.notes,
+                  }
+                : e
+            )
+          );
+          showToast("✓ Gasto actualizado");
+        }}
       />
 
       {/* Modal de Gestión de Categorías */}
