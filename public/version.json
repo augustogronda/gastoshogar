@@ -1,7 +1,7 @@
 {
-  "version": "1.15.1",
-  "build": 2026102103,
-  "releasedAt": "2026-10-21T18:13:00Z",
-  "title": "Botón Flotante Nuevo Gasto en Personal + Apple HIG",
-  "description": "Se incorpora el botón flotante (+ Nuevo Gasto) en la vista de Gastos Personales, junto con las mejoras Apple HIG y modo oscuro."
+  "version": "1.15.2",
+  "build": 2026102104,
+  "releasedAt": "2026-10-21T18:15:00Z",
+  "title": "Modal de Nuevo Gasto Unificado (Hogar & Personal)",
+  "description": "El modal de Nuevo Gasto Personal ahora usa el mismo diseño rápido con teclado numérico táctil, chips de categorías y Liquid Glass que Hogar."
 }

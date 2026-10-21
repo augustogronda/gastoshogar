@@ -113,14 +113,24 @@ export function QuickExpenseModal({
   const formattedAmount = Number(displayAmount).toLocaleString("es-AR");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-md super-card rounded-t-[32px] p-5 pb-safe shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto no-scrollbar border-t border-white/[0.12]">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Nuevo Gasto Compartido"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-md animate-fade-in"
+    >
+      <div className="w-full max-w-md apple-glass-sheet rounded-t-[32px] p-5 pb-safe shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto no-scrollbar">
         {/* Cabecera del Sheet */}
         <div className="flex items-center justify-between pb-3 border-b border-white/[0.08] relative">
-          <div className="w-10 h-1 bg-white/20 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-1" />
-          <h2 className="text-base font-bold text-white pt-2 tracking-tight">Nuevo Gasto</h2>
+          <div className="w-10 h-1 bg-white/25 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-1" />
+          <div className="pt-2">
+            <h2 className="text-base font-bold text-white tracking-tight">Nuevo Gasto</h2>
+            <p className="text-[11px] text-blue-300/90 font-medium">Fondo Compartido Hogar (60%)</p>
+          </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Cerrar"
             className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
           >
             <X className="w-4 h-4" />
