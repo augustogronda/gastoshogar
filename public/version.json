@@ -1,7 +1,7 @@
 {
-  "version": "1.17.0",
-  "build": 2026102112,
-  "releasedAt": "2026-10-21T19:21:00Z",
-  "title": "Porcentaje de Fondo Común Editable (60% por Defecto)",
-  "description": "Ahora podés configurar el porcentaje de aporte al Fondo Común (60% por defecto) desde Configurar Sueldos, y toda la aplicación adapta automáticamente los cálculos y etiquetas de Hogar y Personal."
+  "version": "1.17.1",
+  "build": 2026102113,
+  "releasedAt": "2026-10-21T19:26:30Z",
+  "title": "Rueda de Tiempo Extendida en Pull-to-Refresh (1.7s)",
+  "description": "Duplicamos el tiempo necesario manteniendo abajo en la rueda circular (1.7 segundos) para mayor control al refrescar."
 }

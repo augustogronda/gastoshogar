@@ -284,7 +284,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
   const PULL_DEADZONE = 45; // px antes de empezar a mostrar indicador
   const PULL_THRESHOLD = 90; // unidad interna (~175px de arrastre real del dedo)
-  const HOLD_DURATION_MS = 850; // ms manteniendo abajo para completar la rueda
+  const HOLD_DURATION_MS = 1700; // ms manteniendo abajo para completar la rueda (1.7s, el doble)
 
   const clearHoldTimer = () => {
     if (holdTimerRef.current) {
