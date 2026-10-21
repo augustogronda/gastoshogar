@@ -1,7 +1,7 @@
 {
-  "version": "1.17.2",
-  "build": 2026102114,
-  "releasedAt": "2026-10-21T19:30:30Z",
-  "title": "Eliminación y Edición Instantánea (0ms) de Gastos",
-  "description": "Al eliminar o editar un gasto desde el detalle (en Hogar o Personal), el listado, remanente y barra de progreso se actualizan instantáneamente sin esperar al servidor."
+  "version": "1.18.0",
+  "build": 2026102115,
+  "releasedAt": "2026-10-21T20:22:00Z",
+  "title": "Optimización Integral de Performance (Ola Única DB + Caché Inteligente)",
+  "description": "Ejecución concurrente en una sola ola de queries DB, caché en memoria de tarjetas y portafolios, escritura asíncrona en localStorage y memoización O(N) de filtros en el cliente."
 }

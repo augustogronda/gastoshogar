@@ -82,12 +82,16 @@ const BRAND_PRIORITY: Record<string, number> = {
 };
 
 const verifiedCardsUsers = new Set<string>();
+const cardsDataCache = new Map<string, { data: any; timestamp: number }>();
+const CARDS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutos
 
 export function invalidateCardsCache(userId?: string) {
   if (userId) {
     verifiedCardsUsers.delete(userId);
+    cardsDataCache.delete(userId);
   } else {
     verifiedCardsUsers.clear();
+    cardsDataCache.clear();
   }
 }
 
@@ -177,6 +181,12 @@ export async function getCardsForUserAndMonth(
   _year?: number,
   _month?: number
 ) {
+  const nowMs = Date.now();
+  const cached = cardsDataCache.get(userId);
+  if (cached && nowMs - cached.timestamp < CARDS_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   // Asegurar que existan las tarjetas por defecto (incluyendo Mercado Pago)
   await ensureDefaultCardsForUser(userId, userName);
 
@@ -299,7 +309,7 @@ export async function getCardsForUserAndMonth(
     }
   }
 
-  return {
+  const result = {
     cards: cardsWithMonthData,
     summary: {
       totalStatementArs,
@@ -310,4 +320,7 @@ export async function getCardsForUserAndMonth(
       totalCards: cardsWithMonthData.length,
     },
   };
+
+  cardsDataCache.set(userId, { data: result, timestamp: Date.now() });
+  return result;
 }

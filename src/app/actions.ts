@@ -78,8 +78,11 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
 
   const household = await ensureDefaultHousehold();
 
-  // Buscar o crear el período
-  let period = await prisma.monthlyPeriod.findUnique({
+  // Identificar usuario conectado (Augusto o Agus) antes de lanzar la ola paralela
+  const currentUser = household.users.find((u: any) => u.id === loggedUserId) || null;
+
+  // Ejecutar TODAS las consultas de base de datos en una sola ola paralela (1 roundtrip en vez de 2)
+  const periodPromise = prisma.monthlyPeriod.findUnique({
     where: {
       householdId_year_month: {
         householdId: household.id,
@@ -108,6 +111,71 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
       },
     },
   });
+
+  const investmentFundPromise = prisma.investmentFund.findFirst({
+    where: { householdId: household.id },
+    include: {
+      contributions: { orderBy: { investedAt: "desc" } },
+      withdrawals: { orderBy: { withdrawnAt: "desc" } },
+    },
+  });
+
+  const recurringExpensesPromise = prisma.recurringExpense.findMany({
+    where: { householdId: household.id, isActive: true },
+    include: { paidBy: true, category: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const sortedCategoriesPromise = prisma.category.findMany({
+    where: { householdId: household.id },
+    orderBy: [{ lastUsedAt: "desc" }, { createdAt: "desc" }],
+  });
+
+  const rawSharedInvestmentsPromise = prisma.sharedInvestment.findMany({
+    where: { householdId: household.id },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const personalQueriesPromise = currentUser
+    ? Promise.all([
+        prisma.personalIncome.findUnique({
+          where: { userId_year_month: { userId: currentUser.id, year, month } },
+        }),
+        prisma.personalExpense.findMany({
+          where: { userId: currentUser.id, year, month },
+          include: { category: true },
+          orderBy: { date: "desc" },
+        }),
+        prisma.personalRecurringExpense.findMany({
+          where: { userId: currentUser.id, isActive: true },
+          include: { category: true, creditCard: true },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.personalInvestment.findMany({
+          where: { userId: currentUser.id },
+          orderBy: { createdAt: "desc" },
+        }),
+        getCardsForUserAndMonth(currentUser.id, currentUser.name, year, month),
+      ])
+    : Promise.resolve(null);
+
+  const [
+    existingPeriod,
+    investmentFund,
+    recurringExpenses,
+    sortedCategories,
+    rawSharedInvestments,
+    personalRawResults,
+  ] = await Promise.all([
+    periodPromise,
+    investmentFundPromise,
+    recurringExpensesPromise,
+    sortedCategoriesPromise,
+    rawSharedInvestmentsPromise,
+    personalQueriesPromise,
+  ]);
+
+  let period = existingPeriod;
 
   if (!period) {
     // Buscar si el mes anterior tenía sueldos cargados para heredarlos por defecto
@@ -208,73 +276,6 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     investedInFCI,
     fciWithdrawnToPool
   );
-
-  // Identificar usuario conectado (Augusto o Agus)
-  const currentUser = household.users.find((u: any) => u.id === loggedUserId) || null;
-
-  // Ejecutar todas las consultas independientes concurrentemente en paralelo
-  const investmentFundPromise = prisma.investmentFund.findFirst({
-    where: { householdId: household.id },
-    include: {
-      contributions: { orderBy: { investedAt: "desc" } },
-      withdrawals: { orderBy: { withdrawnAt: "desc" } },
-    },
-  });
-
-  const recurringExpensesPromise = prisma.recurringExpense.findMany({
-    where: { householdId: household.id, isActive: true },
-    include: { paidBy: true, category: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const sortedCategoriesPromise = prisma.category.findMany({
-    where: { householdId: household.id },
-    orderBy: [{ lastUsedAt: "desc" }, { createdAt: "desc" }],
-  });
-
-  const rawSharedInvestmentsPromise = prisma.sharedInvestment.findMany({
-    where: { householdId: household.id },
-    orderBy: { createdAt: "desc" },
-  });
-
-  // Consultas personales paralelas si hay usuario conectado
-  const personalQueriesPromise = currentUser
-    ? Promise.all([
-        prisma.personalIncome.findUnique({
-          where: { userId_year_month: { userId: currentUser.id, year, month } },
-        }),
-        prisma.personalExpense.findMany({
-          where: { userId: currentUser.id, year, month },
-          include: { category: true },
-          orderBy: { date: "desc" },
-        }),
-        prisma.personalRecurringExpense.findMany({
-          where: { userId: currentUser.id, isActive: true },
-          include: { category: true, creditCard: true },
-          orderBy: { createdAt: "desc" },
-        }),
-        prisma.personalInvestment.findMany({
-          where: { userId: currentUser.id },
-          orderBy: { createdAt: "desc" },
-        }),
-        getCardsForUserAndMonth(currentUser.id, currentUser.name, year, month),
-      ])
-    : Promise.resolve(null);
-
-  // Esperar consultas concurrentes de base de datos
-  const [
-    investmentFund,
-    recurringExpenses,
-    sortedCategories,
-    rawSharedInvestments,
-    personalRawResults,
-  ] = await Promise.all([
-    investmentFundPromise,
-    recurringExpensesPromise,
-    sortedCategoriesPromise,
-    rawSharedInvestmentsPromise,
-    personalQueriesPromise,
-  ]);
 
   // Calcular si cada cuota recurrente del hogar ya fue cargada o qué número de cuota toca este mes
   const activeInstallmentsWithStatus = recurringExpenses.map((rec) => {

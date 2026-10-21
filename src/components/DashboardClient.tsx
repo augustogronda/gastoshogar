@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Wallet,
@@ -194,27 +194,18 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     if (initialData?.currentUser) {
       const key = `${initialData.currentYear}-${initialData.currentMonth}`;
       dataCacheRef.current.set(key, initialData);
-
-      try {
-        localStorage.setItem("gastoshogar_cached_dashboard_v2", JSON.stringify(initialData));
-        const storedMap: Record<string, any> = {};
-        dataCacheRef.current.forEach((val, k) => {
-          storedMap[k] = val;
-        });
-        localStorage.setItem("gastoshogar_months_cache", JSON.stringify(storedMap));
-      } catch (e) {
-        console.warn("Error persistiendo caché en teléfono:", e);
-      }
     }
   }, [initialData]);
 
-  // 3. Persistir automáticamente cualquier cambio o mutación optimista local
+  // 3. Persistir en segundo plano (debounced) para no bloquear el hilo principal en mutaciones optimistas (0ms)
   useEffect(() => {
-    if (dashboardData?.currentUser) {
+    if (!dashboardData?.currentUser) return;
+    const key = `${dashboardData.currentYear}-${dashboardData.currentMonth}`;
+    dataCacheRef.current.set(key, dashboardData);
+
+    const timer = setTimeout(() => {
       try {
         localStorage.setItem("gastoshogar_cached_dashboard_v2", JSON.stringify(dashboardData));
-        const key = `${dashboardData.currentYear}-${dashboardData.currentMonth}`;
-        dataCacheRef.current.set(key, dashboardData);
         const storedMap: Record<string, any> = {};
         dataCacheRef.current.forEach((val, k) => {
           storedMap[k] = val;
@@ -223,7 +214,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       } catch (e) {
         console.warn("Error sincronizando cambios con almacenamiento local:", e);
       }
-    }
+    }, 350);
+
+    return () => clearTimeout(timer);
   }, [dashboardData]);
 
   const {
@@ -277,6 +270,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const touchStartRef = useRef<number | null>(null);
+  const isPullingRef = useRef(false);
   const hasTriggeredHapticRef = useRef(false);
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdStartRef = useRef<number | null>(null);
@@ -328,6 +322,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         setIsRefreshing(false);
         isRefreshingRef.current = false;
         setIsPulling(false);
+        isPullingRef.current = false;
         hasTriggeredHapticRef.current = false;
       }, 450);
     }
@@ -361,7 +356,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         // Requiere un deslizamiento largo y firme (~175px reales para llegar a PULL_THRESHOLD = 90)
         const pull = Math.min(effectiveDiff * 0.68, 105);
         setPullDistance(pull);
-        setIsPulling(true);
+        if (!isPullingRef.current) {
+          isPullingRef.current = true;
+          setIsPulling(true);
+        }
 
         if (pull >= PULL_THRESHOLD) {
           if (!hasTriggeredHapticRef.current) {
@@ -397,17 +395,21 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       } else if (rawDiff <= PULL_DEADZONE) {
         clearHoldTimer();
         setPullDistance(0);
-        setIsPulling(false);
+        if (isPullingRef.current) {
+          isPullingRef.current = false;
+          setIsPulling(false);
+        }
       }
     };
 
     const handleTouchEnd = () => {
-      if (touchStartRef.current === null && !isPulling) return;
+      if (touchStartRef.current === null && !isPullingRef.current) return;
       touchStartRef.current = null;
       clearHoldTimer();
 
       if (!isRefreshingRef.current) {
         setPullDistance(0);
+        isPullingRef.current = false;
         setIsPulling(false);
         hasTriggeredHapticRef.current = false;
       }
@@ -425,7 +427,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       window.removeEventListener("touchend", handleTouchEnd);
       window.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [currentYear, currentMonth, isPulling]);
+  }, [currentYear, currentMonth]);
 
   // Precarga inteligente en segundo plano de los meses contiguos (-1 y +1)
   useEffect(() => {
@@ -468,7 +470,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       isMounted = false;
       clearTimeout(prefetchTimer);
     };
-  }, [currentYear, currentMonth, dashboardData]);
+  }, [currentYear, currentMonth]);
 
   // Manejo de navegación del navegador (botones atrás/adelante)
   useEffect(() => {
@@ -813,6 +815,43 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const hogarPct = Math.round(
     (period.incomes[0]?.contributionPct ?? household.defaultRate ?? 0.60) * 100
   );
+
+  // Memoizar categorías activas y conteo en un solo pase O(N) en lugar de O(N * C) en cada render
+  const hogarCategoriesWithCount = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; count: number }>();
+    for (const exp of period.expenses) {
+      const existing = map.get(exp.category.id);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        map.set(exp.category.id, { id: exp.category.id, name: exp.category.name, count: 1 });
+      }
+    }
+    return Array.from(map.values());
+  }, [period.expenses]);
+
+  // Memoizar filtrado y subtotal de gastos del hogar
+  const { filteredHogarExpenses, filteredSubtotal, normalizedHogarQuery } = useMemo(() => {
+    const q = hogarSearchQuery.trim().toLowerCase();
+    const filtered = period.expenses.filter((exp) => {
+      if (hogarFilter.startsWith("USER:") && exp.paidBy.id !== hogarFilter.replace("USER:", "")) {
+        return false;
+      }
+      if (hogarFilter.startsWith("CAT:") && exp.category.id !== hogarFilter.replace("CAT:", "")) {
+        return false;
+      }
+      if (q) {
+        const matchTitle = exp.title.toLowerCase().includes(q);
+        const matchCat = exp.category.name.toLowerCase().includes(q);
+        const matchNotes = exp.notes?.toLowerCase().includes(q);
+        const matchPayer = exp.paidBy.name.toLowerCase().includes(q);
+        return matchTitle || matchCat || matchNotes || matchPayer;
+      }
+      return true;
+    });
+    const subtotal = filtered.reduce((sum, e) => sum + e.amount, 0);
+    return { filteredHogarExpenses: filtered, filteredSubtotal: subtotal, normalizedHogarQuery: q };
+  }, [period.expenses, hogarFilter, hogarSearchQuery]);
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30 relative">
@@ -1368,12 +1407,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                           </button>
                         )}
                         {/* Categorías con gastos en el mes */}
-                        {Array.from(
-                          new Map(
-                            period.expenses.map((e) => [e.category.id, e.category])
-                          ).values()
-                        ).map((cat) => {
-                          const count = period.expenses.filter((e) => e.category.id === cat.id).length;
+                        {hogarCategoriesWithCount.map((cat) => {
                           const isSelected = hogarFilter === `CAT:${cat.id}`;
                           return (
                             <button
@@ -1387,7 +1421,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                               }`}
                             >
                               <CategoryIcon name={cat.name} className="w-3 h-3" />
-                              <span>{cat.name} ({count})</span>
+                              <span>{cat.name} ({cat.count})</span>
                             </button>
                           );
                         })}
@@ -1404,24 +1438,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                       </p>
                     </div>
                   ) : (() => {
-                    const q = hogarSearchQuery.trim().toLowerCase();
-                    const filteredHogarExpenses = period.expenses.filter((exp) => {
-                      if (hogarFilter.startsWith("USER:") && exp.paidBy.id !== hogarFilter.replace("USER:", "")) {
-                        return false;
-                      }
-                      if (hogarFilter.startsWith("CAT:") && exp.category.id !== hogarFilter.replace("CAT:", "")) {
-                        return false;
-                      }
-                      if (q) {
-                        const matchTitle = exp.title.toLowerCase().includes(q);
-                        const matchCat = exp.category.name.toLowerCase().includes(q);
-                        const matchNotes = exp.notes?.toLowerCase().includes(q);
-                        const matchPayer = exp.paidBy.name.toLowerCase().includes(q);
-                        return matchTitle || matchCat || matchNotes || matchPayer;
-                      }
-                      return true;
-                    });
-                    const filteredSubtotal = filteredHogarExpenses.reduce((sum, e) => sum + e.amount, 0);
+                    const q = normalizedHogarQuery;
 
                     return (
                       <div className="space-y-2">

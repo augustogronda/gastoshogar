@@ -24,7 +24,7 @@ export interface ExchangeRates {
 let cachedRates: { rates: ExchangeRates; timestamp: number } | null = null;
 const quoteCache = new Map<string, { quote: MarketQuote; timestamp: number }>();
 
-const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutos
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
 
 export const POPULAR_ARGENTINA_ASSETS = [
   // CEDEARs Principales
@@ -301,7 +301,7 @@ const portfolioCache = new Map<
   string,
   { data: { investments: HydratedInvestment[]; summary: PortfolioSummary }; timestamp: number }
 >();
-const PORTFOLIO_CACHE_TTL = 3 * 60 * 1000; // 3 minutos
+const PORTFOLIO_CACHE_TTL = 10 * 60 * 1000; // 10 minutos
 
 export function invalidatePortfolioCache() {
   portfolioCache.clear();
@@ -324,9 +324,14 @@ export async function hydrateInvestments(
     updatedAt: Date | string;
   }>
 ): Promise<{ investments: HydratedInvestment[]; summary: PortfolioSummary }> {
-  const rates = await getExchangeRates();
-
   if (rawInvestments.length === 0) {
+    const fallbackRates: ExchangeRates = cachedRates?.rates || {
+      mep: 1535,
+      ccl: 1615,
+      blue: 1545,
+      oficial: 1520,
+      updatedAt: "",
+    };
     return {
       investments: [],
       summary: {
@@ -335,13 +340,13 @@ export async function hydrateInvestments(
         totalCostArs: 0,
         totalGainLossArs: 0,
         totalGainLossPct: 0,
-        rates,
+        rates: fallbackRates,
         assetTypeBreakdown: [],
       },
     };
   }
 
-  // Clave de caché basada en los IDs y cantidades
+  // Clave de caché basada en los IDs y cantidades (chequear ANTES de llamar a APIs externas)
   const cacheKey = rawInvestments
     .map((i) => `${i.id}_${i.quantity}_${i.manualPrice || 0}`)
     .sort()
@@ -352,6 +357,8 @@ export async function hydrateInvestments(
   if (cached && now - cached.timestamp < PORTFOLIO_CACHE_TTL) {
     return cached.data;
   }
+
+  const rates = await getExchangeRates();
 
   // Obtener cotizaciones de mercado en paralelo con tolerancia a fallas
   const quotesPromises = rawInvestments.map(async (inv) => {
