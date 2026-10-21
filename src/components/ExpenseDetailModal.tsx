@@ -9,21 +9,32 @@ import {
   CategoryIcon,
   Check,
   User,
+  Users,
   Sparkles,
   Layers,
   Edit3,
   Plus,
+  AlertCircle,
 } from "./ui/icons";
 import { CategoryManagerModal } from "./CategoryManagerModal";
 import { useToast, ToastBanner } from "./ui/ConfirmDialog";
 import {
   updateExpenseAction,
   duplicateExpenseAction,
+  duplicateSharedToPersonalExpenseAction,
   deleteExpenseAction,
   updatePersonalExpenseAction,
   duplicatePersonalExpenseAction,
+  duplicatePersonalToSharedExpenseAction,
+  markPersonalExpenseAsReviewedAction,
+  togglePersonalExpenseReviewAction,
   deletePersonalExpenseAction,
 } from "@/app/actions";
+import {
+  hasReviewFlag,
+  getCleanNotes,
+  getCardSourceTag,
+} from "@/lib/expense-review";
 
 export interface CategoryItem {
   id: string;
@@ -81,9 +92,16 @@ export function ExpenseDetailModal({
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [isDuplicatingAcross, setIsDuplicatingAcross] = useState(false);
+  const [isMarkingReviewed, setIsMarkingReviewed] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [pendingConfirm, setPendingConfirm] = useState<"delete" | "duplicate" | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<
+    "delete" | "duplicate" | "duplicateToShared" | "duplicateToPersonal" | null
+  >(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  const isReviewPending = isPersonal && hasReviewFlag(expense?.notes);
+  const cardSource = getCardSourceTag(expense?.notes);
 
   useEffect(() => {
     if (expense) {
@@ -95,7 +113,8 @@ export function ExpenseDetailModal({
       const d = expense.date ? new Date(expense.date) : new Date();
       setDate(d.toISOString().split("T")[0]);
       
-      setNotes(expense.notes || "");
+      // Mostrar notas limpias en el textarea para una edición cómoda
+      setNotes(getCleanNotes(expense.notes) || "");
       setPendingConfirm(null);
     }
   }, [expense, categories, users]);
@@ -114,13 +133,20 @@ export function ExpenseDetailModal({
     onClose();
     try {
       if (isPersonal) {
+        // Preservar tags internos si el gasto aún no fue revisado
+        let finalNotesToSave = notes.trim() || undefined;
+        if (isReviewPending) {
+          const cardTag = cardSource ? `[Tarjeta ${cardSource}] ` : "";
+          finalNotesToSave = `[POR_REVISAR] ${cardTag}${notes.trim()}`.trim();
+        }
+
         await updatePersonalExpenseAction({
           id: expense.id,
           title,
           amount: parsedAmount,
           categoryId: categoryId || undefined,
           date,
-          notes: notes || undefined,
+          notes: finalNotesToSave,
         });
       } else {
         await updateExpenseAction({
@@ -153,14 +179,92 @@ export function ExpenseDetailModal({
     try {
       if (isPersonal) {
         await duplicatePersonalExpenseAction(expense.id);
+        showToast("✓ Copia creada en Gastos Personales");
       } else {
         await duplicateExpenseAction(expense.id);
+        showToast("✓ Copia creada en Gastos Compartidos");
       }
     } catch (err: unknown) {
       console.error(err);
       showToast(err instanceof Error ? err.message : "Error al duplicar gasto", "error");
     } finally {
       setIsDuplicating(false);
+    }
+  };
+
+  const handleDuplicateToShared = async () => {
+    if (pendingConfirm !== "duplicateToShared") {
+      setPendingConfirm("duplicateToShared");
+      return;
+    }
+    setPendingConfirm(null);
+    setIsDuplicatingAcross(true);
+    onClose();
+    try {
+      await duplicatePersonalToSharedExpenseAction({
+        personalExpenseId: expense.id,
+        markAsReviewed: true,
+      });
+      showToast("✓ Gasto duplicado en Fondo Compartido (Hogar)");
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al duplicar a compartidos", "error");
+    } finally {
+      setIsDuplicatingAcross(false);
+    }
+  };
+
+  const handleDuplicateToPersonal = async () => {
+    if (pendingConfirm !== "duplicateToPersonal") {
+      setPendingConfirm("duplicateToPersonal");
+      return;
+    }
+    setPendingConfirm(null);
+    setIsDuplicatingAcross(true);
+    onClose();
+    try {
+      await duplicateSharedToPersonalExpenseAction({
+        expenseId: expense.id,
+        targetUserId: paidById || users[0]?.id,
+      });
+      showToast("✓ Gasto duplicado en Gastos Personales");
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al duplicar a personales", "error");
+    } finally {
+      setIsDuplicatingAcross(false);
+    }
+  };
+
+  const handleMarkAsReviewed = async () => {
+    setIsMarkingReviewed(true);
+    onClose();
+    try {
+      await markPersonalExpenseAsReviewedAction(expense.id);
+      showToast("✓ Gasto confirmado como Personal");
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al confirmar gasto", "error");
+    } finally {
+      setIsMarkingReviewed(false);
+    }
+  };
+
+  const handleToggleReview = async () => {
+    setIsMarkingReviewed(true);
+    onClose();
+    try {
+      const res = await togglePersonalExpenseReviewAction(expense.id);
+      showToast(
+        res.needsReview
+          ? "🔍 Marcado para revisar si es compartido"
+          : "✓ Marca de revisión quitada"
+      );
+    } catch (err: unknown) {
+      console.error(err);
+      showToast("Error al cambiar marca de revisión", "error");
+    } finally {
+      setIsMarkingReviewed(false);
     }
   };
 
@@ -187,18 +291,25 @@ export function ExpenseDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Detalle del Gasto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in"
+    >
       <ToastBanner toast={toast} />
-      <div className="w-full max-w-md super-card rounded-3xl p-6 shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto no-scrollbar">
-        
+      <div className="w-full max-w-md apple-glass-sheet rounded-[28px] p-5 shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto no-scrollbar animate-scale-up">
+        {/* Grabber estilo iOS Sheet (sheets.md › Mobile) */}
+        <div className="w-9 h-1 rounded-full bg-white/25 mx-auto mb-3 shrink-0" />
+
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.08]">
+          <div className="flex items-center gap-2.5">
             <div
-              className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-inner ${
                 isPersonal
-                  ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"
-                  : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-400/35"
+                  : "bg-blue-500/20 text-blue-300 border border-blue-400/35"
               }`}
             >
               <Edit3 className="w-4 h-4 stroke-[2]" />
@@ -207,20 +318,102 @@ export function ExpenseDetailModal({
               <h2 className="text-base font-bold text-white tracking-tight">
                 Detalle del Gasto
               </h2>
-              <span className="text-[10px] text-zinc-400 font-medium block">
-                {isPersonal ? "Espacio Personal" : "Fondo Compartido Hogar"}
+              <span
+                className={`text-[10px] font-semibold block ${
+                  isPersonal ? "text-indigo-300/90" : "text-blue-300/90"
+                }`}
+              >
+                {isPersonal ? "Espacio Personal (40%)" : "Fondo Compartido Hogar (60%)"}
               </span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+
+          <div className="flex items-center gap-1.5">
+            {isPersonal && (
+              <button
+                type="button"
+                onClick={handleToggleReview}
+                disabled={isMarkingReviewed}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all duration-200 active:scale-95 border ${
+                  isReviewPending
+                    ? "bg-amber-500/25 text-amber-200 border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.25)] hover:bg-amber-500/35"
+                    : "bg-white/[0.05] text-zinc-400 hover:text-amber-200 border-white/[0.1] hover:border-amber-500/35"
+                }`}
+                title={
+                  isReviewPending
+                    ? "Quitar marca de revisión"
+                    : "Marcar para revisar si es compartido"
+                }
+              >
+                <AlertCircle className="w-3 h-3 text-amber-400" />
+                <span>{isReviewPending ? "Por revisar" : "Marcar revisión"}</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.06] hover:bg-white/[0.12] active:scale-90 transition-all duration-150"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSave} className="mt-4 space-y-4">
+
+          {/* Banner de Revisión Pendiente (Gasto de Tarjeta) */}
+          {isReviewPending && (
+            <div className="card-review-pending rounded-2xl p-4 space-y-3 animate-fade-in">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/25 text-amber-300 border border-amber-400/40 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-extrabold text-amber-200 uppercase tracking-wider truncate">
+                      {cardSource ? `Tarjeta ${cardSource}` : "Resumen de Tarjeta"}
+                    </span>
+                    <span className="text-[10px] bg-amber-500/25 text-amber-200 px-2 py-0.5 rounded-full font-bold border border-amber-400/40 shrink-0 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      Revisión
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-100/90 leading-relaxed mt-1">
+                    ¿Este consumo también corresponde al fondo compartido del hogar?
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleDuplicateToShared}
+                  disabled={isSubmitting || isDuplicating || isDeleting || isDuplicatingAcross}
+                  className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 border ${
+                    pendingConfirm === "duplicateToShared"
+                      ? "bg-blue-600 text-white border-sky-300 shadow-lg shadow-blue-600/40"
+                      : "bg-gradient-to-r from-blue-600/80 to-sky-600/80 hover:from-blue-500 hover:to-sky-500 text-white border-sky-400/40 shadow-md shadow-blue-950/50"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>
+                    {pendingConfirm === "duplicateToShared"
+                      ? "¿Confirmar envío?"
+                      : "Duplicar a Hogar"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleMarkAsReviewed}
+                  disabled={isMarkingReviewed || isSubmitting}
+                  className="py-2.5 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 shadow-sm"
+                >
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Solo Personal</span>
+                </button>
+              </div>
+            </div>
+          )}
           
           {/* Campo Monto Grande */}
           <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 text-center">
@@ -386,35 +579,98 @@ export function ExpenseDetailModal({
           )}
 
           {/* Botones de Acción */}
-          <div className="pt-2 space-y-2">
+          <div className="pt-2 space-y-2.5">
             <button
               type="submit"
               disabled={isSubmitting || isDuplicating || isDeleting}
-              className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-blue-400/20"
+              className={`w-full py-3.5 rounded-2xl disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-200 border-t border-white/25 ${
+                isPersonal
+                  ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-600/30"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-blue-600/30"
+              }`}
             >
               <Check className="w-4 h-4" />
               <span>{isSubmitting ? "Guardando cambios..." : "Guardar Cambios"}</span>
             </button>
+
+            {/* Opción de Duplicar entre Espacios (Personal <-> Compartidos) */}
+            {isPersonal ? (
+              <button
+                type="button"
+                onClick={handleDuplicateToShared}
+                disabled={isSubmitting || isDuplicating || isDeleting || isDuplicatingAcross}
+                className={`w-full py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-between transition-all duration-200 active:scale-[0.98] ${
+                  pendingConfirm === "duplicateToShared"
+                    ? "bg-blue-600 text-white border border-sky-300 shadow-lg shadow-blue-600/40 ring-2 ring-sky-400/30"
+                    : "btn-hogar-gradient text-sky-100"
+                }`}
+                title="Copiar este gasto al fondo común del hogar"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-sky-400/20 text-sky-300 flex items-center justify-center border border-sky-400/30">
+                    <Users className="w-3.5 h-3.5" />
+                  </span>
+                  <span>
+                    {isDuplicatingAcross
+                      ? "Duplicando a Hogar..."
+                      : pendingConfirm === "duplicateToShared"
+                      ? "¿Confirmar envío a Compartidos?"
+                      : "Duplicar en Gastos Compartidos"}
+                  </span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-sky-400/20 text-sky-200 border border-sky-400/30 text-[10px] font-extrabold tracking-wide">
+                  60% Hogar
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDuplicateToPersonal}
+                disabled={isSubmitting || isDuplicating || isDeleting || isDuplicatingAcross}
+                className={`w-full py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-between transition-all duration-200 active:scale-[0.98] ${
+                  pendingConfirm === "duplicateToPersonal"
+                    ? "bg-indigo-600 text-white border border-indigo-300 shadow-lg shadow-indigo-600/40 ring-2 ring-indigo-400/30"
+                    : "btn-personal-gradient text-indigo-100"
+                }`}
+                title="Copiar este gasto a tus gastos personales"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-indigo-400/20 text-indigo-300 flex items-center justify-center border border-indigo-400/30">
+                    <User className="w-3.5 h-3.5" />
+                  </span>
+                  <span>
+                    {isDuplicatingAcross
+                      ? "Duplicando a Personal..."
+                      : pendingConfirm === "duplicateToPersonal"
+                      ? "¿Confirmar envío a Personales?"
+                      : "Duplicar en Gastos Personales"}
+                  </span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-400/20 text-indigo-200 border border-indigo-400/30 text-[10px] font-extrabold tracking-wide">
+                  40% Personal
+                </span>
+              </button>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={handleDuplicate}
                 disabled={isSubmitting || isDuplicating || isDeleting}
-                className={`py-3 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] border ${
+                className={`py-3 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] border ${
                   pendingConfirm === "duplicate"
-                    ? "bg-indigo-600 text-white border-indigo-400/40 shadow-md shadow-indigo-600/30"
-                    : "bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 border-white/[0.08]"
+                    ? "bg-zinc-700 text-white border-zinc-400 shadow-md"
+                    : "bg-zinc-800/70 hover:bg-zinc-700/70 text-zinc-200 border-white/[0.1]"
                 }`}
-                title="Crear una copia exacta de este gasto"
+                title="Crear una copia exacta en este mismo listado"
               >
-                <Copy className="w-3.5 h-3.5" />
+                <Copy className="w-3.5 h-3.5 text-zinc-400" />
                 <span>
                   {isDuplicating
                     ? "Copiando..."
                     : pendingConfirm === "duplicate"
                     ? "¿Confirmar copia?"
-                    : "Duplicar Gasto"}
+                    : "Duplicar Copia"}
                 </span>
               </button>
 
@@ -422,10 +678,10 @@ export function ExpenseDetailModal({
                 type="button"
                 onClick={handleDelete}
                 disabled={isSubmitting || isDuplicating || isDeleting}
-                className={`py-3 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] border ${
+                className={`py-3 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] border ${
                   pendingConfirm === "delete"
-                    ? "bg-rose-600 text-white border-rose-400/40 shadow-md shadow-rose-600/30"
-                    : "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/20"
+                    ? "bg-rose-600 text-white border-rose-400 shadow-lg shadow-rose-600/35"
+                    : "bg-rose-500/12 hover:bg-rose-500/22 text-rose-300 border-rose-500/25"
                 }`}
                 title="Eliminar este gasto"
               >

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureDefaultHousehold } from "@/lib/db-init";
 import { calculateMonthlyPool } from "@/lib/finance-engine";
 import { getCardsForUserAndMonth, ensureDefaultCardsForUser } from "@/lib/cards-service";
-import { hydrateInvestments } from "@/lib/investments-service";
+import { addReviewFlag } from "@/lib/expense-review";
 import { revalidatePath } from "next/cache";
 
 const DEFAULT_SECRET_KEY = process.env.GEMINI_GEM_API_KEY || "hogar-gem-secret-2026";
@@ -454,6 +454,7 @@ export async function createGemExpense(payload: {
   installmentNumber?: number;
   totalInstallments?: number;
   creditCardName?: string;
+  markForReview?: boolean;
 }) {
   const household = await ensureDefaultHousehold();
   if (!payload.title || typeof payload.amount !== "number" || payload.amount <= 0) {
@@ -471,6 +472,11 @@ export async function createGemExpense(payload: {
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
   const scope = payload.scope || "hogar";
+
+  let finalNotes = payload.notes?.trim() || null;
+  if (scope === "personal" && (payload.markForReview || payload.creditCardName)) {
+    finalNotes = addReviewFlag(finalNotes, payload.creditCardName);
+  }
 
   if (scope === "personal") {
     // Buscar o asegurar período personal
@@ -491,7 +497,7 @@ export async function createGemExpense(payload: {
         categoryId: assignedCategory.id,
         installmentNumber: payload.installmentNumber,
         totalInstallments: payload.totalInstallments,
-        notes: payload.notes?.trim() || null,
+        notes: finalNotes,
       },
       include: { category: true, user: true },
     });
@@ -499,7 +505,7 @@ export async function createGemExpense(payload: {
     revalidatePath("/");
     return {
       success: true,
-      message: `Gasto personal de $${Math.round(payload.amount).toLocaleString("es-AR")} en "${newExpense.title}" registrado para ${assignedUser.name}.`,
+      message: `Gasto personal de $${Math.round(payload.amount).toLocaleString("es-AR")} en "${newExpense.title}" registrado para ${assignedUser.name}${payload.markForReview ? " (con flag de revisión pendiente)" : ""}.`,
       expense: {
         id: newExpense.id,
         scope: "personal",
@@ -508,6 +514,7 @@ export async function createGemExpense(payload: {
         date: newExpense.date.toISOString().split("T")[0],
         category: newExpense.category?.name || "Varios",
         user: newExpense.user.name,
+        needsReview: !!payload.markForReview,
       },
     };
   } else {
@@ -533,7 +540,7 @@ export async function createGemExpense(payload: {
         isFromPoolFund: false,
         installmentNumber: payload.installmentNumber,
         totalInstallments: payload.totalInstallments,
-        notes: payload.notes?.trim() || null,
+        notes: finalNotes,
       },
       include: { category: true, paidBy: true },
     });
@@ -553,6 +560,144 @@ export async function createGemExpense(payload: {
       },
     };
   }
+}
+
+// 3.b Cargar lote de gastos (ideal para resúmenes completos de tarjeta de crédito)
+export async function createGemExpensesBatch(payload: {
+  user?: string;
+  scope?: "hogar" | "personal";
+  creditCardName?: string;
+  markForReview?: boolean;
+  expenses: Array<{
+    title: string;
+    amount: number;
+    category?: string;
+    date?: string;
+    notes?: string;
+    installmentNumber?: number;
+    totalInstallments?: number;
+  }>;
+}) {
+  const household = await ensureDefaultHousehold();
+  const assignedUser = resolveUser(payload.user || "Augusto", household.users);
+  if (!assignedUser) {
+    throw new Error("No se pudo resolver el usuario para asignar los gastos.");
+  }
+
+  const scope = payload.scope || "personal";
+  const markForReview = payload.markForReview ?? (scope === "personal");
+  const items = payload.expenses;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("El lote debe contener al menos un gasto en la lista 'expenses'.");
+  }
+
+  const createdExpenses: Array<{
+    id: string;
+    title: string;
+    amount: number;
+    date: string;
+    category: string;
+    needsReview?: boolean;
+  }> = [];
+  let totalAmount = 0;
+
+  for (const item of items) {
+    if (!item.title || typeof item.amount !== "number" || item.amount <= 0) {
+      continue;
+    }
+
+    const assignedCategory = resolveCategory(item.category, household.categories);
+    const dateObj = item.date ? new Date(item.date) : new Date();
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth() + 1;
+
+    let finalNotes = item.notes?.trim() || null;
+    if (scope === "personal" && (markForReview || payload.creditCardName)) {
+      finalNotes = addReviewFlag(finalNotes, payload.creditCardName);
+    }
+
+    if (scope === "personal") {
+      await prisma.personalIncome.upsert({
+        where: { userId_year_month: { userId: assignedUser.id, year, month } },
+        update: {},
+        create: { userId: assignedUser.id, year, month },
+      });
+
+      const newExpense = await prisma.personalExpense.create({
+        data: {
+          userId: assignedUser.id,
+          year,
+          month,
+          title: item.title.trim(),
+          amount: item.amount,
+          date: dateObj,
+          categoryId: assignedCategory.id,
+          installmentNumber: item.installmentNumber,
+          totalInstallments: item.totalInstallments,
+          notes: finalNotes,
+        },
+        include: { category: true, user: true },
+      });
+
+      createdExpenses.push({
+        id: newExpense.id,
+        title: newExpense.title,
+        amount: newExpense.amount,
+        date: newExpense.date.toISOString().split("T")[0],
+        category: newExpense.category?.name || "Varios",
+        needsReview: markForReview,
+      });
+      totalAmount += newExpense.amount;
+    } else {
+      let period = await prisma.monthlyPeriod.findUnique({
+        where: { householdId_year_month: { householdId: household.id, year, month } },
+      });
+
+      if (!period) {
+        period = await prisma.monthlyPeriod.create({
+          data: { householdId: household.id, year, month },
+        });
+      }
+
+      const newExpense = await prisma.expense.create({
+        data: {
+          periodId: period.id,
+          title: item.title.trim(),
+          amount: item.amount,
+          date: dateObj,
+          categoryId: assignedCategory.id,
+          paidById: assignedUser.id,
+          isFromPoolFund: false,
+          installmentNumber: item.installmentNumber,
+          totalInstallments: item.totalInstallments,
+          notes: finalNotes,
+        },
+        include: { category: true, paidBy: true },
+      });
+
+      createdExpenses.push({
+        id: newExpense.id,
+        title: newExpense.title,
+        amount: newExpense.amount,
+        date: newExpense.date.toISOString().split("T")[0],
+        category: newExpense.category.name,
+      });
+      totalAmount += newExpense.amount;
+    }
+  }
+
+  revalidatePath("/");
+
+  return {
+    success: true,
+    message: `Se cargaron con éxito ${createdExpenses.length} gastos (${scope === "personal" ? "Personales" : "Compartidos"}) por un total de $${Math.round(totalAmount).toLocaleString("es-AR")} para ${assignedUser.name}${markForReview && scope === "personal" ? " (marcados con distintivo de revisión para verificar si son compartidos)" : ""}.`,
+    user: assignedUser.name,
+    scope,
+    createdCount: createdExpenses.length,
+    totalAmount,
+    expenses: createdExpenses,
+  };
 }
 
 // 4. Crear gasto recurrente o plan de cuotas fijas
@@ -830,8 +975,8 @@ export function getGemOpenApiSpec(baseUrl: string) {
           },
         },
         post: {
-          summary: "Registrar nuevo gasto (desde captura de banco o texto)",
-          description: "Registra un gasto en la app extrayendo comercio, monto, fecha, categoría y pagador. Soporta gastos compartidos de Hogar (60%) o gastos Privados (Personal).",
+          summary: "Registrar gasto individual o lote de gastos (Resumen de tarjeta)",
+          description: "Registra un gasto o un lote completo de gastos (ej: resumen de tarjeta de crédito bancaria) en la app. Soporta gastos personales con 'markForReview: true' para que el usuario luego decida si los duplica en gastos compartidos del hogar o los deja en personal.",
           operationId: "createExpense",
           requestBody: {
             required: true,
@@ -839,11 +984,10 @@ export function getGemOpenApiSpec(baseUrl: string) {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["title", "amount"],
                   properties: {
                     title: {
                       type: "string",
-                      description: "Comercio o concepto del gasto (ej: 'Coto', 'Farmacity', 'Shell', 'YPF').",
+                      description: "Comercio o concepto del gasto individual (ej: 'Coto', 'Farmacity', 'Shell', 'YPF'). Requerido si no se envía 'expenses'.",
                     },
                     amount: {
                       type: "number",
@@ -852,12 +996,12 @@ export function getGemOpenApiSpec(baseUrl: string) {
                     scope: {
                       type: "string",
                       enum: ["hogar", "personal"],
-                      default: "hogar",
-                      description: "'hogar' para gasto compartido del 60% o 'personal' para gasto privado.",
+                      default: "personal",
+                      description: "'personal' para gastos privados (default en resúmenes de tarjeta) o 'hogar' para gasto compartido del 60%.",
                     },
                     user: {
                       type: "string",
-                      description: "Quién pagó el gasto: 'Augusto' o 'Agus'.",
+                      description: "Quién pagó o titular: 'Augusto' o 'Agus'.",
                     },
                     category: {
                       type: "string",
@@ -867,9 +1011,18 @@ export function getGemOpenApiSpec(baseUrl: string) {
                       type: "string",
                       description: "Fecha del comprobante en formato YYYY-MM-DD. Si no se especifica, usa hoy.",
                     },
+                    creditCardName: {
+                      type: "string",
+                      description: "Nombre de la tarjeta de crédito del resumen (ej: 'Galicia Visa', 'Santander', 'Mercado Pago').",
+                    },
+                    markForReview: {
+                      type: "boolean",
+                      default: true,
+                      description: "Si es true, marca el gasto con distintivo de 'revisión pendiente' en los gastos personales para ver si corresponde duplicarlo al hogar.",
+                    },
                     notes: {
                       type: "string",
-                      description: "Notas o número de comprobante/transferencia.",
+                      description: "Notas o número de comprobante.",
                     },
                     installmentNumber: {
                       type: "integer",
@@ -879,6 +1032,23 @@ export function getGemOpenApiSpec(baseUrl: string) {
                       type: "integer",
                       description: "Total de cuotas si aplica (ej: 3 o 6).",
                     },
+                    expenses: {
+                      type: "array",
+                      description: "Lista de compras o consumos extraídos del resumen de tarjeta para cargarlos en lote.",
+                      items: {
+                        type: "object",
+                        required: ["title", "amount"],
+                        properties: {
+                          title: { type: "string", description: "Comercio o concepto" },
+                          amount: { type: "number", description: "Monto en pesos" },
+                          category: { type: "string" },
+                          date: { type: "string", description: "YYYY-MM-DD" },
+                          installmentNumber: { type: "integer" },
+                          totalInstallments: { type: "integer" },
+                          notes: { type: "string" },
+                        },
+                      },
+                    },
                   },
                 },
               },
@@ -886,7 +1056,7 @@ export function getGemOpenApiSpec(baseUrl: string) {
           },
           responses: {
             "200": {
-              description: "Gasto registrado exitosamente.",
+              description: "Gasto(s) registrado(s) exitosamente.",
             },
           },
         },

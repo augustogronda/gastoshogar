@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Plus, CategoryIcon, Calendar, Layers } from "./ui/icons";
+import { X, Plus, CategoryIcon, Calendar, Layers, AlertCircle } from "./ui/icons";
 import { addPersonalExpenseAction } from "@/app/actions";
 import { CategoryManagerModal } from "./CategoryManagerModal";
+import { addReviewFlag } from "@/lib/expense-review";
 
 interface Category {
   id: string;
@@ -21,6 +22,18 @@ interface PersonalExpenseModalProps {
   year: number;
   month: number;
   categories: Category[];
+  onAddExpense?: (data: {
+    userId: string;
+    year: number;
+    month: number;
+    title: string;
+    amount: number;
+    categoryId?: string;
+    date?: string;
+    installmentNumber?: number;
+    totalInstallments?: number;
+    notes?: string;
+  }) => void;
 }
 
 export function PersonalExpenseModal({
@@ -31,6 +44,7 @@ export function PersonalExpenseModal({
   year,
   month,
   categories,
+  onAddExpense,
 }: PersonalExpenseModalProps) {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
@@ -40,45 +54,52 @@ export function PersonalExpenseModal({
   const [installmentNumber, setInstallmentNumber] = useState("1");
   const [totalInstallments, setTotalInstallments] = useState("3");
   const [notes, setNotes] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [markForReview, setMarkForReview] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const parsedAmount = parseFloat(amount);
     if (!title || !parsedAmount || parsedAmount <= 0) {
       alert("Completá el título y un monto válido");
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      await addPersonalExpenseAction({
-        userId,
-        year,
-        month,
-        title,
-        amount: parsedAmount,
-        categoryId: categoryId || undefined,
-        date,
-        installmentNumber: isInstallment ? parseInt(installmentNumber) : undefined,
-        totalInstallments: isInstallment ? parseInt(totalInstallments) : undefined,
-        notes: notes || undefined,
-      });
+    let finalNotes = notes.trim() || undefined;
+    if (markForReview) {
+      finalNotes = addReviewFlag(finalNotes);
+    }
 
-      // Reset y cerrar
-      setTitle("");
-      setAmount("");
-      setNotes("");
-      setIsInstallment(false);
-      onClose();
-    } catch (err: unknown) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : "Error al registrar gasto personal");
-    } finally {
-      setIsSubmitting(false);
+    const payload = {
+      userId,
+      year,
+      month,
+      title: title.trim(),
+      amount: parsedAmount,
+      categoryId: categoryId || undefined,
+      date,
+      installmentNumber: isInstallment ? parseInt(installmentNumber) : undefined,
+      totalInstallments: isInstallment ? parseInt(totalInstallments) : undefined,
+      notes: finalNotes,
+    };
+
+    // Reset y cerrar DE INMEDIATO ("al toque", 0ms de latencia)
+    setTitle("");
+    setAmount("");
+    setNotes("");
+    setIsInstallment(false);
+    setMarkForReview(false);
+    onClose();
+
+    // Disparar agregado optimista y conciliación en segundo plano
+    if (onAddExpense) {
+      onAddExpense(payload);
+    } else {
+      addPersonalExpenseAction(payload).catch((err) => {
+        console.error(err);
+      });
     }
   };
 
@@ -260,20 +281,34 @@ export function PersonalExpenseModal({
             </div>
           )}
 
+          {/* Flag opcional para revisar con el hogar */}
+          <label className="flex items-center gap-2.5 p-3 rounded-2xl bg-amber-500/[0.07] border border-amber-500/20 text-xs text-amber-200 cursor-pointer hover:bg-amber-500/10 transition">
+            <input
+              type="checkbox"
+              checked={markForReview}
+              onChange={(e) => setMarkForReview(e.target.checked)}
+              className="w-4 h-4 rounded text-amber-500 focus:ring-0 bg-transparent border-amber-400/40"
+            />
+            <div className="flex-1 min-w-0">
+              <span className="font-bold block text-amber-100">Marcar para revisar con el hogar</span>
+              <span className="text-[10px] text-amber-200/70 block leading-tight">
+                Agrega un distintivo para decidir luego si duplicarlo a gastos compartidos.
+              </span>
+            </div>
+          </label>
+
           {/* Botones */}
           <div className="pt-2 space-y-2">
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-indigo-400/20"
+              className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-indigo-400/20"
             >
-              <span>{isSubmitting ? "Guardando..." : "Guardar Gasto Personal"}</span>
+              <span>Guardar Gasto Personal</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
               className="w-full py-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-medium text-xs active:scale-[0.98] transition"
             >
               Cancelar

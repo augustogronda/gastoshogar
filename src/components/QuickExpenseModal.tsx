@@ -26,6 +26,15 @@ interface QuickExpenseModalProps {
   users: HouseholdUser[];
   categories: Category[];
   defaultPayerId?: string;
+  onAddExpense?: (data: {
+    title: string;
+    amount: number;
+    paidById: string;
+    categoryId: string;
+    periodId: string;
+    isFromPoolFund?: boolean;
+    date?: string;
+  }) => void;
 }
 
 export function QuickExpenseModal({
@@ -35,6 +44,7 @@ export function QuickExpenseModal({
   users,
   categories,
   defaultPayerId,
+  onAddExpense,
 }: QuickExpenseModalProps) {
   const [displayAmount, setDisplayAmount] = useState<string>("0");
   const [title, setTitle] = useState<string>("");
@@ -44,7 +54,6 @@ export function QuickExpenseModal({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
     categories[0]?.id || ""
   );
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   if (!isOpen) return null;
@@ -66,30 +75,38 @@ export function QuickExpenseModal({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const numericAmount = parseFloat(displayAmount);
     if (numericAmount <= 0) return;
 
-    setIsSubmitting(true);
-    try {
-      await addExpenseAction({
-        title: title.trim() || categories.find((c) => c.id === selectedCategoryId)?.name || "Gasto",
-        amount: numericAmount,
-        paidById: selectedPayerId,
-        categoryId: selectedCategoryId,
-        periodId,
-        isFromPoolFund: false,
+    const finalTitle =
+      title.trim() ||
+      categories.find((c) => c.id === selectedCategoryId)?.name ||
+      "Gasto";
+
+    const payload = {
+      title: finalTitle,
+      amount: numericAmount,
+      paidById: selectedPayerId,
+      categoryId: selectedCategoryId,
+      periodId,
+      isFromPoolFund: false,
+      date: new Date().toISOString(),
+    };
+
+    // 1. Limpiar inputs y cerrar modal DE INMEDIATO ("al toque", 0ms de latencia)
+    setDisplayAmount("0");
+    setTitle("");
+    onClose();
+
+    // 2. Disparar agregado optimista y conciliación en segundo plano
+    if (onAddExpense) {
+      onAddExpense(payload);
+    } else {
+      addExpenseAction(payload).catch((err) => {
+        console.error("Error al guardar gasto:", err);
       });
-      // Reset y cerrar
-      setDisplayAmount("0");
-      setTitle("");
-      onClose();
-    } catch (err) {
-      console.error(err);
-      alert("Error al guardar el gasto");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -125,6 +142,12 @@ export function QuickExpenseModal({
             placeholder="¿Qué compraron? (ej. Coto, Nafta, Delivery)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
             className="w-full bg-white/[0.06] border border-white/[0.14] rounded-2xl px-4 py-3 text-white text-center placeholder:text-center placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400 transition text-sm font-medium shadow-inner"
           />
         </div>
@@ -228,18 +251,12 @@ export function QuickExpenseModal({
         {/* Botón de Confirmación Grande */}
         <button
           type="button"
-          disabled={displayAmount === "0" || isSubmitting}
-          onClick={handleSubmit}
+          disabled={displayAmount === "0"}
+          onClick={() => handleSubmit()}
           className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-base shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-blue-400/20"
         >
-          {isSubmitting ? (
-            <span>Guardando...</span>
-          ) : (
-            <>
-              <Check className="w-5 h-5" />
-              <span>Guardar Gasto (${formattedAmount})</span>
-            </>
-          )}
+          <Check className="w-5 h-5" />
+          <span>Guardar Gasto (${formattedAmount})</span>
         </button>
       </div>
 

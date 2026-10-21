@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Wallet,
   Plus,
@@ -20,6 +20,8 @@ import {
   Tag,
   TrendingUp,
   Search,
+  AlertCircle,
+  Users,
 } from "./ui/icons";
 import { ConfirmDialog, ToastBanner, useToast } from "./ui/ConfirmDialog";
 import { PersonalIncomeModal } from "./PersonalIncomeModal";
@@ -31,13 +33,22 @@ import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
 import { PersonalCardsView } from "./PersonalCardsView";
 import { CardShoppingAdvisorBanner } from "./CardShoppingAdvisorBanner";
 import {
+  addPersonalExpenseAction,
   deletePersonalExpenseAction,
   deletePersonalRecurringExpenseAction,
   applyPersonalRecurringExpenseAction,
   unapplyPersonalRecurringExpenseAction,
   closePersonalMonthAction,
   reopenPersonalMonthAction,
+  duplicatePersonalToSharedExpenseAction,
+  markPersonalExpenseAsReviewedAction,
 } from "@/app/actions";
+import {
+  hasReviewFlag,
+  getCleanNotes,
+  getCardSourceTag,
+  removeReviewFlag,
+} from "@/lib/expense-review";
 
 interface Category {
   id: string;
@@ -128,6 +139,7 @@ export function PersonalDashboardView({
   const { toast, showToast } = useToast();
   const [personalCategoryFilter, setPersonalCategoryFilter] = useState<string>("ALL");
   const [personalSearchQuery, setPersonalSearchQuery] = useState<string>("");
+  const [onlyPendingReview, setOnlyPendingReview] = useState(false);
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
@@ -231,6 +243,106 @@ export function PersonalDashboardView({
     }
   };
 
+  const [actioningId, setActioningId] = useState<string | null>(null);
+
+  const pendingReviewExpenses = useMemo(
+    () => localExpenses.filter((e) => hasReviewFlag(e.notes)),
+    [localExpenses]
+  );
+  const pendingReviewCount = pendingReviewExpenses.length;
+
+  const handleQuickDuplicateToShared = async (expId: string) => {
+    if (actioningId === expId) return;
+    setActioningId(expId);
+    try {
+      // Optimista: quitar flag de revisión de inmediato
+      setLocalExpenses((prev) =>
+        prev.map((e) => (e.id === expId ? { ...e, notes: removeReviewFlag(e.notes) || null } : e))
+      );
+      showToast("✓ Duplicado en Fondo Compartido (Hogar)");
+      await duplicatePersonalToSharedExpenseAction({ personalExpenseId: expId, markAsReviewed: true });
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al duplicar a compartidos", "error");
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleQuickMarkReviewed = async (expId: string) => {
+    if (actioningId === expId) return;
+    setActioningId(expId);
+    try {
+      setLocalExpenses((prev) =>
+        prev.map((e) => (e.id === expId ? { ...e, notes: removeReviewFlag(e.notes) || null } : e))
+      );
+      showToast("✓ Gasto confirmado como Personal");
+      await markPersonalExpenseAsReviewedAction(expId);
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al confirmar gasto", "error");
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleAddPersonalExpense = async (data: {
+    userId: string;
+    year: number;
+    month: number;
+    title: string;
+    amount: number;
+    categoryId?: string;
+    date?: string;
+    installmentNumber?: number;
+    totalInstallments?: number;
+    notes?: string;
+  }) => {
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const category = categories.find((c) => c.id === data.categoryId);
+
+    const optimisticExpense: PersonalExpenseItem = {
+      id: tempId,
+      title: data.title,
+      amount: data.amount,
+      date: data.date || new Date().toISOString(),
+      categoryId: data.categoryId,
+      category: category || null,
+      installmentNumber: data.installmentNumber,
+      totalInstallments: data.totalInstallments,
+      notes: data.notes,
+    };
+
+    const previousExpenses = [...localExpenses];
+
+    // 1. IMPACTO INMEDIATO EN UI (0ms de latencia)
+    setLocalExpenses((prev) => [optimisticExpense, ...prev]);
+    showToast(`✓ Gasto de $${Math.round(data.amount).toLocaleString("es-AR")} agregado`, "success");
+
+    // 2. Conciliación en segundo plano en la base de datos
+    try {
+      const res = await addPersonalExpenseAction(data);
+      if (res?.expense) {
+        setLocalExpenses((prev) =>
+          prev.map((e) =>
+            e.id === tempId
+              ? {
+                  ...e,
+                  id: res.expense.id,
+                  date: res.expense.date ? new Date(res.expense.date).toISOString() : e.date,
+                  category: res.expense.category || e.category,
+                }
+              : e
+          )
+        );
+      }
+    } catch (err: unknown) {
+      console.error("Error al guardar gasto personal:", err);
+      setLocalExpenses(previousExpenses);
+      showToast(err instanceof Error ? err.message : "Error al guardar el gasto personal", "error");
+    }
+  };
+
   const handleApplyRecurring = async (rec: PersonalRecurringItem) => {
     setIsProcessing(true);
     try {
@@ -282,33 +394,45 @@ export function PersonalDashboardView({
     setConfirmState({ type: "reopenMonth" });
   };
 
-  // Cálculo de análisis por categoría
-  const categoryTotals: Record<string, { name: string; amount: number; count: number }> = {};
-  for (const exp of localExpenses) {
-    const catName = exp.category?.name || "Varios";
-    if (!categoryTotals[catName]) {
-      categoryTotals[catName] = { name: catName, amount: 0, count: 0 };
+  // Cálculo de análisis por categoría memoizado
+  const sortedCategories = useMemo(() => {
+    const categoryTotals: Record<string, { name: string; amount: number; count: number }> = {};
+    for (const exp of localExpenses) {
+      const catName = exp.category?.name || "Varios";
+      if (!categoryTotals[catName]) {
+        categoryTotals[catName] = { name: catName, amount: 0, count: 0 };
+      }
+      categoryTotals[catName].amount += exp.amount;
+      categoryTotals[catName].count += 1;
     }
-    categoryTotals[catName].amount += exp.amount;
-    categoryTotals[catName].count += 1;
-  }
-  const sortedCategories = Object.values(categoryTotals).sort((a, b) => b.amount - a.amount);
+    return Object.values(categoryTotals).sort((a, b) => b.amount - a.amount);
+  }, [localExpenses]);
+
   const averagePersonalExpense = localExpenses.length > 0 ? Math.round(totalPersonalExpenses / localExpenses.length) : 0;
 
   const normalizedQuery = personalSearchQuery.trim().toLowerCase();
-  const filteredPersonalExpenses = localExpenses.filter((e) => {
-    const catName = e.category?.name || "Varios";
-    const matchesCategory = personalCategoryFilter === "ALL" || catName === personalCategoryFilter;
-    const matchesSearch =
-      !normalizedQuery ||
-      e.title.toLowerCase().includes(normalizedQuery) ||
-      catName.toLowerCase().includes(normalizedQuery) ||
-      (e.notes && e.notes.toLowerCase().includes(normalizedQuery));
-    return matchesCategory && matchesSearch;
-  });
+  const filteredPersonalExpenses = useMemo(() => {
+    return localExpenses.filter((e) => {
+      if (onlyPendingReview && !hasReviewFlag(e.notes)) {
+        return false;
+      }
+      const catName = e.category?.name || "Varios";
+      const matchesCategory = personalCategoryFilter === "ALL" || catName === personalCategoryFilter;
+      const matchesSearch =
+        !normalizedQuery ||
+        e.title.toLowerCase().includes(normalizedQuery) ||
+        catName.toLowerCase().includes(normalizedQuery) ||
+        (e.notes && e.notes.toLowerCase().includes(normalizedQuery));
+      return matchesCategory && matchesSearch;
+    });
+  }, [localExpenses, onlyPendingReview, personalCategoryFilter, normalizedQuery]);
 
-  const isFilteringPersonal = personalCategoryFilter !== "ALL" || normalizedQuery.length > 0;
-  const filteredPersonalSubtotal = filteredPersonalExpenses.reduce((acc, e) => acc + e.amount, 0);
+  const isFilteringPersonal =
+    personalCategoryFilter !== "ALL" || normalizedQuery.length > 0 || onlyPendingReview;
+  const filteredPersonalSubtotal = useMemo(
+    () => filteredPersonalExpenses.reduce((acc, e) => acc + e.amount, 0),
+    [filteredPersonalExpenses]
+  );
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -501,19 +625,40 @@ export function PersonalDashboardView({
                   )}
                 </div>
 
-                {sortedCategories.length > 1 && (
+                {(sortedCategories.length > 1 || pendingReviewCount > 0) && (
                   <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                     <button
                       type="button"
-                      onClick={() => setPersonalCategoryFilter("ALL")}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
-                        personalCategoryFilter === "ALL"
-                          ? "bg-indigo-600 text-white shadow-sm"
-                          : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
+                      onClick={() => {
+                        setPersonalCategoryFilter("ALL");
+                        setOnlyPendingReview(false);
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-200 ${
+                        personalCategoryFilter === "ALL" && !onlyPendingReview
+                          ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-950/60 border border-indigo-400/30"
+                          : "bg-zinc-900/90 text-zinc-400 hover:text-white hover:bg-zinc-800/80 border border-white/[0.08]"
                       }`}
                     >
                       Todos ({localExpenses.length})
                     </button>
+                    {pendingReviewCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setOnlyPendingReview(!onlyPendingReview)}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${
+                          onlyPendingReview
+                            ? "bg-gradient-to-r from-amber-500 to-orange-500 text-zinc-950 shadow-md shadow-amber-950/60 border border-amber-300/60 scale-[1.02]"
+                            : "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/35"
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            onlyPendingReview ? "bg-zinc-950" : "bg-amber-400 animate-ping"
+                          }`}
+                        />
+                        <span>Por revisar ({pendingReviewCount})</span>
+                      </button>
+                    )}
                     {sortedCategories.map((cat) => (
                       <button
                         key={cat.name}
@@ -523,10 +668,10 @@ export function PersonalDashboardView({
                             personalCategoryFilter === cat.name ? "ALL" : cat.name
                           )
                         }
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${
                           personalCategoryFilter === cat.name
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
+                            ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-950/60 border border-indigo-400/30"
+                            : "bg-zinc-900/90 text-zinc-400 hover:text-white hover:bg-zinc-800/80 border border-white/[0.08]"
                         }`}
                       >
                         <CategoryIcon name={cat.name} className="w-3 h-3" />
@@ -539,7 +684,7 @@ export function PersonalDashboardView({
 
                 {/* Barra de Subtotal cuando hay búsqueda o filtro activo */}
                 {isFilteringPersonal && (
-                  <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-[11px]">
+                  <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-[11px] animate-fade-in">
                     <span className="text-indigo-200 font-medium">
                       Mostrando <strong>{filteredPersonalExpenses.length}</strong> gasto(s) • Subtotal:{" "}
                       <strong className="font-mono text-white">
@@ -551,10 +696,41 @@ export function PersonalDashboardView({
                       onClick={() => {
                         setPersonalCategoryFilter("ALL");
                         setPersonalSearchQuery("");
+                        setOnlyPendingReview(false);
                       }}
-                      className="text-indigo-300 hover:text-white font-bold underline ml-2"
+                      className="text-indigo-300 hover:text-white font-bold underline ml-2 transition-colors"
                     >
                       Limpiar
+                    </button>
+                  </div>
+                )}
+
+                {/* Banner de aviso cuando hay gastos de tarjeta pendientes de revisar */}
+                {pendingReviewCount > 0 && (
+                  <div className="card-review-pending rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs animate-fade-in">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-inner">
+                        <AlertCircle className="w-4.5 h-4.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-amber-100 block truncate">
+                          {pendingReviewCount} gasto{pendingReviewCount > 1 ? "s" : ""} de tarjeta para revisar
+                        </span>
+                        <span className="text-[11px] text-amber-200/75 block truncate">
+                          Confirmalos como personales o duplicalos a compartidos del hogar.
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOnlyPendingReview(!onlyPendingReview)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-[11px] shrink-0 border transition-all duration-200 active:scale-95 ${
+                        onlyPendingReview
+                          ? "bg-zinc-900/90 hover:bg-zinc-800 text-amber-200 border-amber-400/35"
+                          : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 border-amber-300/60 shadow-sm shadow-amber-950/60"
+                      }`}
+                    >
+                      {onlyPendingReview ? "Ver todos" : `Filtrar (${pendingReviewCount})`}
                     </button>
                   </div>
                 )}
@@ -562,7 +738,7 @@ export function PersonalDashboardView({
             )}
 
             {filteredPersonalExpenses.length === 0 ? (
-              <div className="super-card rounded-2xl p-8 text-center">
+              <div className="super-card rounded-2xl p-8 text-center animate-fade-in">
                 <Wallet className="w-8 h-8 text-zinc-600 mx-auto mb-2 opacity-60" />
                 <p className="text-sm font-medium text-zinc-300">
                   {isFilteringPersonal
@@ -576,6 +752,7 @@ export function PersonalDashboardView({
                       onClick={() => {
                         setPersonalCategoryFilter("ALL");
                         setPersonalSearchQuery("");
+                        setOnlyPendingReview(false);
                       }}
                       className="text-indigo-400 font-semibold underline"
                     >
@@ -589,15 +766,24 @@ export function PersonalDashboardView({
                 </p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {filteredPersonalExpenses.map((exp) => {
                   const dateObj = new Date(exp.date);
                   const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
+                  const isPendingSync = exp.id.startsWith("temp-");
+                  const isReview = hasReviewFlag(exp.notes);
+                  const cardTag = getCardSourceTag(exp.notes);
+                  const cleanNotes = getCleanNotes(exp.notes);
+                  const isBusy = actioningId === exp.id || deletingId === exp.id;
 
                   return (
                     <div
                       key={exp.id}
                       onClick={() => {
+                        if (isPendingSync) {
+                          showToast("Sincronizando gasto con la base de datos...", "info");
+                          return;
+                        }
                         setSelectedPersonalExpense({
                           id: exp.id,
                           title: exp.title,
@@ -612,62 +798,148 @@ export function PersonalDashboardView({
                         });
                         setIsDetailModalOpen(true);
                       }}
-                      className={`super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition-all duration-300 cursor-pointer group ${
+                      className={`rounded-2xl p-3.5 transition-all duration-300 cursor-pointer group ${
                         deletingId === exp.id
                           ? "opacity-0 -translate-x-6 scale-95 pointer-events-none"
-                          : "opacity-100"
+                          : actioningId === exp.id
+                            ? "opacity-60 scale-[0.99] pointer-events-none"
+                            : "opacity-100 hover:-translate-y-[1px]"
+                      } ${
+                        isReview
+                          ? "card-review-pending"
+                          : "super-card-subtle hover:bg-white/[0.05] hover:border-white/[0.14]"
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
-                          <CategoryIcon name={exp.category?.name || "Varios"} className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold text-white block group-hover:text-indigo-300 transition-colors">
-                            {exp.title}
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-400 font-medium">
-                            <span>{dateStr}</span>
-                            {exp.category && (
-                              <>
-                                <span>•</span>
-                                <span className="text-zinc-300 font-sans">{exp.category.name}</span>
-                              </>
-                            )}
-                            {exp.totalInstallments && (
-                              <>
-                                <span>•</span>
-                                <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30 text-[10px] font-bold">
-                                  Cuota {exp.installmentNumber}/{exp.totalInstallments}
-                                </span>
-                              </>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`w-10 h-10 rounded-xl border flex items-center justify-center shadow-sm shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                              isReview
+                                ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-amber-950/40"
+                                : "bg-zinc-800/80 border-white/[0.08] text-zinc-300"
+                            }`}
+                          >
+                            {isReview ? (
+                              <AlertCircle className="w-5 h-5 text-amber-400" />
+                            ) : (
+                              <CategoryIcon name={exp.category?.name || "Varios"} className="w-5 h-5" />
                             )}
                           </div>
-                          {exp.notes && (
-                            <p className="text-[11px] text-zinc-400 italic mt-1 line-clamp-1 flex items-center gap-1">
-                              <span>💬</span>
-                              <span>{exp.notes}</span>
-                            </p>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-white block group-hover:text-indigo-300 transition-colors truncate">
+                                {exp.title}
+                              </span>
+                            </div>
+                            <div className="flex items-center flex-wrap gap-1.5 mt-0.5 text-xs text-zinc-400 font-medium">
+                              <span>{dateStr}</span>
+                              {exp.category && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-zinc-300 font-sans">{exp.category.name}</span>
+                                </>
+                              )}
+                              {exp.totalInstallments && (
+                                <>
+                                  <span>•</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30 text-[10px] font-bold">
+                                    Cuota {exp.installmentNumber}/{exp.totalInstallments}
+                                  </span>
+                                </>
+                              )}
+                              {isReview && (
+                                <>
+                                  <span>•</span>
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-200 border border-amber-500/35 text-[10px] font-bold">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                    <span>Por revisar</span>
+                                    {cardTag && <span className="opacity-85 font-mono">({cardTag})</span>}
+                                  </span>
+                                </>
+                              )}
+                              {isPendingSync && (
+                                <span className="text-[10px] text-amber-300 font-medium animate-pulse flex items-center gap-1 ml-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-ping" />
+                                  Sincronizando...
+                                </span>
+                              )}
+                            </div>
+                            {cleanNotes && (
+                              <p className="text-[11px] text-zinc-400 italic mt-1 line-clamp-1 flex items-center gap-1">
+                                <span>💬</span>
+                                <span>{cleanNotes}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          <span className="text-base font-bold text-white font-mono tabular-nums tracking-[-0.02em] mr-0.5">
+                            ${Math.round(exp.amount).toLocaleString("es-AR")}
+                          </span>
+
+                          {/* Botón sutil para duplicar a Hogar en gastos normales */}
+                          {!isReview && !isPendingSync && (
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuickDuplicateToShared(exp.id);
+                              }}
+                              aria-label={`Duplicar ${exp.title} a gastos compartidos del hogar`}
+                              className="w-8.5 h-8.5 flex items-center justify-center rounded-xl text-zinc-400 hover:text-cyan-300 hover:bg-cyan-500/15 border border-transparent hover:border-cyan-400/25 active:scale-90 transition-all duration-200"
+                              title="Duplicar a Gastos Compartidos (Hogar)"
+                            >
+                              <Users className="w-4 h-4" />
+                            </button>
                           )}
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isPendingSync) {
+                                showToast("Aguardá a que finalice la sincronización para eliminarlo", "info");
+                                return;
+                              }
+                              handleDeleteExpense(exp.id, exp.title);
+                            }}
+                            disabled={isBusy}
+                            aria-label={`Eliminar gasto ${exp.title}`}
+                            className="w-8.5 h-8.5 flex items-center justify-center rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-all duration-200"
+                            title="Eliminar gasto"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <span className="text-base font-bold text-white font-mono tabular-nums">
-                          ${Math.round(exp.amount).toLocaleString("es-AR")}
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteExpense(exp.id, exp.title);
-                          }}
-                          disabled={deletingId === exp.id}
-                          className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 active:scale-90 transition"
-                          title="Eliminar gasto"
+                      {/* Barra inferior de acciones rápidas cuando el gasto está marcado para revisar */}
+                      {isReview && !isPendingSync && (
+                        <div
+                          className="mt-3 pt-2.5 border-t border-amber-500/20 flex items-center gap-2"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleQuickDuplicateToShared(exp.id)}
+                            className="flex-1 min-h-[38px] py-2 px-3 rounded-xl btn-hogar-gradient font-semibold text-xs tracking-[-0.01em] text-blue-100 flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98]"
+                          >
+                            <Users className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                            <span className="truncate">Duplicar a Hogar (60%)</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleQuickMarkReviewed(exp.id)}
+                            className="flex-1 min-h-[38px] py-2 px-3 rounded-xl bg-[#30D158]/15 hover:bg-[#30D158]/25 text-emerald-100 border border-[#30D158]/40 hover:border-[#30D158]/65 font-semibold text-xs tracking-[-0.01em] flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98]"
+                          >
+                            <Check className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
+                            <span className="truncate">Confirmar Personal</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -961,6 +1233,7 @@ export function PersonalDashboardView({
         year={currentYear}
         month={currentMonth}
         categories={categories}
+        onAddExpense={handleAddPersonalExpense}
       />
 
       <PersonalRecurringModal

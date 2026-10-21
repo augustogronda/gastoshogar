@@ -2,6 +2,7 @@ import {
   getGemFinancialStatus,
   queryGemExpenses,
   createGemExpense,
+  createGemExpensesBatch,
   createGemRecurring,
   updateGemCardStatement,
 } from "./gem-service";
@@ -119,6 +120,61 @@ export const MCP_TOOLS = [
         totalInstallments: {
           type: "integer",
           description: "Total de cuotas si aplica (ej: 3 o 6).",
+        },
+        creditCardName: {
+          type: "string",
+          description: "Nombre de la tarjeta si aplica (ej: 'Galicia Visa', 'Santander').",
+        },
+        markForReview: {
+          type: "boolean",
+          description: "Marcar gasto personal para revisar si corresponde duplicar al hogar.",
+        },
+      },
+    },
+  },
+  {
+    name: "import_credit_card_expenses",
+    description:
+      "Carga en lote las compras y consumos extraídos de un resumen de tarjeta de crédito en los gastos personales (con distintivo para revisar si corresponden ser compartidos con el hogar).",
+    inputSchema: {
+      type: "object",
+      required: ["expenses"],
+      properties: {
+        user: {
+          type: "string",
+          description: "Titular o pagador ('Augusto' o 'Agus').",
+        },
+        creditCardName: {
+          type: "string",
+          description: "Nombre de la tarjeta (ej: 'Galicia Visa', 'Santander', 'Mercado Pago').",
+        },
+        scope: {
+          type: "string",
+          enum: ["personal", "hogar"],
+          default: "personal",
+          description: "Por defecto 'personal'.",
+        },
+        markForReview: {
+          type: "boolean",
+          default: true,
+          description: "Si es true (default), agrega flag de revisión para verificar si es compartido.",
+        },
+        expenses: {
+          type: "array",
+          description: "Lista de compras del resumen de tarjeta.",
+          items: {
+            type: "object",
+            required: ["title", "amount"],
+            properties: {
+              title: { type: "string", description: "Comercio o concepto" },
+              amount: { type: "number", description: "Monto en pesos ARS" },
+              category: { type: "string" },
+              date: { type: "string", description: "Fecha YYYY-MM-DD" },
+              installmentNumber: { type: "integer", description: "Cuota actual" },
+              totalInstallments: { type: "integer", description: "Total cuotas" },
+              notes: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -266,6 +322,8 @@ export async function handleMcpRpcRequest(req: JsonRpcRequest): Promise<JsonRpcR
         callResult = await createGemRecurring(args);
       } else if (toolName === "update_card_statement") {
         callResult = await updateGemCardStatement(args);
+      } else if (toolName === "import_credit_card_expenses" || toolName === "create_expenses_batch") {
+        callResult = await createGemExpensesBatch(args);
       } else {
         return {
           jsonrpc: "2.0",

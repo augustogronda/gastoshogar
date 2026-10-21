@@ -1,4 +1,7 @@
 {
-  "version": "1.13.0",
-  "build": "2026-10-16T20:30:00Z"
+  "version": "1.15.0",
+  "build": 2026102102,
+  "releasedAt": "2026-10-21T17:50:00Z",
+  "title": "Diseño Apple HIG (Liquid Glass & Dark Mode)",
+  "description": "Sistema visual inspirado en Apple HIG: Liquid Glass en navegación y sheets, Segmented Control nativo, paleta semántica Dark Mode y mejoras de accesibilidad."
 }

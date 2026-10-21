@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { validateGemAuth, queryGemExpenses, createGemExpense } from "@/lib/gem-service";
+import {
+  validateGemAuth,
+  queryGemExpenses,
+  createGemExpense,
+  createGemExpensesBatch,
+} from "@/lib/gem-service";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +56,18 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
+
+    // Si viene un array o un objeto con propiedad 'expenses', procesar como lote
+    if (Array.isArray(body)) {
+      const result = await createGemExpensesBatch({ expenses: body });
+      return NextResponse.json(result);
+    }
+
+    if (body && Array.isArray(body.expenses)) {
+      const result = await createGemExpensesBatch(body);
+      return NextResponse.json(result);
+    }
+
     const result = await createGemExpense(body);
     return NextResponse.json(result);
   } catch (err: unknown) {

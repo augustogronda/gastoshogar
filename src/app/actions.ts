@@ -20,6 +20,11 @@ import {
   invalidateCardsCache,
   computeApplicableCardInstallments,
 } from "@/lib/cards-service";
+import {
+  hasReviewFlag,
+  addReviewFlag,
+  removeReviewFlag,
+} from "@/lib/expense-review";
 
 let categoriesBackfilled = false;
 
@@ -450,26 +455,31 @@ export async function addExpenseAction(data: {
     throw new Error("Datos de gasto inválidos");
   }
 
-  await prisma.expense.create({
-    data: {
-      title: data.title,
-      amount: data.amount,
-      paidById: data.paidById,
-      categoryId: data.categoryId,
-      periodId: data.periodId,
-      isFromPoolFund: data.isFromPoolFund ?? false,
-      recurringExpenseId: data.recurringExpenseId,
-      installmentNumber: data.installmentNumber,
-      totalInstallments: data.totalInstallments,
-      notes: data.notes,
-      date: data.date ? new Date(data.date) : new Date(),
-    },
-  });
-
-  await touchCategory(data.categoryId);
+  const [expense] = await Promise.all([
+    prisma.expense.create({
+      data: {
+        title: data.title,
+        amount: data.amount,
+        paidById: data.paidById,
+        categoryId: data.categoryId,
+        periodId: data.periodId,
+        isFromPoolFund: data.isFromPoolFund ?? false,
+        recurringExpenseId: data.recurringExpenseId,
+        installmentNumber: data.installmentNumber,
+        totalInstallments: data.totalInstallments,
+        notes: data.notes,
+        date: data.date ? new Date(data.date) : new Date(),
+      },
+      include: {
+        paidBy: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true, icon: true, color: true } },
+      },
+    }),
+    touchCategory(data.categoryId),
+  ]);
 
   revalidatePath("/");
-  return { success: true };
+  return { success: true, expense };
 }
 
 export async function deleteExpenseAction(expenseId: string) {
@@ -537,6 +547,58 @@ export async function duplicateExpenseAction(expenseId: string) {
 
   revalidatePath("/");
   return { success: true };
+}
+
+export async function duplicateSharedToPersonalExpenseAction(data: {
+  expenseId: string;
+  targetUserId?: string;
+}) {
+  const existing = await prisma.expense.findUnique({
+    where: { id: data.expenseId },
+    include: { period: true },
+  });
+
+  if (!existing) throw new Error("Gasto compartido no encontrado");
+
+  const household = await ensureDefaultHousehold();
+  const targetUserId = data.targetUserId || existing.paidById || household.users[0]?.id;
+
+  const expenseDate = new Date(existing.date);
+  const year = existing.period?.year || expenseDate.getFullYear();
+  const month = existing.period?.month || expenseDate.getMonth() + 1;
+
+  // Asegurar registro de ingreso personal
+  await prisma.personalIncome.upsert({
+    where: { userId_year_month: { userId: targetUserId, year, month } },
+    update: {},
+    create: { userId: targetUserId, year, month },
+  });
+
+  const notesClean = existing.notes ? removeReviewFlag(existing.notes) : "";
+  const finalNotes = notesClean ? `(Copia de Hogar) ${notesClean}` : "(Copia de Hogar)";
+
+  const newPersonalExpense = await prisma.personalExpense.create({
+    data: {
+      userId: targetUserId,
+      year,
+      month,
+      title: existing.title,
+      amount: existing.amount,
+      date: existing.date,
+      categoryId: existing.categoryId,
+      notes: finalNotes,
+      installmentNumber: existing.installmentNumber,
+      totalInstallments: existing.totalInstallments,
+    },
+    include: {
+      category: { select: { id: true, name: true, icon: true, color: true } },
+    },
+  });
+
+  await touchCategory(existing.categoryId);
+
+  revalidatePath("/");
+  return { success: true, expense: newPersonalExpense };
 }
 
 export async function updateSalariesAction(
@@ -1143,26 +1205,30 @@ export async function addPersonalExpenseAction(data: {
     throw new Error("Datos de gasto personal inválidos");
   }
 
-  await prisma.personalExpense.create({
-    data: {
-      userId: data.userId,
-      year: data.year,
-      month: data.month,
-      title: data.title,
-      amount: data.amount,
-      categoryId: data.categoryId,
-      date: data.date ? new Date(data.date) : new Date(),
-      installmentNumber: data.installmentNumber,
-      totalInstallments: data.totalInstallments,
-      personalRecurringId: data.personalRecurringId,
-      notes: data.notes,
-    },
-  });
-
-  await touchCategory(data.categoryId);
+  const [expense] = await Promise.all([
+    prisma.personalExpense.create({
+      data: {
+        userId: data.userId,
+        year: data.year,
+        month: data.month,
+        title: data.title,
+        amount: data.amount,
+        categoryId: data.categoryId,
+        date: data.date ? new Date(data.date) : new Date(),
+        installmentNumber: data.installmentNumber,
+        totalInstallments: data.totalInstallments,
+        personalRecurringId: data.personalRecurringId,
+        notes: data.notes,
+      },
+      include: {
+        category: { select: { id: true, name: true, icon: true, color: true } },
+      },
+    }),
+    touchCategory(data.categoryId),
+  ]);
 
   revalidatePath("/");
-  return { success: true };
+  return { success: true, expense };
 }
 
 export async function deletePersonalExpenseAction(expenseId: string) {
@@ -1226,6 +1292,139 @@ export async function duplicatePersonalExpenseAction(expenseId: string) {
 
   revalidatePath("/");
   return { success: true };
+}
+
+export async function duplicatePersonalToSharedExpenseAction(data: {
+  personalExpenseId: string;
+  paidById?: string;
+  markAsReviewed?: boolean;
+}) {
+  const existing = await prisma.personalExpense.findUnique({
+    where: { id: data.personalExpenseId },
+    include: { category: true, user: true },
+  });
+
+  if (!existing) throw new Error("Gasto personal no encontrado");
+
+  const household = await ensureDefaultHousehold();
+  const year = existing.year;
+  const month = existing.month;
+
+  // Asegurar período de hogar para el mes correspondiente
+  let period = await prisma.monthlyPeriod.findUnique({
+    where: {
+      householdId_year_month: {
+        householdId: household.id,
+        year,
+        month,
+      },
+    },
+  });
+
+  if (!period) {
+    period = await prisma.monthlyPeriod.create({
+      data: {
+        householdId: household.id,
+        year,
+        month,
+      },
+    });
+  }
+
+  // Resolver pagador en Hogar (por defecto el dueño del gasto personal)
+  const paidById = data.paidById || existing.userId || household.users[0]?.id;
+
+  // Resolver categoría válida en Hogar
+  let categoryId: string = existing.categoryId || "";
+  if (!categoryId) {
+    const defaultCat =
+      household.categories.find((c: { id: string; name: string }) => c.name.toLowerCase() === "varios") ||
+      household.categories[0];
+    categoryId = defaultCat?.id || "";
+  }
+
+  // Quitar la marca de [POR_REVISAR] para el gasto del hogar
+  const sharedNotesClean = existing.notes ? removeReviewFlag(existing.notes) : "";
+  const finalSharedNotes = sharedNotesClean
+    ? `(Copia de Personal) ${sharedNotesClean}`
+    : "(Copia de Personal)";
+
+  const newExpense = await prisma.expense.create({
+    data: {
+      periodId: period.id,
+      title: existing.title,
+      amount: existing.amount,
+      date: existing.date,
+      categoryId,
+      paidById,
+      isFromPoolFund: false,
+      notes: finalSharedNotes,
+      installmentNumber: existing.installmentNumber,
+      totalInstallments: existing.totalInstallments,
+    },
+    include: {
+      paidBy: { select: { id: true, name: true } },
+      category: { select: { id: true, name: true, icon: true, color: true } },
+    },
+  });
+
+  // Si se marcó para quitar la revisión del gasto personal, actualizar el original
+  if (data.markAsReviewed !== false && existing.notes && hasReviewFlag(existing.notes)) {
+    const cleanPersonalNotes = removeReviewFlag(existing.notes);
+    await prisma.personalExpense.update({
+      where: { id: existing.id },
+      data: { notes: cleanPersonalNotes || null },
+    });
+  }
+
+  if (categoryId) {
+    await touchCategory(categoryId);
+  }
+
+  revalidatePath("/");
+  return { success: true, expense: newExpense };
+}
+
+export async function markPersonalExpenseAsReviewedAction(personalExpenseId: string) {
+  const existing = await prisma.personalExpense.findUnique({
+    where: { id: personalExpenseId },
+  });
+
+  if (!existing) throw new Error("Gasto personal no encontrado");
+
+  const cleanNotes = removeReviewFlag(existing.notes);
+  const updated = await prisma.personalExpense.update({
+    where: { id: personalExpenseId },
+    data: {
+      notes: cleanNotes || null,
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true, expense: updated };
+}
+
+export async function togglePersonalExpenseReviewAction(personalExpenseId: string) {
+  const existing = await prisma.personalExpense.findUnique({
+    where: { id: personalExpenseId },
+  });
+
+  if (!existing) throw new Error("Gasto personal no encontrado");
+
+  const currentlyMarked = hasReviewFlag(existing.notes);
+  const newNotes = currentlyMarked
+    ? removeReviewFlag(existing.notes)
+    : addReviewFlag(existing.notes);
+
+  const updated = await prisma.personalExpense.update({
+    where: { id: personalExpenseId },
+    data: {
+      notes: newNotes || null,
+    },
+  });
+
+  revalidatePath("/");
+  return { success: true, needsReview: !currentlyMarked, expense: updated };
 }
 
 export async function createPersonalRecurringExpenseAction(data: {

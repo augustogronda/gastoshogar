@@ -6,10 +6,21 @@ import currentAppVersion from "../../public/version.json";
 
 export interface VersionInfo {
   version: string;
-  build: number;
-  releasedAt: string;
-  title: string;
-  description: string;
+  build: number | string;
+  releasedAt?: string;
+  title?: string;
+  description?: string;
+}
+
+function parseBuildValue(val: number | string | null | undefined): number {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === "number") return val;
+  const asNum = Number(val);
+  if (!Number.isNaN(asNum)) return asNum;
+  const asDate = Date.parse(val);
+  if (!Number.isNaN(asDate)) return asDate;
+  const parsed = parseInt(val, 10);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 export function AppUpdateChecker() {
@@ -24,7 +35,7 @@ export function AppUpdateChecker() {
       const res = await fetch(`/api/version?_t=${Date.now()}`, {
         cache: "no-store",
         headers: {
-          "Cache-Control": "no-cache",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
           Pragma: "no-cache",
         },
       });
@@ -36,22 +47,29 @@ export function AppUpdateChecker() {
       const localVersionStr = localStorage.getItem("app_version");
 
       // Si no hay versión guardada en localStorage, inicializar con la versión actual empaquetada
-      if (!localBuildStr) {
+      if (!localBuildStr && !localVersionStr) {
         localStorage.setItem("app_build", String(currentAppVersion.build));
         localStorage.setItem("app_version", currentAppVersion.version);
-        return;
       }
 
-      const localBuild = parseInt(localBuildStr, 10);
+      const effectiveLocalVersion = localVersionStr || currentAppVersion.version;
+      const effectiveLocalBuildStr = localBuildStr || String(currentAppVersion.build);
 
-      // Si el build remoto es mayor o la versión cambió
-      if (remote.build > localBuild || (remote.version !== localVersionStr && remote.build >= localBuild)) {
+      const remoteBuildNum = parseBuildValue(remote.build);
+      const localBuildNum = parseBuildValue(effectiveLocalBuildStr);
+
+      const hasNewerVersion =
+        remote.version !== effectiveLocalVersion ||
+        String(remote.build) !== effectiveLocalBuildStr ||
+        remoteBuildNum > localBuildNum;
+
+      if (hasNewerVersion) {
         setUpdateInfo(remote);
         setShowToast(true);
         // Iniciar cuenta regresiva para actualización suave
-        setCountdown(6);
+        setCountdown(5);
       } else if (isManual) {
-        alert(`¡La app ya está al día con la última versión (${currentAppVersion.version})!`);
+        alert(`¡La app ya está al día con la última versión (v${remote.version})!`);
       }
     } catch (err) {
       console.warn("No se pudo verificar actualización de versión:", err);
@@ -112,6 +130,16 @@ export function AppUpdateChecker() {
         localStorage.setItem("app_version", updateInfo.version);
       }
 
+      // Limpiar cachés de datos en localStorage para hidratar todo fresco
+      localStorage.removeItem("gastoshogar_cached_dashboard_v2");
+      localStorage.removeItem("gastoshogar_months_cache");
+
+      // Desregistrar Service Workers antiguos si existen
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((reg) => reg.unregister()));
+      }
+
       // Vaciar cachés del navegador / Service Worker si existen
       if ("caches" in window) {
         const cacheNames = await window.caches.keys();
@@ -121,7 +149,7 @@ export function AppUpdateChecker() {
       // Recargar con cache-busting para que el navegador descargue el nuevo código
       const cleanUrl = new URL(window.location.href);
       cleanUrl.searchParams.set("_v", String(updateInfo?.build || Date.now()));
-      window.location.href = cleanUrl.toString();
+      window.location.replace(cleanUrl.toString());
     } catch (err) {
       console.error("Error al actualizar la app:", err);
       window.location.reload();
@@ -211,25 +239,62 @@ export async function forceCheckAppUpdate() {
   try {
     const res = await fetch(`/api/version?_t=${Date.now()}`, {
       cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+      },
     });
     if (!res.ok) return false;
     const remote: VersionInfo = await res.json();
     const localBuildStr = localStorage.getItem("app_build");
-    const localBuild = localBuildStr ? parseInt(localBuildStr, 10) : 0;
+    const localVersionStr = localStorage.getItem("app_version");
 
-    if (remote.build > localBuild) {
-      if (confirm(`Hay una nueva versión disponible (v${remote.version}). ¿Deseás actualizar ahora?`)) {
-        localStorage.setItem("app_build", String(remote.build));
-        localStorage.setItem("app_version", remote.version);
+    const remoteBuildNum = parseBuildValue(remote.build);
+    const localBuildNum = parseBuildValue(localBuildStr);
+
+    const hasNewer =
+      remote.version !== localVersionStr ||
+      String(remote.build) !== String(localBuildStr) ||
+      remoteBuildNum > localBuildNum;
+
+    if (hasNewer) {
+      localStorage.setItem("app_build", String(remote.build));
+      localStorage.setItem("app_version", remote.version);
+      localStorage.removeItem("gastoshogar_cached_dashboard_v2");
+      localStorage.removeItem("gastoshogar_months_cache");
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((reg) => reg.unregister()));
+      }
+      if ("caches" in window) {
+        const cacheNames = await window.caches.keys();
+        await Promise.all(cacheNames.map((name) => window.caches.delete(name)));
+      }
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.set("_v", String(remote.build || Date.now()));
+      window.location.replace(cleanUrl.toString());
+      return true;
+    } else {
+      if (
+        confirm(
+          `La app figura en la versión v${remote.version}. ¿Querés forzar una recarga limpia de caché de todos modos?`
+        )
+      ) {
+        localStorage.removeItem("gastoshogar_cached_dashboard_v2");
+        localStorage.removeItem("gastoshogar_months_cache");
+        if ("serviceWorker" in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map((reg) => reg.unregister()));
+        }
         if ("caches" in window) {
           const cacheNames = await window.caches.keys();
           await Promise.all(cacheNames.map((name) => window.caches.delete(name)));
         }
-        window.location.reload();
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.set("_v", String(Date.now()));
+        window.location.replace(cleanUrl.toString());
+        return true;
       }
-      return true;
-    } else {
-      alert(`La app está al día en la versión v${remote.version}.`);
       return false;
     }
   } catch (err) {

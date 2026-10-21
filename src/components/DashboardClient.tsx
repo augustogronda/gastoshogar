@@ -49,11 +49,14 @@ import { MonthPickerModal } from "./MonthPickerModal";
 import { appConfig } from "@/config/appConfig";
 import {
   getDashboardData,
+  addExpenseAction,
   deleteExpenseAction,
   closeMonthAction,
   reopenMonthAction,
   logoutAction,
+  duplicateSharedToPersonalExpenseAction,
 } from "@/app/actions";
+import { hasReviewFlag } from "@/lib/expense-review";
 
 interface ExpenseItem {
   id: string;
@@ -171,7 +174,23 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
   // 2. Sincronizar datos si initialData se actualiza desde el servidor y persistir en el dispositivo
   useEffect(() => {
-    setDashboardData(initialData);
+    setDashboardData((prev) => {
+      // Preservar gastos temporales que aún estén en proceso de conciliación
+      const pendingExpenses = (prev?.period?.expenses || []).filter((e) => e.id.startsWith("temp-"));
+      if (pendingExpenses.length === 0) {
+        return initialData;
+      }
+      return {
+        ...initialData,
+        period: {
+          ...initialData.period,
+          expenses: [
+            ...pendingExpenses,
+            ...initialData.period.expenses.filter((e) => !pendingExpenses.some((p) => p.id === e.id)),
+          ],
+        },
+      };
+    });
     if (initialData?.currentUser) {
       const key = `${initialData.currentYear}-${initialData.currentMonth}`;
       dataCacheRef.current.set(key, initialData);
@@ -473,6 +492,23 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     });
   };
 
+  const handleQuickDuplicateToPersonal = async (expenseId: string) => {
+    try {
+      await duplicateSharedToPersonalExpenseAction({
+        expenseId,
+        targetUserId: currentUser?.id,
+      });
+      showToast("Duplicado a tus gastos personales (40%)", "success");
+      router.refresh();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Error al duplicar a personal", "error");
+    }
+  };
+
+  const pendingPersonalReviewCount = Array.isArray(personalData?.expenses)
+    ? personalData.expenses.filter((e: any) => hasReviewFlag(e?.notes)).length
+    : 0;
+
   const handleCloseMonth = async () => {
     setIsProcessingClose(true);
     try {
@@ -547,6 +583,119 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       } finally {
         setIsProcessingClose(false);
       }
+    }
+  };
+
+  const handleAddHogarExpense = async (data: {
+    title: string;
+    amount: number;
+    paidById: string;
+    categoryId: string;
+    periodId: string;
+    isFromPoolFund?: boolean;
+    date?: string;
+  }) => {
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const previousData = dashboardData;
+
+    const payer = users.find((u) => u.id === data.paidById) || {
+      id: data.paidById,
+      name: "Usuario",
+      avatarColor: "blue",
+    };
+    const category = categories.find((c) => c.id === data.categoryId) || {
+      id: data.categoryId,
+      name: "General",
+      icon: "Receipt",
+      color: "zinc",
+    };
+
+    const optimisticExpense: ExpenseItem = {
+      id: tempId,
+      title: data.title,
+      amount: data.amount,
+      date: data.date || new Date().toISOString(),
+      paidBy: { id: payer.id, name: payer.name },
+      category: {
+        id: category.id,
+        name: category.name,
+        icon: category.icon,
+        color: category.color,
+      },
+      isFromPoolFund: data.isFromPoolFund ?? false,
+    };
+
+    // 1. IMPACTO INMEDIATO EN CACHÉ Y ESTADO LOCAL (0ms de latencia)
+    const newTotalExpenses = dashboardData.poolSummary.totalExpenses + data.amount;
+    const newRemainingPool = Math.max(0, dashboardData.poolSummary.remainingPool - data.amount);
+    const totalCommittedOrSpent = newTotalExpenses + (dashboardData.poolSummary.investedInFCI || 0);
+    const newBurnRate =
+      dashboardData.poolSummary.totalAvailablePool > 0
+        ? (totalCommittedOrSpent / dashboardData.poolSummary.totalAvailablePool) * 100
+        : 0;
+
+    const updatedMemberBalances = dashboardData.poolSummary.memberBalances.map((mb) => {
+      if (mb.userId === data.paidById && !data.isFromPoolFund) {
+        const newOutOfPocket = mb.outOfPocketPaid + data.amount;
+        return {
+          ...mb,
+          outOfPocketPaid: newOutOfPocket,
+          netBalance: newOutOfPocket - mb.committedAmount,
+        };
+      }
+      return mb;
+    });
+
+    const optimisticData = {
+      ...dashboardData,
+      period: {
+        ...dashboardData.period,
+        expenses: [optimisticExpense, ...dashboardData.period.expenses],
+      },
+      poolSummary: {
+        ...dashboardData.poolSummary,
+        totalExpenses: newTotalExpenses,
+        remainingPool: newRemainingPool,
+        burnRatePct: newBurnRate,
+        memberBalances: updatedMemberBalances,
+      },
+    };
+
+    setDashboardData(optimisticData);
+    const cacheKey = `${currentYear}-${currentMonth}`;
+    dataCacheRef.current.set(cacheKey, optimisticData);
+    showToast(`✓ Gasto de $${Math.round(data.amount).toLocaleString("es-AR")} agregado`, "success");
+
+    // 2. Conciliación en segundo plano con la base de datos
+    try {
+      const res = await addExpenseAction(data);
+      if (res?.expense) {
+        setDashboardData((curr) => {
+          const updatedExpenses = curr.period.expenses.map((exp) =>
+            exp.id === tempId
+              ? {
+                  ...exp,
+                  id: res.expense.id,
+                  date: res.expense.date ? new Date(res.expense.date).toISOString() : exp.date,
+                }
+              : exp
+          );
+          const reconciledData = {
+            ...curr,
+            period: {
+              ...curr.period,
+              expenses: updatedExpenses,
+            },
+          };
+          dataCacheRef.current.set(cacheKey, reconciledData);
+          return reconciledData;
+        });
+      }
+    } catch (err: unknown) {
+      console.error("Error al guardar gasto en base de datos:", err);
+      setDashboardData(previousData);
+      dataCacheRef.current.set(cacheKey, previousData);
+      showToast(err instanceof Error ? err.message : "Error al guardar el gasto en la base de datos", "error");
     }
   };
 
@@ -731,15 +880,21 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           )}
         </header>
 
-        {/* TOGGLE PRINCIPAL: HOGAR vs PERSONAL */}
-        <div className="flex bg-zinc-900/90 p-1 rounded-2xl border border-white/[0.08] shadow-inner">
+        {/* TOGGLE PRINCIPAL: HOGAR vs PERSONAL (Apple HIG Segmented Control) */}
+        <div
+          role="tablist"
+          aria-label="Espacio de gastos"
+          className="flex apple-segmented-track p-1 rounded-[14px] gap-1"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={spaceMode === "hogar"}
             onClick={() => setSpaceMode("hogar")}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition duration-200 flex items-center justify-center gap-1.5 ${
+            className={`flex-1 min-h-[38px] py-2 px-3 rounded-[10px] text-[13px] tracking-[-0.01em] font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-[0.98] ${
               spaceMode === "hogar"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                : "text-zinc-400 hover:text-white"
+                ? "apple-segment-active-hogar"
+                : "text-zinc-300 hover:text-white hover:bg-white/[0.04]"
             }`}
           >
             <Home className="w-3.5 h-3.5" />
@@ -747,15 +902,32 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={spaceMode === "personal"}
             onClick={() => setSpaceMode("personal")}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition duration-200 flex items-center justify-center gap-1.5 ${
+            className={`flex-1 min-h-[38px] py-2 px-3 rounded-[10px] text-[13px] tracking-[-0.01em] font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-[0.98] ${
               spaceMode === "personal"
-                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                : "text-zinc-400 hover:text-white"
+                ? "apple-segment-active-personal"
+                : "text-zinc-300 hover:text-white hover:bg-white/[0.04]"
             }`}
           >
             <User className="w-3.5 h-3.5" />
             <span>Personal ({currentUser.name})</span>
+            {pendingPersonalReviewCount > 0 && (
+              <span
+                className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold border flex items-center gap-1 ${
+                  spaceMode === "personal"
+                    ? "bg-[#FF9F0A] text-zinc-950 border-amber-300 shadow-sm"
+                    : "bg-[#FF9F0A]/20 text-amber-300 border-[#FF9F0A]/40"
+                }`}
+                title={`${pendingPersonalReviewCount} gasto(s) de tarjeta pendientes de revisar`}
+              >
+                {spaceMode !== "personal" && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#FF9F0A] animate-ping" />
+                )}
+                {pendingPersonalReviewCount}
+              </span>
+            )}
           </button>
         </div>
 
@@ -1157,11 +1329,16 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                             const dateObj = new Date(exp.date);
                             const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
                             const isAgus = exp.paidBy.id === users[0]?.id;
+                            const isPendingSync = exp.id.startsWith("temp-");
 
                             return (
                               <div
                                 key={exp.id}
                                 onClick={() => {
+                                  if (isPendingSync) {
+                                    showToast("Sincronizando gasto con la base de datos...", "info");
+                                    return;
+                                  }
                                   setSelectedExpense({
                                     id: exp.id,
                                     title: exp.title,
@@ -1205,6 +1382,12 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                                       >
                                         Pagó {exp.paidBy.name}
                                       </span>
+                                      {isPendingSync && (
+                                        <span className="text-[10px] text-amber-300 font-medium animate-pulse flex items-center gap-1 ml-1">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-ping" />
+                                          Sincronizando...
+                                        </span>
+                                      )}
                                     </div>
                                     {exp.notes && (
                                       <p className="text-[11px] text-zinc-400 italic mt-1 line-clamp-1 flex items-center gap-1">
@@ -1215,17 +1398,36 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-3">
-                                  <span className="text-base font-bold text-white font-mono tabular-nums">
+                                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                  <span className="text-base font-bold text-white font-mono tabular-nums tracking-[-0.02em] mr-0.5">
                                     ${Math.round(exp.amount).toLocaleString("es-AR")}
                                   </span>
+                                  {!isPendingSync && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleQuickDuplicateToPersonal(exp.id);
+                                      }}
+                                      aria-label={`Duplicar ${exp.title} a gastos personales`}
+                                      className="w-8.5 h-8.5 flex items-center justify-center rounded-xl text-zinc-400 hover:text-indigo-300 hover:bg-indigo-500/15 border border-transparent hover:border-indigo-400/25 active:scale-90 transition-all duration-200"
+                                      title="Duplicar a mis Gastos Personales (40%)"
+                                    >
+                                      <User className="w-4 h-4" />
+                                    </button>
+                                  )}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      if (isPendingSync) {
+                                        showToast("Aguardá a que finalice la sincronización para eliminarlo", "info");
+                                        return;
+                                      }
                                       handleDeleteExpense(exp.id, exp.title);
                                     }}
                                     disabled={deletingId === exp.id}
-                                    className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 active:scale-90 transition"
+                                    aria-label={`Eliminar gasto ${exp.title}`}
+                                    className="w-8.5 h-8.5 flex items-center justify-center rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-all duration-200"
                                     title="Eliminar gasto"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -1366,8 +1568,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     )}
   </main>
 
-      {/* Barra de Navegación Inferior Unificada (Ergonómica para pulgar en Hogar y Personal) */}
+      {/* Barra de Navegación Inferior Unificada (Apple HIG Liquid Glass Tab Bar) */}
       <nav
+        aria-label="Navegación principal"
         className="super-nav fixed bottom-0 left-0 right-0 z-30"
         style={{ paddingBottom: "max(6px, env(safe-area-inset-bottom, 0px))" }}
       >
@@ -1394,14 +1597,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 justifyContent: "center",
                 height: "100%",
               }}
-              className={`transition duration-150 active:scale-95 ${
+              className={`transition-all duration-200 active:scale-95 ${
                 activeTab === "hogar"
-                  ? "text-blue-400 font-semibold"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-[#0A84FF] font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <Wallet className="w-5 h-5 mb-1 stroke-[1.8]" />
-              <span className="text-[10px] tracking-wider uppercase leading-none font-medium">
+              <Wallet className={`w-5 h-5 mb-1 ${activeTab === "hogar" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
                 Gastos
               </span>
             </button>
@@ -1418,14 +1621,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 justifyContent: "center",
                 height: "100%",
               }}
-              className={`transition duration-150 active:scale-95 ${
+              className={`transition-all duration-200 active:scale-95 ${
                 activeTab === "analisis"
-                  ? "text-purple-400 font-semibold"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-[#0A84FF] font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <BarChart3 className="w-5 h-5 mb-1 stroke-[1.8]" />
-              <span className="text-[10px] tracking-wider uppercase leading-none font-medium">
+              <BarChart3 className={`w-5 h-5 mb-1 ${activeTab === "analisis" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
                 Análisis
               </span>
             </button>
@@ -1442,14 +1645,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 justifyContent: "center",
                 height: "100%",
               }}
-              className={`transition duration-150 active:scale-95 ${
+              className={`transition-all duration-200 active:scale-95 ${
                 activeTab === "cuotas"
-                  ? "text-indigo-400 font-semibold"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-[#0A84FF] font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <Repeat className="w-5 h-5 mb-1 stroke-[1.8]" />
-              <span className="text-[10px] tracking-wider uppercase leading-none font-medium">
+              <Repeat className={`w-5 h-5 mb-1 ${activeTab === "cuotas" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
                 Cuotas
               </span>
             </button>
@@ -1466,14 +1669,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 justifyContent: "center",
                 height: "100%",
               }}
-              className={`transition duration-150 active:scale-95 ${
+              className={`transition-all duration-200 active:scale-95 ${
                 activeTab === "fci"
-                  ? "text-emerald-400 font-semibold"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-[#0A84FF] font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <PiggyBank className="w-5 h-5 mb-1 stroke-[1.8]" />
-              <span className="text-[10px] tracking-wider uppercase leading-none font-medium">
+              <PiggyBank className={`w-5 h-5 mb-1 ${activeTab === "fci" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
                 FCI
               </span>
             </button>
@@ -1501,14 +1704,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 justifyContent: "center",
                 height: "100%",
               }}
-              className={`transition duration-150 active:scale-95 ${
+              className={`transition-all duration-200 active:scale-95 ${
                 personalTab === "gastos"
-                  ? "text-indigo-400 font-semibold"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-[#7D7AFF] font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <Wallet className="w-5 h-5 mb-1 stroke-[1.8]" />
-              <span className="text-[10px] tracking-wider uppercase leading-none font-medium">
+              <Wallet className={`w-5 h-5 mb-1 ${personalTab === "gastos" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
                 Gastos
               </span>
             </button>
@@ -1525,14 +1728,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 justifyContent: "center",
                 height: "100%",
               }}
-              className={`transition duration-150 active:scale-95 ${
+              className={`transition-all duration-200 active:scale-95 ${
                 personalTab === "analisis"
-                  ? "text-purple-400 font-semibold"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-[#7D7AFF] font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <BarChart3 className="w-5 h-5 mb-1 stroke-[1.8]" />
-              <span className="text-[10px] tracking-wider uppercase leading-none font-medium">
+              <BarChart3 className={`w-5 h-5 mb-1 ${personalTab === "analisis" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
                 Análisis
               </span>
             </button>
@@ -1549,14 +1752,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 justifyContent: "center",
                 height: "100%",
               }}
-              className={`transition duration-150 active:scale-95 ${
+              className={`transition-all duration-200 active:scale-95 ${
                 personalTab === "cuotas"
-                  ? "text-indigo-300 font-semibold"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-[#7D7AFF] font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <Repeat className="w-5 h-5 mb-1 stroke-[1.8]" />
-              <span className="text-[10px] tracking-wider uppercase leading-none font-medium">
+              <Repeat className={`w-5 h-5 mb-1 ${personalTab === "cuotas" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
                 Cuotas
               </span>
             </button>
@@ -1573,14 +1776,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 justifyContent: "center",
                 height: "100%",
               }}
-              className={`transition duration-150 active:scale-95 ${
+              className={`transition-all duration-200 active:scale-95 ${
                 personalTab === "tarjetas"
-                  ? "text-pink-400 font-semibold"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-[#7D7AFF] font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <CreditCard className="w-5 h-5 mb-1 stroke-[1.8]" />
-              <span className="text-[10px] tracking-wider uppercase leading-none font-medium">
+              <CreditCard className={`w-5 h-5 mb-1 ${personalTab === "tarjetas" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
                 Tarjetas
               </span>
             </button>
@@ -1597,14 +1800,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 justifyContent: "center",
                 height: "100%",
               }}
-              className={`transition duration-150 active:scale-95 ${
+              className={`transition-all duration-200 active:scale-95 ${
                 personalTab === "inversiones"
-                  ? "text-emerald-400 font-semibold"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-[#7D7AFF] font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <TrendingUp className="w-5 h-5 mb-1 stroke-[1.8]" />
-              <span className="text-[10px] tracking-wider uppercase leading-none font-medium">
+              <TrendingUp className={`w-5 h-5 mb-1 ${personalTab === "inversiones" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
                 Inversión
               </span>
             </button>
@@ -1620,6 +1823,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         users={users}
         categories={categories}
         defaultPayerId={currentUser.id}
+        onAddExpense={handleAddHogarExpense}
       />
 
       <SalaryConfigModal
