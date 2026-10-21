@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { CategoryIcon, X, Check, User, Plus } from "./ui/icons";
 import { addExpenseAction } from "@/app/actions";
 import { CategoryManagerModal } from "./CategoryManagerModal";
+import { useSheetGesture } from "@/lib/use-sheet-gesture";
 
 interface Category {
   id: string;
@@ -55,6 +56,16 @@ export function QuickExpenseModal({
     categories[0]?.id || ""
   );
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  const {
+    scrollContainerRef,
+    toggleDetent,
+    sheetStyle,
+    handleHeaderTouchStart,
+    handleBodyTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useSheetGesture({ onClose });
 
   if (!isOpen) return null;
 
@@ -117,157 +128,185 @@ export function QuickExpenseModal({
       role="dialog"
       aria-modal="true"
       aria-label="Nuevo Gasto Compartido"
+      onClick={onClose}
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-md animate-fade-in"
     >
-      <div className="w-full max-w-md apple-glass-sheet rounded-t-[32px] p-5 pb-safe shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto no-scrollbar">
-        {/* Cabecera del Sheet */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08] relative">
-          <div className="w-10 h-1 bg-white/25 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-1" />
-          <div className="pt-2">
-            <h2 className="text-base font-bold text-white tracking-tight">Nuevo Gasto</h2>
-            <p className="text-[11px] text-blue-300/90 font-medium">Fondo Compartido Hogar (60%)</p>
-          </div>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={sheetStyle}
+        className="w-full max-w-md apple-glass-sheet rounded-t-[32px] pt-2 px-5 pb-safe shadow-2xl flex flex-col overflow-hidden"
+      >
+        {/* Cabecera del Sheet con Grabber iOS (Arrastrar para cerrar o tocar para cambiar tamaño) */}
+        <div
+          onTouchStart={handleHeaderTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className="pb-3 border-b border-white/[0.08] shrink-0 select-none touch-none cursor-grab active:cursor-grabbing"
+        >
           <button
             type="button"
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
+            onClick={toggleDetent}
+            aria-label="Cambiar tamaño de pestaña"
+            className="w-full py-1.5 flex justify-center focus:outline-none"
           >
-            <X className="w-4 h-4" />
+            <span className="w-11 h-1.5 bg-white/30 hover:bg-white/50 rounded-full transition-colors" />
+          </button>
+          <div className="flex items-center justify-between pt-0.5">
+            <div>
+              <h2 className="text-base font-bold text-white tracking-tight">Nuevo Gasto</h2>
+              <p className="text-[11px] text-blue-300/90 font-medium">Fondo Compartido Hogar (60%)</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-white bg-white/[0.06] hover:bg-white/[0.12] active:scale-95 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Cuerpo Scrollable Fluido con soporte de swipe-down al estar en el tope */}
+        <div
+          ref={scrollContainerRef}
+          onTouchStart={handleBodyTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className="flex-1 overflow-y-auto overscroll-contain touch-pan-y no-scrollbar pt-2 pb-1"
+        >
+          {/* Display del Monto (Suizo Fintech / Monospace Tabular) */}
+          <div className="py-3.5 text-center">
+            <span className="text-zinc-400 text-2xl font-light mr-1">$</span>
+            <span className="text-4xl font-extrabold tracking-tight text-white font-mono tabular-nums">
+              {formattedAmount}
+            </span>
+          </div>
+
+          {/* Descripción rápida con placeholder centrado y alto contraste */}
+          <div className="mb-3">
+            <input
+              type="text"
+              placeholder="¿Qué compraron? (ej. Coto, Nafta, Delivery)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              className="w-full bg-white/[0.06] border border-white/[0.14] rounded-2xl px-4 py-2.5 text-white text-center placeholder:text-center placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400 transition text-sm font-medium shadow-inner"
+            />
+          </div>
+
+          {/* Selector de Pagador (Agus | Pareja) */}
+          <div className="mb-3">
+            <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-1.5">
+              ¿QUIÉN PAGÓ DE SU BOLSILLO?
+            </label>
+            <div className="grid grid-cols-2 gap-2.5">
+              {users.slice(0, 2).map((u, idx) => {
+                const isSelected = selectedPayerId === u.id;
+                const isFirst = idx === 0;
+
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => setSelectedPayerId(u.id)}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl border text-sm font-semibold transition active:scale-[0.97] ${
+                      isSelected
+                        ? isFirst
+                          ? "bg-blue-600/30 border-blue-400 text-blue-200 shadow-md ring-1 ring-blue-400/60"
+                          : "bg-rose-600/30 border-rose-400 text-rose-200 shadow-md ring-1 ring-rose-400/60"
+                        : "bg-white/[0.04] border-white/[0.08] text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    <User className="w-4 h-4" />
+                    <span className="truncate">{u.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Selector de Categorías (Chips con Scroll Horizontal y botón + Nueva) */}
+          <div className="mb-3.5">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
+                CATEGORÍA
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 active:scale-95 transition"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Gestionar</span>
+              </button>
+            </div>
+            <div className="flex gap-2 overflow-x-auto touch-pan-x no-scrollbar py-1">
+              {/* Botón rápido "+ Nueva" al frente */}
+              <button
+                type="button"
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border border-dashed border-white/20 bg-white/[0.03] text-zinc-300 hover:text-white hover:border-white/40 active:scale-95 transition shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5 text-blue-400" />
+                <span>+ Nueva</span>
+              </button>
+
+              {categories.map((cat) => {
+                const isSelected = selectedCategoryId === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setSelectedCategoryId(cat.id)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition active:scale-95 shrink-0 ${
+                      isSelected
+                        ? "bg-white text-zinc-950 border-white shadow-md font-bold"
+                        : "bg-white/[0.05] text-zinc-200 border-white/[0.1] hover:bg-white/[0.1] hover:text-white"
+                    }`}
+                  >
+                    <CategoryIcon name={cat.name} icon={cat.icon} className="w-3.5 h-3.5" />
+                    <span>{cat.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Teclado Numérico Táctil Ergonómico SuperDesign */}
+          <div className="grid grid-cols-3 gap-2 mb-3.5">
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "C"].map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  if (key === "C") handleBackspace();
+                  else if (key === "00") handleNumClick("00");
+                  else handleNumClick(key);
+                }}
+                className="h-12 bg-white/[0.06] hover:bg-white/[0.12] active:bg-white/[0.18] rounded-2xl text-xl font-bold text-white transition active:scale-95 flex items-center justify-center border border-white/[0.1] shadow-sm font-mono"
+              >
+                {key === "C" ? "⌫" : key}
+              </button>
+            ))}
+          </div>
+
+          {/* Botón de Confirmación Grande */}
+          <button
+            type="button"
+            disabled={displayAmount === "0"}
+            onClick={() => handleSubmit()}
+            className="w-full py-3.5 rounded-2xl apple-segment-active-hogar hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-base shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-blue-400/20"
+          >
+            <Check className="w-5 h-5" />
+            <span>Guardar Gasto (${formattedAmount})</span>
           </button>
         </div>
-
-        {/* Display del Monto (Suizo Fintech / Monospace Tabular) */}
-        <div className="py-5 text-center">
-          <span className="text-zinc-400 text-2xl font-light mr-1">$</span>
-          <span className="text-4xl font-extrabold tracking-tight text-white font-mono tabular-nums">
-            {formattedAmount}
-          </span>
-        </div>
-
-        {/* Descripción rápida con placeholder centrado y alto contraste */}
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="¿Qué compraron? (ej. Coto, Nafta, Delivery)"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-            className="w-full bg-white/[0.06] border border-white/[0.14] rounded-2xl px-4 py-3 text-white text-center placeholder:text-center placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400 transition text-sm font-medium shadow-inner"
-          />
-        </div>
-
-        {/* Selector de Pagador (Agus | Pareja) */}
-        <div className="mb-4">
-          <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-2">
-            ¿QUIÉN PAGÓ DE SU BOLSILLO?
-          </label>
-          <div className="grid grid-cols-2 gap-2.5">
-            {users.slice(0, 2).map((u, idx) => {
-              const isSelected = selectedPayerId === u.id;
-              const isFirst = idx === 0;
-
-              return (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => setSelectedPayerId(u.id)}
-                  className={`flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border text-sm font-semibold transition active:scale-[0.97] ${
-                    isSelected
-                      ? isFirst
-                        ? "bg-blue-600/30 border-blue-400 text-blue-200 shadow-md ring-1 ring-blue-400/60"
-                        : "bg-rose-600/30 border-rose-400 text-rose-200 shadow-md ring-1 ring-rose-400/60"
-                      : "bg-white/[0.04] border-white/[0.08] text-zinc-300 hover:text-white hover:bg-white/[0.08]"
-                  }`}
-                >
-                  <User className="w-4 h-4" />
-                  <span className="truncate">{u.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Selector de Categorías (Chips con Scroll Horizontal y botón + Nueva) */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
-              CATEGORÍA
-            </label>
-            <button
-              type="button"
-              onClick={() => setIsCategoryModalOpen(true)}
-              className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 active:scale-95 transition"
-            >
-              <Plus className="w-3 h-3" />
-              <span>Gestionar</span>
-            </button>
-          </div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-            {/* Botón rápido "+ Nueva" al frente */}
-            <button
-              type="button"
-              onClick={() => setIsCategoryModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border border-dashed border-white/20 bg-white/[0.03] text-zinc-300 hover:text-white hover:border-white/40 active:scale-95 transition shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5 text-blue-400" />
-              <span>+ Nueva</span>
-            </button>
-
-            {categories.map((cat) => {
-              const isSelected = selectedCategoryId === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setSelectedCategoryId(cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition active:scale-95 shrink-0 ${
-                    isSelected
-                      ? "bg-white text-zinc-950 border-white shadow-md font-bold"
-                      : "bg-white/[0.05] text-zinc-200 border-white/[0.1] hover:bg-white/[0.1] hover:text-white"
-                  }`}
-                >
-                  <CategoryIcon name={cat.name} icon={cat.icon} className="w-3.5 h-3.5" />
-                  <span>{cat.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Teclado Numérico Táctil Ergonómico SuperDesign */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "C"].map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                if (key === "C") handleBackspace();
-                else if (key === "00") handleNumClick("00");
-                else handleNumClick(key);
-              }}
-              className="h-13 bg-white/[0.06] hover:bg-white/[0.12] active:bg-white/[0.18] rounded-2xl text-xl font-bold text-white transition active:scale-95 flex items-center justify-center border border-white/[0.1] shadow-sm font-mono"
-            >
-              {key === "C" ? "⌫" : key}
-            </button>
-          ))}
-        </div>
-
-        {/* Botón de Confirmación Grande */}
-        <button
-          type="button"
-          disabled={displayAmount === "0"}
-          onClick={() => handleSubmit()}
-          className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-base shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-blue-400/20"
-        >
-          <Check className="w-5 h-5" />
-          <span>Guardar Gasto (${formattedAmount})</span>
-        </button>
       </div>
 
       {/* Modal de Gestión de Categorías */}

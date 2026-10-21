@@ -1,7 +1,7 @@
 {
-  "version": "1.15.3",
-  "build": 2026102105,
-  "releasedAt": "2026-10-21T18:17:00Z",
-  "title": "Fix Botón Flotante en Personal + Modal Unificado",
-  "description": "Corrección de posicionamiento fixed del botón flotante (+ Nuevo Gasto) en la vista Personal y modal con teclado numérico táctil."
+  "version": "1.15.4",
+  "build": 2026102106,
+  "releasedAt": "2026-10-21T18:22:00Z",
+  "title": "Gestos de Sheet iOS (Deslizar para cerrar y Detents)",
+  "description": "Soporte nativo para arrastrar hacia abajo para cerrar, tocar la barra superior para cambiar el tamaño de la pestaña y scroll táctil fluido."
 }
