@@ -22,6 +22,7 @@ import {
   Search,
   AlertCircle,
   Users,
+  ChevronRight,
 } from "./ui/icons";
 import { ConfirmDialog, ToastBanner, useToast } from "./ui/ConfirmDialog";
 import { PersonalIncomeModal } from "./PersonalIncomeModal";
@@ -465,9 +466,9 @@ export function PersonalDashboardView({
       {/* PESTAÑA 1: GASTOS PERSONALES */}
       {personalTab === "gastos" && (
         <div className="space-y-4">
-          {/* Tarjeta Principal Personal (Obsidian Glass) */}
+          {/* Tarjeta Principal Personal Unificada (Apple Card Summary Style) */}
           <section className="super-card rounded-3xl p-5 relative overflow-hidden">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3.5">
               <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Wallet className="w-3.5 h-3.5 text-indigo-400" />
                 Presupuesto Personal (40% + Extras)
@@ -484,17 +485,29 @@ export function PersonalDashboardView({
               </div>
             </div>
 
-            <div className="flex items-baseline justify-between mb-2">
+            {/* Métricas principales unificadas: Gastado + Remanente Libre */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">Gastado:</span>
-                <span className="text-3xl font-extrabold text-white tracking-tight font-mono tabular-nums">
+                <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">
+                  Gastado del Mes
+                </span>
+                <span className="text-[28px] leading-tight font-extrabold text-white tracking-[-0.03em] font-mono tabular-nums block">
                   ${Math.round(totalPersonalExpenses).toLocaleString("es-AR")}
                 </span>
               </div>
-              <div className="text-right">
-                <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">Total Disponible:</span>
-                <span className="text-base font-bold text-zinc-100 font-mono tabular-nums">
-                  ${Math.round(totalPersonalAvailable).toLocaleString("es-AR")}
+              <div className="text-right bg-indigo-500/[0.08] border border-indigo-400/20 rounded-2xl px-3.5 py-2 flex flex-col justify-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 block mb-0.5">
+                  Remanente Libre
+                </span>
+                <span
+                  className={`text-lg leading-tight font-extrabold font-mono tabular-nums tracking-[-0.02em] ${
+                    remainingPersonalPool < 0 ? "text-rose-400" : "text-white"
+                  }`}
+                >
+                  ${Math.round(remainingPersonalPool).toLocaleString("es-AR")}
+                </span>
+                <span className="text-[10px] text-zinc-400 font-mono tabular-nums mt-0.5">
+                  de ${Math.round(totalPersonalAvailable).toLocaleString("es-AR")} disp.
                 </span>
               </div>
             </div>
@@ -517,15 +530,15 @@ export function PersonalDashboardView({
             </div>
 
             {/* Barra de Progreso SuperDesign */}
-            <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden mb-4 p-0.5 border border-white/[0.08]">
+            <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden mb-3.5 p-0.5 border border-white/[0.08]">
               <div
                 className={`h-full transition-all duration-500 rounded-full ${burnColor}`}
                 style={{ width: `${Math.min(100, personalBurnRatePct)}%` }}
               />
             </div>
 
-            {/* Acciones de la Tarjeta */}
-            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/[0.06]">
+            {/* Acciones Secundarias de la Tarjeta */}
+            <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-white/[0.06]">
               <button
                 onClick={() => setIsIncomeModalOpen(true)}
                 className="py-2 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-xs font-semibold text-zinc-200 flex items-center justify-center gap-1.5 transition active:scale-95 border border-white/[0.08]"
@@ -555,30 +568,6 @@ export function PersonalDashboardView({
             </div>
           </section>
 
-          {/* Banner Remanente Personal */}
-          <div className="super-card rounded-2xl p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center">
-                <Wallet className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
-                  Remanente Personal Libre
-                </span>
-                <span className="text-lg font-bold text-white font-mono tabular-nums">
-                  ${Math.round(remainingPersonalPool).toLocaleString("es-AR")}
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsExpenseModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-md active:scale-95 transition flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Gasto</span>
-            </button>
-          </div>
-
           {/* Consejo Inteligente de Compras Hoy (Acceso Rápido desde Gastos) */}
           {cardsData?.cards && cardsData.cards.length > 0 && (
             <CardShoppingAdvisorBanner
@@ -588,39 +577,44 @@ export function PersonalDashboardView({
             />
           )}
 
-          {/* Lista de Gastos Personales con Buscador y Filtro por Categoría */}
+          {/* Lista de Gastos Personales con Buscador estilo iOS y Filtro por Categoría */}
           <section className="space-y-2.5">
             <div className="flex items-center justify-between px-1">
-              <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-                Gastos Personales de {monthName} ({localExpenses.length})
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-[15px] font-semibold text-white tracking-[-0.015em]">
+                  Gastos de {monthName}
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-white/[0.07] border border-white/[0.08] text-[11px] font-semibold text-zinc-300 tabular-nums">
+                  {localExpenses.length}
+                </span>
+              </div>
               <button
                 onClick={() => setIsCategoryModalOpen(true)}
-                className="text-xs font-semibold text-zinc-400 hover:text-zinc-200 active:scale-95 flex items-center gap-1 transition"
+                className="text-xs font-semibold text-indigo-300/90 hover:text-indigo-200 active:scale-95 flex items-center gap-1 transition"
                 title="Gestionar categorías"
               >
-                <Tag className="w-3.5 h-3.5 text-zinc-500" />
+                <Tag className="w-3.5 h-3.5 text-indigo-400/80" />
                 <span>Categorías</span>
               </button>
             </div>
 
-            {/* Buscador instantáneo + Chips de Categoría */}
+            {/* Buscador instantáneo UISearchTextField + Chips de Categoría */}
             {localExpenses.length > 0 && (
               <div className="space-y-2">
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={personalSearchQuery}
                     onChange={(e) => setPersonalSearchQuery(e.target.value)}
-                    placeholder="Buscar gasto por nombre, categoría o nota..."
-                    className="w-full bg-zinc-900/90 border border-white/[0.08] rounded-2xl py-2 pl-9 pr-8 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 transition"
+                    placeholder="Buscar por comercio, categoría o nota..."
+                    className="w-full bg-[rgba(118,118,128,0.24)] border border-white/[0.07] rounded-xl py-2 pl-9 pr-8 text-[13px] text-white placeholder:text-zinc-400 focus:outline-none focus:bg-[rgba(118,118,128,0.32)] focus:border-indigo-400/50 transition"
                   />
                   {personalSearchQuery && (
                     <button
                       type="button"
                       onClick={() => setPersonalSearchQuery("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-zinc-400 hover:text-white bg-white/[0.06]"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-zinc-300 hover:text-white bg-white/[0.12]"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -827,32 +821,34 @@ export function PersonalDashboardView({
                               <CategoryIcon name={exp.category?.name || "Varios"} className="w-5 h-5" />
                             )}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold text-white block group-hover:text-indigo-300 transition-colors truncate">
+                              <span className="text-[15px] font-semibold text-white block group-hover:text-indigo-300 transition-colors truncate tracking-[-0.015em]">
                                 {exp.title}
                               </span>
                             </div>
-                            <div className="flex items-center flex-wrap gap-1.5 mt-0.5 text-xs text-zinc-400 font-medium">
-                              <span>{dateStr}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-400 font-medium min-w-0">
+                              <span className="shrink-0">{dateStr}</span>
                               {exp.category && (
                                 <>
-                                  <span>•</span>
-                                  <span className="text-zinc-300 font-sans">{exp.category.name}</span>
+                                  <span className="shrink-0">•</span>
+                                  <span className="text-zinc-300 font-sans truncate">
+                                    {exp.category.name}
+                                  </span>
                                 </>
                               )}
                               {exp.totalInstallments && (
                                 <>
-                                  <span>•</span>
-                                  <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30 text-[10px] font-bold">
+                                  <span className="shrink-0">•</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30 text-[10px] font-bold shrink-0">
                                     Cuota {exp.installmentNumber}/{exp.totalInstallments}
                                   </span>
                                 </>
                               )}
                               {isReview && (
                                 <>
-                                  <span>•</span>
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-200 border border-amber-500/35 text-[10px] font-bold">
+                                  <span className="shrink-0">•</span>
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-200 border border-amber-500/35 text-[10px] font-bold shrink-0">
                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                                     <span>Por revisar</span>
                                     {cardTag && <span className="opacity-85 font-mono">({cardTag})</span>}
@@ -860,7 +856,7 @@ export function PersonalDashboardView({
                                 </>
                               )}
                               {isPendingSync && (
-                                <span className="text-[10px] text-amber-300 font-medium animate-pulse flex items-center gap-1 ml-1">
+                                <span className="text-[10px] text-amber-300 font-medium animate-pulse flex items-center gap-1 ml-1 shrink-0">
                                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-ping" />
                                   Sincronizando...
                                 </span>
@@ -876,43 +872,10 @@ export function PersonalDashboardView({
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                          <span className="text-base font-bold text-white font-mono tabular-nums tracking-[-0.02em] mr-0.5">
+                          <span className="text-[15px] font-bold text-white font-mono tabular-nums tracking-[-0.02em]">
                             ${Math.round(exp.amount).toLocaleString("es-AR")}
                           </span>
-
-                          {/* Botón sutil para duplicar a Hogar en gastos normales */}
-                          {!isReview && !isPendingSync && (
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuickDuplicateToShared(exp.id);
-                              }}
-                              aria-label={`Duplicar ${exp.title} a gastos compartidos del hogar`}
-                              className="w-8.5 h-8.5 flex items-center justify-center rounded-xl text-zinc-400 hover:text-cyan-300 hover:bg-cyan-500/15 border border-transparent hover:border-cyan-400/25 active:scale-90 transition-all duration-200"
-                              title="Duplicar a Gastos Compartidos (Hogar)"
-                            >
-                              <Users className="w-4 h-4" />
-                            </button>
-                          )}
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isPendingSync) {
-                                showToast("Aguardá a que finalice la sincronización para eliminarlo", "info");
-                                return;
-                              }
-                              handleDeleteExpense(exp.id, exp.title);
-                            }}
-                            disabled={isBusy}
-                            aria-label={`Eliminar gasto ${exp.title}`}
-                            className="w-8.5 h-8.5 flex items-center justify-center rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-all duration-200"
-                            title="Eliminar gasto"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
                         </div>
                       </div>
 

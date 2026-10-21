@@ -1109,13 +1109,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                       <Users className="w-3.5 h-3.5 text-rose-400" />
                       Desembolsos de Bolsillo
                     </h2>
-                    <button
-                      onClick={() => setIsExpenseModalOpen(true)}
-                      className="px-3.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow-md shadow-blue-600/25 active:scale-95 transition flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                      <span>Gasto</span>
-                    </button>
+                    <span className="text-[10px] font-semibold text-zinc-400 px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08]">
+                      Aporte 60% c/u
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -1153,42 +1149,47 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   </div>
                 </section>
 
-                {/* Lista de Gastos con Buscador y Filtros Rápidos */}
+                {/* Lista de Gastos con Buscador estilo iOS y Filtros Rápidos */}
                 <section className="space-y-2.5">
                   <div className="flex items-center justify-between px-1">
-                    <h2 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-                      Gastos de {monthLabel} ({period.expenses.length})
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-[15px] font-semibold text-white tracking-[-0.015em]">
+                        Gastos de {monthLabel}
+                      </h2>
+                      <span className="px-2 py-0.5 rounded-full bg-white/[0.07] border border-white/[0.08] text-[11px] font-semibold text-zinc-300 tabular-nums">
+                        {period.expenses.length}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => setIsCategoryModalOpen(true)}
-                        className="text-xs font-semibold text-zinc-400 hover:text-zinc-200 active:scale-95 flex items-center gap-1 transition"
+                        className="text-xs font-semibold text-blue-300/90 hover:text-blue-200 active:scale-95 flex items-center gap-1 transition"
                         title="Gestionar categorías"
                       >
-                        <Tag className="w-3.5 h-3.5 text-zinc-500" />
+                        <Tag className="w-3.5 h-3.5 text-blue-400/80" />
                         <span>Categorías</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Buscador en Tiempo Real + Chips por Pagador y Categoría */}
+                  {/* Buscador en Tiempo Real UISearchTextField + Chips por Pagador y Categoría */}
                   {period.expenses.length > 0 && (
                     <div className="space-y-2">
                       {/* Input de Búsqueda Rápida */}
                       <div className="relative">
-                        <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         <input
                           type="text"
                           value={hogarSearchQuery}
                           onChange={(e) => setHogarSearchQuery(e.target.value)}
-                          placeholder="Buscar gasto por nombre, categoría o nota..."
-                          className="w-full pl-9 pr-8 py-2 rounded-2xl bg-zinc-900/90 border border-white/[0.08] focus:border-blue-500/50 text-xs text-white placeholder-zinc-500 focus:outline-none transition"
+                          placeholder="Buscar por comercio, categoría o nota..."
+                          className="w-full pl-9 pr-8 py-2 rounded-xl bg-[rgba(118,118,128,0.24)] border border-white/[0.07] focus:bg-[rgba(118,118,128,0.32)] focus:border-blue-400/50 text-[13px] text-white placeholder:text-zinc-400 focus:outline-none transition"
                         />
                         {hogarSearchQuery && (
                           <button
                             type="button"
                             onClick={() => setHogarSearchQuery("")}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-zinc-400 hover:text-white bg-white/[0.06]"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-zinc-300 hover:text-white bg-white/[0.12]"
                             title="Limpiar búsqueda"
                           >
                             <X className="w-3 h-3" />
@@ -1362,19 +1363,19 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                                     : "opacity-100"
                                 }`}
                               >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
                                     <CategoryIcon name={exp.category.name} className="w-5 h-5" />
                                   </div>
-                                  <div>
-                                    <span className="text-sm font-semibold text-white block group-hover:text-blue-300 transition-colors">
+                                  <div className="min-w-0 flex-1">
+                                    <span className="text-[15px] font-semibold text-white block group-hover:text-blue-300 transition-colors truncate tracking-[-0.015em]">
                                       {exp.title}
                                     </span>
-                                    <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-300 font-medium">
-                                      <span>{dateStr}</span>
-                                      <span>•</span>
+                                    <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-300 font-medium min-w-0">
+                                      <span className="shrink-0">{dateStr}</span>
+                                      <span className="shrink-0">•</span>
                                       <span
-                                        className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] border ${
+                                        className={`font-bold px-2 py-0.5 rounded-full text-[10px] border shrink-0 ${
                                           isAgus
                                             ? "bg-blue-500/20 text-blue-200 border-blue-400/30"
                                             : "bg-rose-500/20 text-rose-200 border-rose-400/30"
@@ -1382,8 +1383,12 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                                       >
                                         Pagó {exp.paidBy.name}
                                       </span>
+                                      <span className="shrink-0 text-zinc-500">•</span>
+                                      <span className="text-zinc-400 truncate">
+                                        {exp.category.name}
+                                      </span>
                                       {isPendingSync && (
-                                        <span className="text-[10px] text-amber-300 font-medium animate-pulse flex items-center gap-1 ml-1">
+                                        <span className="text-[10px] text-amber-300 font-medium animate-pulse flex items-center gap-1 ml-1 shrink-0">
                                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-ping" />
                                           Sincronizando...
                                         </span>
@@ -1399,39 +1404,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                                 </div>
 
                                 <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                                  <span className="text-base font-bold text-white font-mono tabular-nums tracking-[-0.02em] mr-0.5">
+                                  <span className="text-[15px] font-bold text-white font-mono tabular-nums tracking-[-0.02em]">
                                     ${Math.round(exp.amount).toLocaleString("es-AR")}
                                   </span>
-                                  {!isPendingSync && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleQuickDuplicateToPersonal(exp.id);
-                                      }}
-                                      aria-label={`Duplicar ${exp.title} a gastos personales`}
-                                      className="w-8.5 h-8.5 flex items-center justify-center rounded-xl text-zinc-400 hover:text-indigo-300 hover:bg-indigo-500/15 border border-transparent hover:border-indigo-400/25 active:scale-90 transition-all duration-200"
-                                      title="Duplicar a mis Gastos Personales (40%)"
-                                    >
-                                      <User className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (isPendingSync) {
-                                        showToast("Aguardá a que finalice la sincronización para eliminarlo", "info");
-                                        return;
-                                      }
-                                      handleDeleteExpense(exp.id, exp.title);
-                                    }}
-                                    disabled={deletingId === exp.id}
-                                    aria-label={`Eliminar gasto ${exp.title}`}
-                                    className="w-8.5 h-8.5 flex items-center justify-center rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-all duration-200"
-                                    title="Eliminar gasto"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
                                 </div>
                               </div>
                             );
