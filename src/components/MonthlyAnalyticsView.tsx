@@ -13,6 +13,9 @@ import {
   PiggyBank,
   Check,
   ArrowRight,
+  Settings,
+  Lock,
+  Unlock,
 } from "./ui/icons";
 
 interface ExpenseItem {
@@ -42,7 +45,11 @@ interface MonthlyAnalyticsViewProps {
   expenses: ExpenseItem[];
   users: Array<{ id: string; name: string }>;
   memberBalances?: MemberBalanceItem[];
+  isClosed?: boolean;
+  isProcessingClose?: boolean;
   onOpenFCIModal?: () => void;
+  onOpenSalaryModal?: () => void;
+  onCloseOrReopenMonth?: () => void;
 }
 
 export function MonthlyAnalyticsView({
@@ -56,7 +63,11 @@ export function MonthlyAnalyticsView({
   expenses,
   users,
   memberBalances = [],
+  isClosed = false,
+  isProcessingClose = false,
   onOpenFCIModal,
+  onOpenSalaryModal,
+  onCloseOrReopenMonth,
 }: MonthlyAnalyticsViewProps) {
   // Agrupar gastos por categoría
   const categoryTotals: Record<string, { name: string; amount: number; count: number; color?: string | null }> = {};
@@ -198,6 +209,47 @@ export function MonthlyAnalyticsView({
                   <ArrowRight className="w-3.5 h-3.5" />
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Acciones Administrativas del Mes (Sueldos y Cierre) */}
+        {(onOpenSalaryModal || onCloseOrReopenMonth) && (
+          <div className="grid grid-cols-2 gap-2 mt-3.5 pt-3.5 border-t border-white/[0.06]">
+            {onOpenSalaryModal && (
+              <button
+                type="button"
+                onClick={onOpenSalaryModal}
+                className="py-2.5 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-xs font-semibold text-zinc-200 flex items-center justify-center gap-1.5 transition active:scale-95 border border-white/[0.08]"
+              >
+                <Settings className="w-3.5 h-3.5 text-blue-400" />
+                <span>Configurar Sueldos</span>
+              </button>
+            )}
+
+            {onCloseOrReopenMonth && (
+              <button
+                type="button"
+                onClick={onCloseOrReopenMonth}
+                disabled={isProcessingClose}
+                className={`py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95 border disabled:opacity-50 ${
+                  isClosed
+                    ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
+                    : "bg-white/[0.05] hover:bg-white/[0.08] text-zinc-200 border-white/[0.08]"
+                }`}
+              >
+                {isClosed ? (
+                  <>
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>Reabrir Mes</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Cerrar Mes</span>
+                  </>
+                )}
+              </button>
             )}
           </div>
         )}

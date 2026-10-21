@@ -1,7 +1,7 @@
 {
-  "version": "1.16.3",
-  "build": 2026102110,
-  "releasedAt": "2026-10-21T18:36:50Z",
-  "title": "Remanente FCI en Análisis y Proyección en Pestaña FCI",
-  "description": "Movimos el banner de Remanente para FCI a la pestaña de Análisis y sumamos en la pestaña FCI una tarjeta con el remanente hipotético del mes en curso."
+  "version": "1.16.4",
+  "build": 2026102111,
+  "releasedAt": "2026-10-21T19:08:00Z",
+  "title": "Menú Contextual Superior y Gestión en Análisis",
+  "description": "Movimos Configurar Sueldos / Ingreso y Cerrar / Reabrir Mes al menú superior izquierdo (Casita + Usuario) y a la pestaña de Análisis para dejar las tarjetas principales ultra limpias."
 }

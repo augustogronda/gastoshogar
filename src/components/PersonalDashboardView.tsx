@@ -119,6 +119,7 @@ interface PersonalDashboardViewProps {
   };
   activeTab?: "gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones";
   onTabChange?: (tab: "gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones") => void;
+  externalMenuAction?: { type: "income" | "closeOrReopen"; seq: number } | null;
 }
 
 const SHORT_MONTHS = [
@@ -135,6 +136,7 @@ export function PersonalDashboardView({
   personalData,
   activeTab = "gastos",
   onTabChange,
+  externalMenuAction,
 }: PersonalDashboardViewProps) {
   const personalTab = activeTab;
   const { toast, showToast } = useToast();
@@ -395,6 +397,19 @@ export function PersonalDashboardView({
     setConfirmState({ type: "reopenMonth" });
   };
 
+  useEffect(() => {
+    if (!externalMenuAction) return;
+    if (externalMenuAction.type === "income") {
+      setIsIncomeModalOpen(true);
+    } else if (externalMenuAction.type === "closeOrReopen") {
+      if (isClosed) {
+        handleReopenPersonalMonth();
+      } else {
+        setIsCloseModalOpen(true);
+      }
+    }
+  }, [externalMenuAction]);
+
   // Cálculo de análisis por categoría memoizado
   const sortedCategories = useMemo(() => {
     const categoryTotals: Record<string, { name: string; amount: number; count: number }> = {};
@@ -530,41 +545,11 @@ export function PersonalDashboardView({
             </div>
 
             {/* Barra de Progreso SuperDesign */}
-            <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden mb-3.5 p-0.5 border border-white/[0.08]">
+            <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden p-0.5 border border-white/[0.08]">
               <div
                 className={`h-full transition-all duration-500 rounded-full ${burnColor}`}
                 style={{ width: `${Math.min(100, personalBurnRatePct)}%` }}
               />
-            </div>
-
-            {/* Acciones Secundarias de la Tarjeta */}
-            <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-white/[0.06]">
-              <button
-                onClick={() => setIsIncomeModalOpen(true)}
-                className="py-2 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-xs font-semibold text-zinc-200 flex items-center justify-center gap-1.5 transition active:scale-95 border border-white/[0.08]"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Editar Ingreso/Bono</span>
-              </button>
-
-              {isClosed ? (
-                <button
-                  onClick={handleReopenPersonalMonth}
-                  disabled={isProcessing}
-                  className="py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-xs font-semibold text-amber-300 flex items-center justify-center gap-1.5 transition active:scale-95 border border-amber-500/30"
-                >
-                  <Unlock className="w-3.5 h-3.5" />
-                  <span>Reabrir Mes</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setIsCloseModalOpen(true)}
-                  className="py-2 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-xs font-semibold text-zinc-200 flex items-center justify-center gap-1.5 transition active:scale-95 border border-white/[0.08]"
-                >
-                  <Lock className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>Cerrar Mes</span>
-                </button>
-              )}
             </div>
           </section>
 
@@ -970,6 +955,39 @@ export function PersonalDashboardView({
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* Acciones del Período Personal (en Análisis) */}
+            <div className="grid grid-cols-2 gap-2 mt-3.5 pt-3.5 border-t border-white/[0.06]">
+              <button
+                type="button"
+                onClick={() => setIsIncomeModalOpen(true)}
+                className="py-2.5 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-xs font-semibold text-zinc-200 flex items-center justify-center gap-1.5 transition active:scale-95 border border-white/[0.08]"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Editar Ingreso/Bono</span>
+              </button>
+
+              {isClosed ? (
+                <button
+                  type="button"
+                  onClick={handleReopenPersonalMonth}
+                  disabled={isProcessing}
+                  className="py-2.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-xs font-semibold text-amber-300 flex items-center justify-center gap-1.5 transition active:scale-95 border border-amber-500/30"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Reabrir Mes</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsCloseModalOpen(true)}
+                  className="py-2.5 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-xs font-semibold text-zinc-200 flex items-center justify-center gap-1.5 transition active:scale-95 border border-white/[0.08]"
+                >
+                  <Lock className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Cerrar Mes</span>
+                </button>
+              )}
             </div>
           </div>
 
