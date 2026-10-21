@@ -267,16 +267,36 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   }>({ isOpen: false, type: "deleteExpense", title: "", description: "" });
   const { toast, showToast } = useToast();
 
-  // Pull-to-Refresh: Actualizar datos y limpiar caché deslizando hacia abajo
+  // Pull-to-Refresh con "Pull Brusco + Mantener con Rueda de Tiempo"
   const [pullDistance, setPullDistance] = useState(0);
+  const [holdProgress, setHoldProgress] = useState(0); // 0 a 100%
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const touchStartRef = useRef<number | null>(null);
   const hasTriggeredHapticRef = useRef(false);
+  const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const holdStartRef = useRef<number | null>(null);
+  const isRefreshingRef = useRef(false);
+
+  const PULL_DEADZONE = 45; // px antes de empezar a mostrar indicador
+  const PULL_THRESHOLD = 90; // unidad interna (~175px de arrastre real del dedo)
+  const HOLD_DURATION_MS = 850; // ms manteniendo abajo para completar la rueda
+
+  const clearHoldTimer = () => {
+    if (holdTimerRef.current) {
+      clearInterval(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    holdStartRef.current = null;
+    setHoldProgress(0);
+  };
 
   const executeManualRefresh = async () => {
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
+    clearHoldTimer();
     setIsRefreshing(true);
-    setPullDistance(55);
+    setPullDistance(65);
     try {
       // 1. Limpiar caché en memoria de meses y almacenamiento local del teléfono
       dataCacheRef.current.clear();
@@ -300,7 +320,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     } finally {
       setTimeout(() => {
         setPullDistance(0);
+        setHoldProgress(0);
         setIsRefreshing(false);
+        isRefreshingRef.current = false;
         setIsPulling(false);
         hasTriggeredHapticRef.current = false;
       }, 450);
@@ -309,7 +331,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
-      if (window.scrollY <= 2 && !isRefreshing) {
+      const target = e.target as HTMLElement | null;
+      // No activar nunca si hay un modal abierto o se toca dentro de un diálogo/sheet
+      if (target?.closest('[role="dialog"], [data-sheet-scroll]')) {
+        touchStartRef.current = null;
+        return;
+      }
+
+      if (window.scrollY <= 1 && !isRefreshingRef.current) {
         touchStartRef.current = e.touches[0].clientY;
         hasTriggeredHapticRef.current = false;
       } else {
@@ -318,35 +347,62 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (touchStartRef.current === null || isRefreshing) return;
+      if (touchStartRef.current === null || isRefreshingRef.current) return;
 
       const currentY = e.touches[0].clientY;
-      const diff = currentY - touchStartRef.current;
+      const rawDiff = currentY - touchStartRef.current;
 
-      if (diff > 0 && window.scrollY <= 2) {
-        const pull = Math.min(Math.pow(diff, 0.85) * 1.5, 85);
+      if (rawDiff > PULL_DEADZONE && window.scrollY <= 1) {
+        const effectiveDiff = rawDiff - PULL_DEADZONE;
+        // Requiere un deslizamiento largo y firme (~175px reales para llegar a PULL_THRESHOLD = 90)
+        const pull = Math.min(effectiveDiff * 0.68, 105);
         setPullDistance(pull);
         setIsPulling(true);
 
-        if (pull >= 60 && !hasTriggeredHapticRef.current) {
-          if (typeof navigator !== "undefined" && navigator.vibrate) {
-            navigator.vibrate(12);
+        if (pull >= PULL_THRESHOLD) {
+          if (!hasTriggeredHapticRef.current) {
+            if (typeof navigator !== "undefined" && navigator.vibrate) {
+              navigator.vibrate(10);
+            }
+            hasTriggeredHapticRef.current = true;
           }
-          hasTriggeredHapticRef.current = true;
+          // Iniciar rueda de tiempo mientras mantiene abajo
+          if (!holdStartRef.current && !holdTimerRef.current) {
+            holdStartRef.current = Date.now();
+            holdTimerRef.current = setInterval(() => {
+              if (!holdStartRef.current) return;
+              const elapsed = Date.now() - holdStartRef.current;
+              const pct = Math.min(100, Math.round((elapsed / HOLD_DURATION_MS) * 100));
+              setHoldProgress(pct);
+
+              if (pct >= 100) {
+                clearHoldTimer();
+                touchStartRef.current = null;
+                if (typeof navigator !== "undefined" && navigator.vibrate) {
+                  navigator.vibrate([18, 40, 25]);
+                }
+                executeManualRefresh();
+              }
+            }, 25);
+          }
+        } else {
+          // Si sube el dedo antes de completar el tiempo, reinicia la rueda
+          clearHoldTimer();
+          hasTriggeredHapticRef.current = false;
         }
-      } else if (diff <= 0) {
+      } else if (rawDiff <= PULL_DEADZONE) {
+        clearHoldTimer();
         setPullDistance(0);
         setIsPulling(false);
       }
     };
 
     const handleTouchEnd = () => {
-      if (touchStartRef.current === null || isRefreshing) return;
+      if (touchStartRef.current === null && !isPulling) return;
       touchStartRef.current = null;
+      clearHoldTimer();
 
-      if (pullDistance >= 60) {
-        executeManualRefresh();
-      } else {
+      if (!isRefreshingRef.current) {
         setPullDistance(0);
         setIsPulling(false);
         hasTriggeredHapticRef.current = false;
@@ -356,13 +412,16 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
     window.addEventListener("touchmove", handleTouchMove, { passive: true });
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 
     return () => {
+      clearHoldTimer();
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [currentYear, currentMonth, isRefreshing, pullDistance]);
+  }, [currentYear, currentMonth, isPulling]);
 
   // Precarga inteligente en segundo plano de los meses contiguos (-1 y +1)
   useEffect(() => {
@@ -723,40 +782,81 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30 relative">
-      {/* Indicador Pull-to-Refresh Flotante (Estilo iOS Dynamic Island) */}
+      {/* Indicador Pull-to-Refresh Flotante con Rueda de Tiempo (Estilo iOS Dynamic Island) */}
       <div
         className="fixed top-0 left-0 right-0 z-50 pointer-events-none flex justify-center"
         style={{
-          transform: `translateY(${pullDistance > 0 ? Math.min(pullDistance + 12, 68) : -48}px)`,
-          opacity: pullDistance > 12 || isRefreshing ? 1 : 0,
+          transform: `translateY(${pullDistance > 0 ? Math.min(pullDistance * 0.65 + 10, 74) : -56}px)`,
+          opacity: pullDistance > 8 || isRefreshing ? 1 : 0,
           transition: isPulling ? "none" : "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease",
         }}
       >
-        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/95 border border-white/[0.15] shadow-2xl backdrop-blur-md text-xs font-semibold text-white">
-          <RefreshCw
-            className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-blue-400" : "text-zinc-400"}`}
-            style={{
-              transform: isRefreshing ? undefined : `rotate(${pullDistance * 4.5}deg)`,
-            }}
-          />
-          <span className="text-[11px] font-medium text-zinc-200">
+        <div
+          className={`flex items-center gap-2.5 px-4 py-2 rounded-full border shadow-2xl backdrop-blur-xl text-xs font-semibold transition-colors duration-200 ${
+            pullDistance >= PULL_THRESHOLD || isRefreshing
+              ? "bg-zinc-900/95 border-blue-400/45 text-white shadow-blue-950/50"
+              : "bg-zinc-900/90 border-white/[0.15] text-zinc-200"
+          }`}
+        >
+          {/* Rueda de tiempo circular SVG + ícono */}
+          <div className="relative w-5 h-5 flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 -rotate-90" viewBox="0 0 24 24">
+              <circle
+                cx="12"
+                cy="12"
+                r="9.5"
+                fill="none"
+                stroke="rgba(255,255,255,0.14)"
+                strokeWidth="2.5"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="9.5"
+                fill="none"
+                stroke={
+                  isRefreshing || holdProgress > 0
+                    ? "#38bdf8"
+                    : "rgba(255,255,255,0.55)"
+                }
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray={59.7}
+                strokeDashoffset={
+                  isRefreshing
+                    ? 0
+                    : pullDistance >= PULL_THRESHOLD
+                    ? 59.7 * (1 - holdProgress / 100)
+                    : 59.7 * (1 - Math.min(pullDistance / PULL_THRESHOLD, 1) * 0.35)
+                }
+              />
+            </svg>
+            <RefreshCw
+              className={`w-2.5 h-2.5 absolute ${
+                isRefreshing
+                  ? "animate-spin text-sky-400"
+                  : pullDistance >= PULL_THRESHOLD
+                  ? "text-sky-300"
+                  : "text-zinc-400"
+              }`}
+              style={{
+                transform: isRefreshing ? undefined : `rotate(${pullDistance * 2.5}deg)`,
+              }}
+            />
+          </div>
+
+          <span className="text-[11px] font-semibold tracking-[-0.01em] whitespace-nowrap">
             {isRefreshing
               ? "Actualizando datos..."
-              : pullDistance >= 60
-              ? "Soltá para actualizar"
-              : "Deslizá para actualizar"}
+              : pullDistance >= PULL_THRESHOLD
+              ? `Mantené abajo para actualizar (${holdProgress}%)`
+              : "Deslizá más abajo para actualizar"}
           </span>
         </div>
       </div>
 
-      {/* Contenedor mobile-first refinado con efecto elástico */}
-      <main
-        className="w-full max-w-md mx-auto px-4 pt-safe pb-36 flex-1 flex flex-col gap-3.5"
-        style={{
-          transform: pullDistance > 0 ? `translateY(${pullDistance * 0.4}px)` : undefined,
-          transition: isPulling ? "none" : "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
-        }}
-      >
+      {/* Contenedor mobile-first refinado */}
+      <main className="w-full max-w-md mx-auto px-4 pt-safe pb-36 flex-1 flex flex-col gap-3.5">
         
         {/* Cabecera Superior: Logo + Usuario Conectado + Selector de Mes */}
         <header className="flex items-center justify-between pt-2">
