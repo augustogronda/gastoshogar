@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CategoryIcon, PieChart, TrendingUp, AlertCircle, Sparkles, User, Wallet } from "./ui/icons";
+import { CategoryIcon, PieChart, TrendingUp, AlertCircle, Sparkles, User, Users, Wallet } from "./ui/icons";
 
 interface ExpenseItem {
   id: string;
@@ -10,6 +10,13 @@ interface ExpenseItem {
   paidBy: { id: string; name: string };
   category: { id: string; name: string; color?: string | null };
   isFromPoolFund: boolean;
+}
+
+interface MemberBalanceItem {
+  userId?: string;
+  name: string;
+  outOfPocketPaid: number;
+  committedAmount: number;
 }
 
 interface MonthlyAnalyticsViewProps {
@@ -21,6 +28,7 @@ interface MonthlyAnalyticsViewProps {
   burnRatePct: number;
   expenses: ExpenseItem[];
   users: Array<{ id: string; name: string }>;
+  memberBalances?: MemberBalanceItem[];
 }
 
 export function MonthlyAnalyticsView({
@@ -32,6 +40,7 @@ export function MonthlyAnalyticsView({
   burnRatePct,
   expenses,
   users,
+  memberBalances = [],
 }: MonthlyAnalyticsViewProps) {
   // Agrupar gastos por categoría
   const categoryTotals: Record<string, { name: string; amount: number; count: number; color?: string | null }> = {};
@@ -124,6 +133,53 @@ export function MonthlyAnalyticsView({
           </div>
         </div>
       </div>
+
+      {/* Desembolsos de Bolsillo (Agus & Pareja) */}
+      {memberBalances.length >= 2 && (
+        <div className="super-card rounded-3xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-rose-400" />
+              Desembolsos de Bolsillo
+            </h3>
+            <span className="text-[10px] font-semibold text-zinc-400 px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08]">
+              Aporte 60% c/u
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-blue-950/30 border border-blue-500/30 rounded-2xl p-3.5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-blue-300 truncate">
+                  {memberBalances[0].name}
+                </span>
+                <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
+              </div>
+              <span className="text-xl font-extrabold text-white block mt-1.5 font-mono tabular-nums">
+                ${Math.round(memberBalances[0].outOfPocketPaid).toLocaleString("es-AR")}
+              </span>
+              <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
+                Meta 60%: ${Math.round(memberBalances[0].committedAmount).toLocaleString("es-AR")}
+              </span>
+            </div>
+
+            <div className="bg-rose-950/30 border border-rose-500/30 rounded-2xl p-3.5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-rose-300 truncate">
+                  {memberBalances[1].name}
+                </span>
+                <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />
+              </div>
+              <span className="text-xl font-extrabold text-white block mt-1.5 font-mono tabular-nums">
+                ${Math.round(memberBalances[1].outOfPocketPaid).toLocaleString("es-AR")}
+              </span>
+              <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
+                Meta 60%: ${Math.round(memberBalances[1].committedAmount).toLocaleString("es-AR")}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Desglose por Categorías */}
       <div className="super-card rounded-3xl p-5">
