@@ -1,11 +1,11 @@
 {
   "name": "Finanzas Hogar",
   "short_name": "Hogar",
-  "description": "Control de gastos compartidos con fondo común 60% e inversión en pareja",
+  "description": "Control de gastos compartidos con fondo común e inversión en pareja",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#090c12",
-  "theme_color": "#090c12",
+  "background_color": "#07090e",
+  "theme_color": "#07090e",
   "orientation": "portrait",
   "icons": [
     {

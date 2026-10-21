@@ -1,16 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -18,7 +7,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#090c12",
+  themeColor: "#07090e",
 };
 
 export const metadata: Metadata = {
@@ -52,7 +41,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      className="h-full antialiased dark"
       suppressHydrationWarning
     >
       <head>
@@ -65,7 +54,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body
-        className="min-h-full bg-[#090c12] text-zinc-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white"
+        className="min-h-full bg-[#07090e] text-zinc-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white"
         suppressHydrationWarning
       >
         <AppUpdateChecker />

@@ -33,6 +33,7 @@ import {
 } from "./ui/icons";
 import { forceCheckAppUpdate } from "./AppUpdateChecker";
 import currentAppVersion from "../../public/version.json";
+import { triggerHaptic } from "@/lib/haptics";
 import { CategoryIcon } from "./ui/icons";
 import { ConfirmDialog, ToastBanner, useToast } from "./ui/ConfirmDialog";
 import { QuickExpenseModal } from "./QuickExpenseModal";
@@ -272,8 +273,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const touchStartRef = useRef<number | null>(null);
   const isPullingRef = useRef(false);
   const hasTriggeredHapticRef = useRef(false);
-  const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+  const pullRafRef = useRef<number | null>(null);
   const holdStartRef = useRef<number | null>(null);
+  const lastHoldPctRef = useRef<number>(0);
   const isRefreshingRef = useRef(false);
 
   const PULL_DEADZONE = 45; // px antes de empezar a mostrar indicador
@@ -281,11 +284,12 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const HOLD_DURATION_MS = 1700; // ms manteniendo abajo para completar la rueda (1.7s, el doble)
 
   const clearHoldTimer = () => {
-    if (holdTimerRef.current) {
-      clearInterval(holdTimerRef.current);
+    if (holdTimerRef.current !== null) {
+      cancelAnimationFrame(holdTimerRef.current);
       holdTimerRef.current = null;
     }
     holdStartRef.current = null;
+    lastHoldPctRef.current = 0;
     setHoldProgress(0);
   };
 
@@ -351,58 +355,73 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       const currentY = e.touches[0].clientY;
       const rawDiff = currentY - touchStartRef.current;
 
-      if (rawDiff > PULL_DEADZONE && window.scrollY <= 1) {
-        const effectiveDiff = rawDiff - PULL_DEADZONE;
-        // Requiere un deslizamiento largo y firme (~175px reales para llegar a PULL_THRESHOLD = 90)
-        const pull = Math.min(effectiveDiff * 0.68, 105);
-        setPullDistance(pull);
-        if (!isPullingRef.current) {
-          isPullingRef.current = true;
-          setIsPulling(true);
-        }
-
-        if (pull >= PULL_THRESHOLD) {
-          if (!hasTriggeredHapticRef.current) {
-            if (typeof navigator !== "undefined" && navigator.vibrate) {
-              navigator.vibrate(10);
-            }
-            hasTriggeredHapticRef.current = true;
-          }
-          // Iniciar rueda de tiempo mientras mantiene abajo
-          if (!holdStartRef.current && !holdTimerRef.current) {
-            holdStartRef.current = Date.now();
-            holdTimerRef.current = setInterval(() => {
-              if (!holdStartRef.current) return;
-              const elapsed = Date.now() - holdStartRef.current;
-              const pct = Math.min(100, Math.round((elapsed / HOLD_DURATION_MS) * 100));
-              setHoldProgress(pct);
-
-              if (pct >= 100) {
-                clearHoldTimer();
-                touchStartRef.current = null;
-                if (typeof navigator !== "undefined" && navigator.vibrate) {
-                  navigator.vibrate([18, 40, 25]);
-                }
-                executeManualRefresh();
-              }
-            }, 25);
-          }
-        } else {
-          // Si sube el dedo antes de completar el tiempo, reinicia la rueda
-          clearHoldTimer();
-          hasTriggeredHapticRef.current = false;
-        }
-      } else if (rawDiff <= PULL_DEADZONE) {
-        clearHoldTimer();
-        setPullDistance(0);
-        if (isPullingRef.current) {
-          isPullingRef.current = false;
-          setIsPulling(false);
-        }
+      if (pullRafRef.current !== null) {
+        cancelAnimationFrame(pullRafRef.current);
       }
+
+      pullRafRef.current = requestAnimationFrame(() => {
+        pullRafRef.current = null;
+        if (touchStartRef.current === null || isRefreshingRef.current) return;
+
+        if (rawDiff > PULL_DEADZONE && window.scrollY <= 1) {
+          const effectiveDiff = rawDiff - PULL_DEADZONE;
+          // Requiere un deslizamiento largo y firme (~175px reales para llegar a PULL_THRESHOLD = 90)
+          const pull = Math.min(effectiveDiff * 0.68, 105);
+          setPullDistance(pull);
+          if (!isPullingRef.current) {
+            isPullingRef.current = true;
+            setIsPulling(true);
+          }
+
+          if (pull >= PULL_THRESHOLD) {
+            if (!hasTriggeredHapticRef.current) {
+              triggerHaptic(12);
+              hasTriggeredHapticRef.current = true;
+            }
+            // Iniciar rueda de tiempo sincronizada a 120Hz ProMotion mientras mantiene abajo
+            if (!holdStartRef.current && holdTimerRef.current === null) {
+              holdStartRef.current = performance.now();
+              const stepHold = (now: number) => {
+                if (!holdStartRef.current) return;
+                const elapsed = now - holdStartRef.current;
+                const pct = Math.min(100, Math.round((elapsed / HOLD_DURATION_MS) * 100));
+                if (pct !== lastHoldPctRef.current) {
+                  lastHoldPctRef.current = pct;
+                  setHoldProgress(pct);
+                }
+
+                if (pct >= 100) {
+                  clearHoldTimer();
+                  touchStartRef.current = null;
+                  triggerHaptic(25);
+                  executeManualRefresh();
+                  return;
+                }
+                holdTimerRef.current = requestAnimationFrame(stepHold);
+              };
+              holdTimerRef.current = requestAnimationFrame(stepHold);
+            }
+          } else {
+            // Si sube el dedo antes de completar el tiempo, reinicia la rueda
+            clearHoldTimer();
+            hasTriggeredHapticRef.current = false;
+          }
+        } else if (rawDiff <= PULL_DEADZONE) {
+          clearHoldTimer();
+          setPullDistance(0);
+          if (isPullingRef.current) {
+            isPullingRef.current = false;
+            setIsPulling(false);
+          }
+        }
+      });
     };
 
     const handleTouchEnd = () => {
+      if (pullRafRef.current !== null) {
+        cancelAnimationFrame(pullRafRef.current);
+        pullRafRef.current = null;
+      }
       if (touchStartRef.current === null && !isPullingRef.current) return;
       touchStartRef.current = null;
       clearHoldTimer();
@@ -421,6 +440,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 
     return () => {
+      if (pullRafRef.current !== null) {
+        cancelAnimationFrame(pullRafRef.current);
+      }
       clearHoldTimer();
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchmove", handleTouchMove);
@@ -597,6 +619,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   };
 
   const handleOptimisticDeleteHogarExpense = async (id: string) => {
+    triggerHaptic(15);
     setDeletingId(id);
 
     // 1. IMPACTO INMEDIATO EN CACHÉ Y ESTADO LOCAL (0ms de latencia)
@@ -756,6 +779,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     setDashboardData(optimisticData);
     const cacheKey = `${currentYear}-${currentMonth}`;
     dataCacheRef.current.set(cacheKey, optimisticData);
+    triggerHaptic(15);
     showToast(`✓ Gasto de $${Math.round(data.amount).toLocaleString("es-AR")} agregado`, "success");
 
     // 2. Conciliación en segundo plano con la base de datos
@@ -854,12 +878,12 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   }, [period.expenses, hogarFilter, hogarSearchQuery]);
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30 relative">
+    <div className="min-h-screen bg-[#07090e] text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30 relative">
       {/* Indicador Pull-to-Refresh Flotante con Rueda de Tiempo (Estilo iOS Dynamic Island) */}
       <div
-        className="fixed top-0 left-0 right-0 z-50 pointer-events-none flex justify-center"
+        className="fixed top-0 left-0 right-0 z-50 pointer-events-none flex justify-center will-change-transform"
         style={{
-          transform: `translateY(${pullDistance > 0 ? Math.min(pullDistance * 0.65 + 10, 74) : -56}px)`,
+          transform: `translate3d(0, ${pullDistance > 0 ? Math.min(pullDistance * 0.65 + 10, 74) : -56}px, 0)`,
           opacity: pullDistance > 8 || isRefreshing ? 1 : 0,
           transition: isPulling ? "none" : "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease",
         }}
@@ -1170,7 +1194,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             type="button"
             role="tab"
             aria-selected={spaceMode === "hogar"}
-            onClick={() => setSpaceMode("hogar")}
+            onClick={() => {
+              if (spaceMode !== "hogar") triggerHaptic(10);
+              setSpaceMode("hogar");
+            }}
             className={`flex-1 min-h-[38px] py-2 px-3 rounded-[10px] text-[13px] tracking-[-0.01em] font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-[0.98] ${
               spaceMode === "hogar"
                 ? "apple-segment-active-hogar"
@@ -1184,7 +1211,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             type="button"
             role="tab"
             aria-selected={spaceMode === "personal"}
-            onClick={() => setSpaceMode("personal")}
+            onClick={() => {
+              if (spaceMode !== "personal") triggerHaptic(10);
+              setSpaceMode("personal");
+            }}
             className={`flex-1 min-h-[38px] py-2 px-3 rounded-[10px] text-[13px] tracking-[-0.01em] font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-[0.98] ${
               spaceMode === "personal"
                 ? "apple-segment-active-personal"
@@ -1787,7 +1817,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Tab 1: Hogar */}
             <button
               type="button"
-              onClick={() => setActiveTab("hogar")}
+              onClick={() => {
+                if (activeTab !== "hogar") triggerHaptic(10);
+                setActiveTab("hogar");
+              }}
               style={{
                 flex: 1,
                 display: "flex",
@@ -1811,7 +1844,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Tab 2: Análisis */}
             <button
               type="button"
-              onClick={() => setActiveTab("analisis")}
+              onClick={() => {
+                if (activeTab !== "analisis") triggerHaptic(10);
+                setActiveTab("analisis");
+              }}
               style={{
                 flex: 1,
                 display: "flex",
@@ -1835,7 +1871,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Tab 3: Cuotas */}
             <button
               type="button"
-              onClick={() => setActiveTab("cuotas")}
+              onClick={() => {
+                if (activeTab !== "cuotas") triggerHaptic(10);
+                setActiveTab("cuotas");
+              }}
               style={{
                 flex: 1,
                 display: "flex",
@@ -1859,7 +1898,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Tab 4: FCI */}
             <button
               type="button"
-              onClick={() => setActiveTab("fci")}
+              onClick={() => {
+                if (activeTab !== "fci") triggerHaptic(10);
+                setActiveTab("fci");
+              }}
               style={{
                 flex: 1,
                 display: "flex",
@@ -1894,7 +1936,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Personal Tab 1: Gastos */}
             <button
               type="button"
-              onClick={() => setPersonalTab("gastos")}
+              onClick={() => {
+                if (personalTab !== "gastos") triggerHaptic(10);
+                setPersonalTab("gastos");
+              }}
               style={{
                 flex: 1,
                 display: "flex",
@@ -1918,7 +1963,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Personal Tab 2: Análisis */}
             <button
               type="button"
-              onClick={() => setPersonalTab("analisis")}
+              onClick={() => {
+                if (personalTab !== "analisis") triggerHaptic(10);
+                setPersonalTab("analisis");
+              }}
               style={{
                 flex: 1,
                 display: "flex",
@@ -1942,7 +1990,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Personal Tab 3: Cuotas */}
             <button
               type="button"
-              onClick={() => setPersonalTab("cuotas")}
+              onClick={() => {
+                if (personalTab !== "cuotas") triggerHaptic(10);
+                setPersonalTab("cuotas");
+              }}
               style={{
                 flex: 1,
                 display: "flex",
@@ -1966,7 +2017,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Personal Tab 4: Tarjetas */}
             <button
               type="button"
-              onClick={() => setPersonalTab("tarjetas")}
+              onClick={() => {
+                if (personalTab !== "tarjetas") triggerHaptic(10);
+                setPersonalTab("tarjetas");
+              }}
               style={{
                 flex: 1,
                 display: "flex",
@@ -1990,7 +2044,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             {/* Personal Tab 5: Inversión */}
             <button
               type="button"
-              onClick={() => setPersonalTab("inversiones")}
+              onClick={() => {
+                if (personalTab !== "inversiones") triggerHaptic(10);
+                setPersonalTab("inversiones");
+              }}
               style={{
                 flex: 1,
                 display: "flex",
