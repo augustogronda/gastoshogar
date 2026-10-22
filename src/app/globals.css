@@ -64,13 +64,14 @@ input, textarea, select {
   bottom: env(safe-area-inset-bottom);
 }
 
-/* Scrollbar invisible */
+/* Scrollbar invisible con momentum scroll nativo para iOS */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ==========================================================================

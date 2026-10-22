@@ -312,7 +312,13 @@ export function PersonalExpenseModal({
                 <span>Gestionar</span>
               </button>
             </div>
-            <div className="flex gap-2 overflow-x-auto touch-pan-x no-scrollbar py-1">
+            <div
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              className="flex gap-2 overflow-x-auto touch-pan-x overscroll-x-contain no-scrollbar py-1.5 -mx-1 px-1 scroll-smooth"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
               {/* Botón rápido "+ Nueva" al frente */}
               <button
                 type="button"
@@ -320,7 +326,7 @@ export function PersonalExpenseModal({
                   triggerHaptic(10);
                   setIsCategoryModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border border-dashed border-white/20 bg-white/[0.03] text-zinc-300 hover:text-white hover:border-white/40 active:scale-95 transition shrink-0"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border border-dashed border-white/20 bg-white/[0.03] text-zinc-300 hover:text-white hover:border-white/40 active:scale-95 transition shrink-0 select-none"
               >
                 <Plus className="w-3.5 h-3.5 text-indigo-400" />
                 <span>+ Nueva</span>
@@ -336,10 +342,10 @@ export function PersonalExpenseModal({
                       triggerHaptic(10);
                       setSelectedCategoryId(cat.id);
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition active:scale-95 shrink-0 ${
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition active:scale-95 shrink-0 select-none cursor-pointer ${
                       isSelected
-                        ? "bg-white text-zinc-950 border-white shadow-md font-bold"
-                        : "bg-white/[0.05] text-zinc-200 border-white/[0.1] hover:bg-white/[0.1] hover:text-white"
+                        ? "bg-white text-zinc-950 border-white shadow-md font-bold ring-1 ring-white/60"
+                        : "bg-white/[0.06] text-zinc-200 border-white/[0.12] hover:bg-white/[0.12] hover:text-white"
                     }`}
                   >
                     <CategoryIcon name={cat.name} icon={cat.icon} className="w-3.5 h-3.5" />

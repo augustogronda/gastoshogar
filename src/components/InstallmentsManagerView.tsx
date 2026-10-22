@@ -23,6 +23,7 @@ import {
   unapplyRecurringExpenseAction,
 } from "@/app/actions";
 import { ConfirmDialog, ToastBanner, useToast } from "./ui/ConfirmDialog";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface Category {
   id: string;
@@ -628,13 +629,19 @@ export function InstallmentsManagerView({
               <label className="block text-[11px] font-bold text-zinc-300 uppercase tracking-wider mb-1.5">
                 Categoría
               </label>
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
+              <div
+                className="flex gap-1.5 overflow-x-auto touch-pan-x overscroll-x-contain no-scrollbar py-1 -mx-1 px-1 scroll-smooth"
+                style={{ WebkitOverflowScrolling: "touch" }}
+              >
                 {categories.map((c) => (
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => setSelectedCategoryId(c.id)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition ${
+                    onClick={() => {
+                      triggerHaptic(8);
+                      setSelectedCategoryId(c.id);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 border transition active:scale-95 select-none ${
                       selectedCategoryId === c.id
                         ? "bg-white text-zinc-950 border-white shadow-md font-bold"
                         : "bg-white/[0.05] text-zinc-200 border-white/[0.1] hover:bg-white/[0.1] hover:text-white"

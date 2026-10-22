@@ -1,7 +1,7 @@
 {
-  "version": "1.18.4",
-  "build": 2026102201,
-  "releasedAt": "2026-10-22T15:14:00Z",
-  "title": "PIN Passcode Apple y Hápticos Táctiles Nativos en iOS PWA",
-  "description": "Acceso instantáneo con PIN de 4 dígitos estilo Apple sin correos ni dependencias de SMTP, y soporte nativo de Taptic Engine para Safari y PWA en iOS."
+  "version": "1.18.5",
+  "build": 2026102202,
+  "releasedAt": "2026-10-22T15:39:00Z",
+  "title": "Fix de Scroll Lateral y Selección de Categorías",
+  "description": "Restaura la selección instantánea y el desplazamiento lateral fluido de categorías tanto al crear gastos como en el listado mensual."
 }

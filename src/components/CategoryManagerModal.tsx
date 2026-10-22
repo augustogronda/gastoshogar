@@ -378,7 +378,13 @@ export function CategoryManagerModal({
                 <label className="text-[11px] font-semibold text-zinc-400 block mb-1.5">
                   Color distintivo
                 </label>
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-0.5">
+                <div
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 overflow-x-auto touch-pan-x overscroll-x-contain no-scrollbar py-1 px-0.5 scroll-smooth"
+                  style={{ WebkitOverflowScrolling: "touch" }}
+                >
                   {CATEGORY_COLOR_OPTIONS.map((c) => {
                     const isSelected = selectedColor === c.id;
                     return (

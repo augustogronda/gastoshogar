@@ -617,16 +617,20 @@ export function PersonalDashboardView({
                 </div>
 
                 {(sortedCategories.length > 1 || pendingReviewCount > 0) && (
-                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                  <div
+                    className="flex items-center gap-1.5 overflow-x-auto touch-pan-x overscroll-x-contain no-scrollbar py-1 -mx-1 px-1 scroll-smooth"
+                    style={{ WebkitOverflowScrolling: "touch" }}
+                  >
                     <button
                       type="button"
                       onClick={() => {
+                        triggerHaptic(8);
                         setPersonalCategoryFilter("ALL");
                         setOnlyPendingReview(false);
                       }}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-200 ${
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap shrink-0 transition-all duration-200 select-none ${
                         personalCategoryFilter === "ALL" && !onlyPendingReview
-                          ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-950/60 border border-indigo-400/30"
+                          ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-950/60 border border-indigo-400/30 font-bold"
                           : "bg-zinc-900/90 text-zinc-400 hover:text-white hover:bg-zinc-800/80 border border-white/[0.08]"
                       }`}
                     >
@@ -635,8 +639,11 @@ export function PersonalDashboardView({
                     {pendingReviewCount > 0 && (
                       <button
                         type="button"
-                        onClick={() => setOnlyPendingReview(!onlyPendingReview)}
-                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${
+                        onClick={() => {
+                          triggerHaptic(8);
+                          setOnlyPendingReview(!onlyPendingReview);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap shrink-0 transition-all duration-200 flex items-center gap-1.5 select-none ${
                           onlyPendingReview
                             ? "bg-gradient-to-r from-amber-500 to-orange-500 text-zinc-950 shadow-md shadow-amber-950/60 border border-amber-300/60 scale-[1.02]"
                             : "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/35"
@@ -654,18 +661,19 @@ export function PersonalDashboardView({
                       <button
                         key={cat.name}
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          triggerHaptic(8);
                           setPersonalCategoryFilter(
                             personalCategoryFilter === cat.name ? "ALL" : cat.name
-                          )
-                        }
-                        className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${
+                          );
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap shrink-0 transition-all duration-200 select-none flex items-center gap-1.5 ${
                           personalCategoryFilter === cat.name
-                            ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-950/60 border border-indigo-400/30"
+                            ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-950/60 border border-indigo-400/30 font-bold"
                             : "bg-zinc-900/90 text-zinc-400 hover:text-white hover:bg-zinc-800/80 border border-white/[0.08]"
                         }`}
                       >
-                        <CategoryIcon name={cat.name} className="w-3 h-3" />
+                        <CategoryIcon name={cat.name} className="w-3.5 h-3.5" />
                         <span>{cat.name}</span>
                         <span className="text-[10px] opacity-75">({cat.count})</span>
                       </button>

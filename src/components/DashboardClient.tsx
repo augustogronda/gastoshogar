@@ -1506,13 +1506,19 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                       </div>
 
                       {/* Chips de Filtro Rápido en 1 toque (Por pagador o categoría) */}
-                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                      <div
+                        className="flex items-center gap-1.5 overflow-x-auto touch-pan-x overscroll-x-contain no-scrollbar py-1 -mx-1 px-1 scroll-smooth"
+                        style={{ WebkitOverflowScrolling: "touch" }}
+                      >
                         <button
                           type="button"
-                          onClick={() => setHogarFilter("ALL")}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
+                          onClick={() => {
+                            triggerHaptic(8);
+                            setHogarFilter("ALL");
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap shrink-0 transition active:scale-95 select-none ${
                             hogarFilter === "ALL"
-                              ? "bg-blue-600 text-white shadow-sm"
+                              ? "bg-blue-600 text-white shadow-sm font-bold"
                               : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
                           }`}
                         >
@@ -1521,12 +1527,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                         {users[0] && (
                           <button
                             type="button"
-                            onClick={() =>
-                              setHogarFilter(hogarFilter === `USER:${users[0].id}` ? "ALL" : `USER:${users[0].id}`)
-                            }
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
+                            onClick={() => {
+                              triggerHaptic(8);
+                              setHogarFilter(hogarFilter === `USER:${users[0].id}` ? "ALL" : `USER:${users[0].id}`);
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap shrink-0 transition active:scale-95 select-none ${
                               hogarFilter === `USER:${users[0].id}`
-                                ? "bg-blue-600 text-white shadow-sm"
+                                ? "bg-blue-600 text-white shadow-sm font-bold"
                                 : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
                             }`}
                           >
@@ -1536,12 +1543,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                         {users[1] && (
                           <button
                             type="button"
-                            onClick={() =>
-                              setHogarFilter(hogarFilter === `USER:${users[1].id}` ? "ALL" : `USER:${users[1].id}`)
-                            }
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition ${
+                            onClick={() => {
+                              triggerHaptic(8);
+                              setHogarFilter(hogarFilter === `USER:${users[1].id}` ? "ALL" : `USER:${users[1].id}`);
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap shrink-0 transition active:scale-95 select-none ${
                               hogarFilter === `USER:${users[1].id}`
-                                ? "bg-rose-600 text-white shadow-sm"
+                                ? "bg-rose-600 text-white shadow-sm font-bold"
                                 : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
                             }`}
                           >
@@ -1555,14 +1563,17 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                             <button
                               key={cat.id}
                               type="button"
-                              onClick={() => setHogarFilter(isSelected ? "ALL" : `CAT:${cat.id}`)}
-                              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                              onClick={() => {
+                                triggerHaptic(8);
+                                setHogarFilter(isSelected ? "ALL" : `CAT:${cat.id}`);
+                              }}
+                              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap shrink-0 transition active:scale-95 select-none flex items-center gap-1.5 ${
                                 isSelected
-                                  ? "bg-blue-600 text-white shadow-sm"
+                                  ? "bg-blue-600 text-white shadow-sm font-bold ring-1 ring-blue-400/60"
                                   : "bg-zinc-900/90 text-zinc-400 hover:text-white border border-white/[0.08]"
                               }`}
                             >
-                              <CategoryIcon name={cat.name} className="w-3 h-3" />
+                              <CategoryIcon name={cat.name} className="w-3.5 h-3.5" />
                               <span>{cat.name} ({cat.count})</span>
                             </button>
                           );
