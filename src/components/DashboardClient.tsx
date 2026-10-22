@@ -169,7 +169,7 @@ function HogarExpenseRow({
   const isPendingSync = exp.id.startsWith("temp-");
   const dateObj = new Date(exp.date);
   const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
-  const isAgus = exp.paidBy.id === users[0]?.id;
+  const isAugusto = exp.paidBy?.name?.toLowerCase().includes("augusto");
 
   const longPressHandlers = useLongPress({
     onLongPress: () => {
@@ -210,7 +210,7 @@ function HogarExpenseRow({
             <span className="shrink-0">•</span>
             <span
               className={`font-bold px-2 py-0.5 rounded-full text-[10px] border shrink-0 ${
-                isAgus
+                isAugusto
                   ? "bg-blue-500/20 text-blue-200 border-blue-400/30"
                   : "bg-rose-500/20 text-rose-200 border-rose-400/30"
               }`}

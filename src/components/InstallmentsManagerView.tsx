@@ -253,15 +253,15 @@ export function InstallmentsManagerView({
   const pendingThisMonth = totalDueThisMonth - alreadyAppliedThisMonth;
   const pendingCount = applicableThisMonth.filter((r) => !r.alreadyApplied).length;
 
-  const userA = users[0];
-  const userB = users[1];
+  const userAugusto = users.find((u) => u.name.toLowerCase().includes("augusto")) || users[0];
+  const userAgus = users.find((u) => !u.name.toLowerCase().includes("augusto")) || users[1];
 
-  const dueByUserA = applicableThisMonth
-    .filter((r) => r.paidById === userA?.id)
+  const dueByAugusto = applicableThisMonth
+    .filter((r) => r.paidById === userAugusto?.id)
     .reduce((acc, r) => acc + r.installmentAmount, 0);
 
-  const dueByUserB = applicableThisMonth
-    .filter((r) => r.paidById === userB?.id)
+  const dueByAgus = applicableThisMonth
+    .filter((r) => r.paidById === userAgus?.id)
     .reduce((acc, r) => acc + r.installmentAmount, 0);
 
   // Proyección de deuda pendiente global en cuotas futuras
@@ -358,24 +358,24 @@ export function InstallmentsManagerView({
           <div className="bg-[#151e33] border border-blue-500/25 rounded-2xl p-3.5 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-blue-300 uppercase tracking-wider">
-                Tarjeta {userA?.name || "Agus"}
+                Tarjeta {userAugusto?.name || "Augusto"}
               </span>
               <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.8)]" />
             </div>
             <span className="text-base font-extrabold text-white font-mono tabular-nums block mt-1.5">
-              ${Math.round(dueByUserA).toLocaleString("es-AR")}
+              ${Math.round(dueByAugusto).toLocaleString("es-AR")}
             </span>
           </div>
 
           <div className="bg-[#241724] border border-rose-500/25 rounded-2xl p-3.5 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider">
-                Tarjeta {userB?.name || "Pareja"}
+                Tarjeta {userAgus?.name || "Agus"}
               </span>
               <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.8)]" />
             </div>
             <span className="text-base font-extrabold text-white font-mono tabular-nums block mt-1.5">
-              ${Math.round(dueByUserB).toLocaleString("es-AR")}
+              ${Math.round(dueByAgus).toLocaleString("es-AR")}
             </span>
           </div>
         </div>
@@ -605,22 +605,25 @@ export function InstallmentsManagerView({
                 ¿Con la tarjeta de quién?
               </label>
               <div className="grid grid-cols-2 gap-2">
-                {users.slice(0, 2).map((u, idx) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => setSelectedPayerId(u.id)}
-                    className={`py-2.5 px-3 rounded-2xl text-xs font-bold border text-center truncate transition active:scale-[0.97] ${
-                      selectedPayerId === u.id
-                        ? idx === 0
-                          ? "bg-blue-600/35 border-blue-400 text-blue-200 ring-1 ring-blue-400/60 shadow-md"
-                          : "bg-rose-600/35 border-rose-400 text-rose-200 ring-1 ring-rose-400/60 shadow-md"
-                        : "bg-white/[0.05] border-white/[0.1] text-zinc-300 hover:text-white hover:bg-white/[0.08]"
-                    }`}
-                  >
-                    {u.name}
-                  </button>
-                ))}
+                {users.slice(0, 2).map((u) => {
+                  const isAugusto = u.name.toLowerCase().includes("augusto");
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => setSelectedPayerId(u.id)}
+                      className={`py-2.5 px-3 rounded-2xl text-xs font-bold border text-center truncate transition active:scale-[0.97] ${
+                        selectedPayerId === u.id
+                          ? isAugusto
+                            ? "bg-blue-600/35 border-blue-400 text-blue-200 ring-1 ring-blue-400/60 shadow-md"
+                            : "bg-rose-600/35 border-rose-400 text-rose-200 ring-1 ring-rose-400/60 shadow-md"
+                          : "bg-white/[0.05] border-white/[0.1] text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+                      }`}
+                    >
+                      {u.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -737,7 +740,7 @@ export function InstallmentsManagerView({
         ) : (
           <div className="space-y-3">
             {filteredApplicable.map((item) => {
-              const isAgus = item.paidById === userA?.id;
+              const isAugusto = item.paidBy?.name?.toLowerCase().includes("augusto");
               const hasInstallments = !!item.totalInstallments;
               const progressPct = hasInstallments
                 ? Math.min(100, Math.round((item.installmentNumber / (item.totalInstallments || 1)) * 100))
@@ -762,7 +765,7 @@ export function InstallmentsManagerView({
                           <span className="text-sm font-bold text-white truncate">{item.title}</span>
                           <span
                             className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full border shrink-0 ${
-                              isAgus
+                              isAugusto
                                 ? "bg-blue-500/15 text-blue-300 border-blue-400/30"
                                 : "bg-rose-500/15 text-rose-300 border-rose-400/30"
                             }`}
@@ -869,7 +872,7 @@ export function InstallmentsManagerView({
         ) : (
           <div className="space-y-2.5">
             {recurringExpenses.map((r) => {
-              const isAgus = r.paidById === userA?.id;
+              const isAugusto = r.paidBy?.name?.toLowerCase().includes("augusto");
 
               return (
                 <div
@@ -881,7 +884,7 @@ export function InstallmentsManagerView({
                       <span className="text-zinc-100 font-bold text-xs truncate">{r.title}</span>
                       <span
                         className={`text-[9px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                          isAgus
+                          isAugusto
                             ? "bg-blue-500/15 text-blue-300 border-blue-400/30"
                             : "bg-rose-500/15 text-rose-300 border-rose-400/30"
                         }`}

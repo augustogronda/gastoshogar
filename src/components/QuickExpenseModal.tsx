@@ -63,6 +63,12 @@ export function QuickExpenseModal({
     setLocalCategories(categories);
   }, [categories]);
 
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedPayerId(defaultPayerId || users[0]?.id || "");
+    }
+  }, [isOpen, defaultPayerId, users]);
+
   const {
     scrollContainerRef,
     toggleDetent,
@@ -223,9 +229,9 @@ export function QuickExpenseModal({
               ¿QUIÉN PAGÓ DE SU BOLSILLO?
             </label>
             <div className="grid grid-cols-2 gap-2.5">
-              {users.slice(0, 2).map((u, idx) => {
+              {users.slice(0, 2).map((u) => {
                 const isSelected = selectedPayerId === u.id;
-                const isFirst = idx === 0;
+                const isAugusto = u.name.toLowerCase().includes("augusto");
 
                 return (
                   <button
@@ -237,7 +243,7 @@ export function QuickExpenseModal({
                     }}
                     className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl border text-sm font-semibold transition active:scale-[0.97] ${
                       isSelected
-                        ? isFirst
+                        ? isAugusto
                           ? "bg-blue-600/30 border-blue-400 text-blue-200 shadow-md ring-1 ring-blue-400/60"
                           : "bg-rose-600/30 border-rose-400 text-rose-200 shadow-md ring-1 ring-rose-400/60"
                         : "bg-white/[0.04] border-white/[0.08] text-zinc-300 hover:text-white hover:bg-white/[0.08]"

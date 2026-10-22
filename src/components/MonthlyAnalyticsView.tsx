@@ -257,52 +257,57 @@ export function MonthlyAnalyticsView({
         )}
       </div>
 
-      {/* Desembolsos de Bolsillo (Agus & Pareja) */}
-      {memberBalances.length >= 2 && (
-        <div className="super-card rounded-3xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-rose-400" />
-              Desembolsos de Bolsillo
-            </h3>
-            <span className="text-[10px] font-semibold text-zinc-400 px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08]">
-              Aporte {contributionPct}% c/u
-            </span>
-          </div>
+      {/* Desembolsos de Bolsillo (Augusto & Agus) */}
+      {memberBalances.length >= 2 && (() => {
+        const memberAugusto = memberBalances.find((m) => m.name.toLowerCase().includes("augusto")) || memberBalances[0];
+        const memberAgus = memberBalances.find((m) => !m.name.toLowerCase().includes("augusto")) || memberBalances[1];
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-blue-950/30 border border-blue-500/30 rounded-2xl p-3.5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-blue-300 truncate">
-                  {memberBalances[0].name}
-                </span>
-                <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
-              </div>
-              <span className="text-xl font-extrabold text-white block mt-1.5 font-mono tabular-nums">
-                ${Math.round(memberBalances[0].outOfPocketPaid).toLocaleString("es-AR")}
-              </span>
-              <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
-                Meta ({contributionPct}%): ${Math.round(memberBalances[0].committedAmount).toLocaleString("es-AR")}
+        return (
+          <div className="super-card rounded-3xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-rose-400" />
+                Desembolsos de Bolsillo
+              </h3>
+              <span className="text-[10px] font-semibold text-zinc-400 px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08]">
+                Aporte {contributionPct}% c/u
               </span>
             </div>
 
-            <div className="bg-rose-950/30 border border-rose-500/30 rounded-2xl p-3.5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-rose-300 truncate">
-                  {memberBalances[1].name}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-blue-950/30 border border-blue-500/30 rounded-2xl p-3.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-blue-300 truncate">
+                    {memberAugusto.name}
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
+                </div>
+                <span className="text-xl font-extrabold text-white block mt-1.5 font-mono tabular-nums">
+                  ${Math.round(memberAugusto.outOfPocketPaid).toLocaleString("es-AR")}
                 </span>
-                <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />
+                <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
+                  Meta ({contributionPct}%): ${Math.round(memberAugusto.committedAmount).toLocaleString("es-AR")}
+                </span>
               </div>
-              <span className="text-xl font-extrabold text-white block mt-1.5 font-mono tabular-nums">
-                ${Math.round(memberBalances[1].outOfPocketPaid).toLocaleString("es-AR")}
-              </span>
-              <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
-                Meta ({contributionPct}%): ${Math.round(memberBalances[1].committedAmount).toLocaleString("es-AR")}
-              </span>
+
+              <div className="bg-rose-950/30 border border-rose-500/30 rounded-2xl p-3.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-rose-300 truncate">
+                    {memberAgus.name}
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]" />
+                </div>
+                <span className="text-xl font-extrabold text-white block mt-1.5 font-mono tabular-nums">
+                  ${Math.round(memberAgus.outOfPocketPaid).toLocaleString("es-AR")}
+                </span>
+                <span className="text-[10px] text-zinc-300 font-medium block mt-0.5 font-mono tabular-nums">
+                  Meta ({contributionPct}%): ${Math.round(memberAgus.committedAmount).toLocaleString("es-AR")}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Desglose por Categorías */}
       <div className="super-card rounded-3xl p-5">
@@ -355,15 +360,15 @@ export function MonthlyAnalyticsView({
         </h3>
 
         <div className="space-y-3">
-          {Object.entries(payerTotals).map(([key, data], idx) => {
+          {Object.entries(payerTotals).map(([key, data]) => {
             const pct = totalSpent > 0 ? (data.amount / totalSpent) * 100 : 0;
-            const isAgus = idx === 0;
+            const isAugusto = data.name.toLowerCase().includes("augusto");
 
             return (
               <div key={key} className="space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-zinc-200 font-semibold flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${isAgus ? "bg-blue-500" : "bg-rose-500"}`} />
+                    <span className={`w-2 h-2 rounded-full ${isAugusto ? "bg-blue-500" : "bg-rose-500"}`} />
                     {data.name}
                   </span>
                   <span className="text-white font-semibold font-mono tabular-nums">
@@ -374,7 +379,7 @@ export function MonthlyAnalyticsView({
                 <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden p-0.5 border border-white/[0.04]">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
-                      isAgus ? "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"
+                      isAugusto ? "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"
                     }`}
                     style={{ width: `${Math.max(2, pct)}%` }}
                   />

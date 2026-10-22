@@ -36,18 +36,18 @@ export function SalaryConfigModal({
   incomes,
   defaultRate = 0.60,
 }: SalaryConfigModalProps) {
-  const userA = users[0];
-  const userB = users[1];
+  const userAugusto = users.find((u) => u.name.toLowerCase().includes("augusto")) || users[0];
+  const userAgus = users.find((u) => !u.name.toLowerCase().includes("augusto")) || users[1];
 
-  const recA = incomes.find((i) => i.userId === userA?.id);
-  const recB = incomes.find((i) => i.userId === userB?.id);
+  const recA = incomes.find((i) => i.userId === userAugusto?.id);
+  const recB = incomes.find((i) => i.userId === userAgus?.id);
 
   const incA = recA?.amount ?? 0;
   const incB = recB?.amount ?? 0;
   const initialPct = Math.round((recA?.contributionPct ?? recB?.contributionPct ?? defaultRate ?? 0.60) * 100);
 
-  const [nameA, setNameA] = useState<string>(userA?.name || "Agus");
-  const [nameB, setNameB] = useState<string>(userB?.name || "Pareja");
+  const [nameA, setNameA] = useState<string>(userAugusto?.name || "Augusto");
+  const [nameB, setNameB] = useState<string>(userAgus?.name || "Agus");
 
   const [salaryA, setSalaryA] = useState<string>(incA ? incA.toString() : "");
   const [salaryB, setSalaryB] = useState<string>(incB ? incB.toString() : "");
@@ -56,13 +56,13 @@ export function SalaryConfigModal({
 
   useEffect(() => {
     if (isOpen) {
-      setNameA(userA?.name || "Agus");
-      setNameB(userB?.name || "Pareja");
+      setNameA(userAugusto?.name || "Augusto");
+      setNameB(userAgus?.name || "Agus");
       setSalaryA(incA ? incA.toString() : "");
       setSalaryB(incB ? incB.toString() : "");
       setPct(Math.round((recA?.contributionPct ?? recB?.contributionPct ?? defaultRate ?? 0.60) * 100));
     }
-  }, [isOpen, periodId, incA, incB, recA?.contributionPct, recB?.contributionPct, defaultRate, userA?.name, userB?.name]);
+  }, [isOpen, periodId, incA, incB, recA?.contributionPct, recB?.contributionPct, defaultRate, userAugusto?.name, userAgus?.name]);
 
   if (!isOpen) return null;
 
@@ -78,11 +78,11 @@ export function SalaryConfigModal({
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      if (userA && userB) {
-        await updateMemberNamesAction(userA.id, nameA, userB.id, nameB);
+      if (userAugusto && userAgus) {
+        await updateMemberNamesAction(userAugusto.id, nameA, userAgus.id, nameB);
         await updateSalariesAction(periodId, [
-          { userId: userA.id, amount: numA, pct: clampedPct / 100 },
-          { userId: userB.id, amount: numB, pct: clampedPct / 100 },
+          { userId: userAugusto.id, amount: numA, pct: clampedPct / 100 },
+          { userId: userAgus.id, amount: numB, pct: clampedPct / 100 },
         ]);
       }
       onClose();
@@ -178,7 +178,7 @@ export function SalaryConfigModal({
                 value={nameA}
                 onChange={(e) => setNameA(e.target.value)}
                 className="bg-transparent font-bold text-blue-300 border-b border-blue-400/30 focus:border-blue-400 focus:outline-none text-sm px-1 py-0.5 placeholder:text-blue-300/60"
-                placeholder="Nombre"
+                placeholder="Nombre (Augusto)"
               />
               <span className="text-xs font-bold text-blue-300 font-mono tabular-nums bg-blue-950/40 px-2.5 py-0.5 rounded-full border border-blue-500/20">
                 Aporte {clampedPct}%: ${quotaA.toLocaleString("es-AR")}
@@ -203,7 +203,7 @@ export function SalaryConfigModal({
                 value={nameB}
                 onChange={(e) => setNameB(e.target.value)}
                 className="bg-transparent font-bold text-rose-300 border-b border-rose-400/30 focus:border-rose-400 focus:outline-none text-sm px-1 py-0.5 placeholder:text-rose-300/60"
-                placeholder="Nombre de tu pareja"
+                placeholder="Nombre (Agus)"
               />
               <span className="text-xs font-bold text-rose-300 font-mono tabular-nums bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-500/20">
                 Aporte {clampedPct}%: ${quotaB.toLocaleString("es-AR")}

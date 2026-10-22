@@ -1,7 +1,7 @@
 {
-  "version": "1.19.0",
-  "build": 2026102207,
-  "releasedAt": "2026-10-22T19:10:00Z",
-  "title": "Copiar/Mover entre espacios, flujo de revisión instantáneo y reconfirmación",
-  "description": "Agrega copiar y mover gastos entre Hogar y Personal en menú contextual y detalle, optimiza el flujo de revisión a 0ms con reconciliación en segundo plano y mejora la experiencia de confirmación."
+  "version": "1.19.1",
+  "build": 2026102208,
+  "releasedAt": "2026-10-22T19:21:00Z",
+  "title": "Colores consistentes de usuarios y pagador predeterminado por perfil",
+  "description": "Augusto siempre en azul, Agus siempre en rojo, y selección automática del pagador según el perfil activo en nuevo gasto permitiendo alternar fácilmente."
 }
