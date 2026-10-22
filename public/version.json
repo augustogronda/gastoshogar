@@ -1,7 +1,7 @@
 {
-  "version": "1.18.7",
-  "build": 2026102204,
-  "releasedAt": "2026-10-22T17:02:00Z",
-  "title": "Restauración de Hápticos Taptic Engine en iOS PWA",
-  "description": "Reactiva el motor háptico físico en Safari e iOS PWA mediante switch desacoplado no invasivo, preservando la fluidez del scroll en listas y categorías."
+  "version": "1.18.8",
+  "build": 2026102205,
+  "releasedAt": "2026-10-22T18:18:00Z",
+  "title": "Ajuste de Actuador Háptico Taptic Engine iOS",
+  "description": "Optimización del despacho de eventos hacia el switch nativo sin restricciones de pointer-events, asegurando compatibilidad en PWA de Safari."
 }

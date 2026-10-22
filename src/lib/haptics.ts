@@ -4,6 +4,11 @@ let audioCtx: AudioContext | null = null;
 let hapticLabel: HTMLLabelElement | null = null;
 let hapticInput: HTMLInputElement | null = null;
 
+/**
+ * Crea e inicializa el switch nativo para accionar el Taptic Engine de Apple en iOS (17.4+ / 18+).
+ * Ubicado fuera del área visual interactiva sin usar pointer-events: none (para que WebKit
+ * no descarte el evento sintético dispatchEvent/click).
+ */
 function ensureHapticElements(): HTMLLabelElement | null {
   if (typeof document === "undefined" || !document.body) return null;
 
@@ -28,31 +33,29 @@ function ensureHapticElements(): HTMLLabelElement | null {
       return existingLabel;
     }
 
-    // Contenedor imperceptible en el viewport pero fuera del flujo visual
-    // Permite que WebKit RenderThemeIOS accione el Taptic Engine físico de iOS sin bloquear toques
     const container = document.createElement("div");
     container.setAttribute("aria-hidden", "true");
     container.style.cssText =
-      "position:fixed;bottom:1px;left:1px;width:2px;height:2px;opacity:0.01;pointer-events:none;overflow:hidden;z-index:-1;user-select:none;-webkit-user-select:none;";
-
-    const label = document.createElement("label");
-    label.id = labelId;
-    label.htmlFor = inputId;
-    label.style.cssText = "display:block;width:2px;height:2px;pointer-events:none;";
+      "position:fixed;bottom:-50px;left:-50px;width:10px;height:10px;opacity:0.01;overflow:hidden;z-index:-9999;";
 
     const input = document.createElement("input");
     input.type = "checkbox";
     input.setAttribute("switch", "");
     input.id = inputId;
     input.tabIndex = -1;
-    input.style.cssText = "width:2px;height:2px;margin:0;padding:0;border:0;pointer-events:none;";
+    input.style.cssText = "width:10px;height:10px;margin:0;padding:0;border:0;";
 
-    container.appendChild(label);
+    const label = document.createElement("label");
+    label.id = labelId;
+    label.htmlFor = inputId;
+    label.style.cssText = "display:inline-block;width:10px;height:10px;";
+
     container.appendChild(input);
+    container.appendChild(label);
     document.body.appendChild(container);
 
-    // Forzar layout inmediato para que WebKit instancie RenderSwitch antes de dispararse
-    void container.getBoundingClientRect();
+    // Forzar cálculo de layout para registrar RenderThemeIOS
+    void container.offsetHeight;
 
     hapticLabel = label;
     hapticInput = input;
@@ -90,7 +93,7 @@ function playAudioHapticClick(): void {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
 
-    // Pulso muy corto de baja frecuencia para simular el click háptico de iOS
+    // Pulso muy corto de baja frecuencia para complementar la respuesta táctil
     osc.type = "sine";
     osc.frequency.setValueAtTime(140, audioCtx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.015);
@@ -119,27 +122,25 @@ export function isAppleTouchDevice(): boolean {
 /**
  * Dispara feedback háptico:
  * - En Android: Vibration API nativa (navigator.vibrate).
- * - En iOS / Safari PWA: Taptic Engine físico mediante switch nativo desacoplado + audio click táctil.
+ * - En iOS / Safari PWA: Taptic Engine físico mediante switch nativo + audio click táctil.
  */
 export function triggerHaptic(durationMs = 15): void {
   if (typeof window === "undefined") return;
 
   try {
-    // 1. Android / Vibration API
+    // 1. Android / Vibration API estándar
     if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
       const effectiveMs = Math.max(15, durationMs);
       navigator.vibrate(effectiveMs);
       return;
     }
 
-    // 2. iOS WebKit / Safari PWA: Taptic Engine físico vía switch
-    if (isAppleTouchDevice()) {
-      const label = ensureHapticElements();
-      if (label) {
-        label.click();
-      } else if (hapticInput) {
-        hapticInput.click();
-      }
+    // 2. iOS WebKit / Safari PWA: Taptic Engine físico
+    const label = ensureHapticElements();
+    if (label) {
+      label.click();
+    } else if (hapticInput) {
+      hapticInput.click();
     }
 
     // 3. Audio tactile click complementario
