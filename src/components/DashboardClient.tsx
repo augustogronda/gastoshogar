@@ -44,6 +44,8 @@ import { InstallmentsManagerView } from "./InstallmentsManagerView";
 import { LoginScreen } from "./LoginScreen";
 import { PersonalDashboardView } from "./PersonalDashboardView";
 import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
+import { ExpenseContextMenu, ContextMenuExpense } from "./ExpenseContextMenu";
+import { useLongPress } from "@/lib/use-long-press";
 import { CategoryManagerModal } from "./CategoryManagerModal";
 import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
 import { MonthPickerModal } from "./MonthPickerModal";
@@ -146,6 +148,97 @@ const SHORT_MONTHS = [
   "ene", "feb", "mar", "abr", "may", "jun",
   "jul", "ago", "sep", "oct", "nov", "dic"
 ];
+
+interface HogarExpenseRowProps {
+  exp: any;
+  users: any[];
+  deletingId: string | null;
+  onOpenDetail: (exp: any) => void;
+  onLongPress: (exp: any) => void;
+  showToast: (msg: string, type?: "success" | "error" | "info") => void;
+}
+
+function HogarExpenseRow({
+  exp,
+  users,
+  deletingId,
+  onOpenDetail,
+  onLongPress,
+  showToast,
+}: HogarExpenseRowProps) {
+  const isPendingSync = exp.id.startsWith("temp-");
+  const dateObj = new Date(exp.date);
+  const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
+  const isAgus = exp.paidBy.id === users[0]?.id;
+
+  const longPressHandlers = useLongPress({
+    onLongPress: () => {
+      if (isPendingSync) return;
+      triggerHaptic(15);
+      onLongPress(exp);
+    },
+    onClick: () => {
+      if (isPendingSync) {
+        showToast("Sincronizando gasto con la base de datos...", "info");
+        return;
+      }
+      triggerHaptic(8);
+      onOpenDetail(exp);
+    },
+  });
+
+  return (
+    <div
+      {...longPressHandlers}
+      className={`super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.98] transition-all duration-300 cursor-pointer group select-none ${
+        deletingId === exp.id
+          ? "opacity-0 -translate-x-6 scale-95 pointer-events-none"
+          : "opacity-100"
+      }`}
+      style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
+    >
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
+          <CategoryIcon name={exp.category.name} className="w-5 h-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="text-[15px] font-semibold text-white block group-hover:text-blue-300 transition-colors truncate tracking-[-0.015em]">
+            {exp.title}
+          </span>
+          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-300 font-medium min-w-0">
+            <span className="shrink-0">{dateStr}</span>
+            <span className="shrink-0">•</span>
+            <span
+              className={`font-bold px-2 py-0.5 rounded-full text-[10px] border shrink-0 ${
+                isAgus
+                  ? "bg-blue-500/20 text-blue-200 border-blue-400/30"
+                  : "bg-rose-500/20 text-rose-200 border-rose-400/30"
+              }`}
+            >
+              Pagó {exp.paidBy.name}
+            </span>
+            <span className="shrink-0 text-zinc-500">•</span>
+            <span className="text-zinc-400 truncate">
+              {exp.category.name}
+            </span>
+            {isPendingSync && (
+              <span className="text-[10px] text-amber-300 font-medium animate-pulse flex items-center gap-1 ml-1 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-ping" />
+                Sincronizando...
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="text-right shrink-0 ml-3">
+        <span className="text-base font-extrabold text-white font-mono tabular-nums tracking-tight">
+          ${Math.round(exp.amount).toLocaleString("es-AR")}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 type ActiveTab = "hogar" | "analisis" | "cuotas" | "fci";
 
@@ -254,6 +347,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [isProcessingClose, setIsProcessingClose] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<EditableExpense | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [contextMenuExpense, setContextMenuExpense] = useState<ContextMenuExpense | null>(null);
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmHogarState, setConfirmHogarState] = useState<{
@@ -1623,93 +1718,46 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                             <p className="text-xs text-zinc-400">No se encontraron gastos con ese criterio.</p>
                           </div>
                         ) : (
-                          filteredHogarExpenses.map((exp) => {
-                            const dateObj = new Date(exp.date);
-                            const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
-                            const isAgus = exp.paidBy.id === users[0]?.id;
-                            const isPendingSync = exp.id.startsWith("temp-");
-
-                            return (
-                              <div
-                                key={exp.id}
-                                onClick={() => {
-                                  if (isPendingSync) {
-                                    showToast("Sincronizando gasto con la base de datos...", "info");
-                                    return;
-                                  }
-                                  setSelectedExpense({
-                                    id: exp.id,
-                                    title: exp.title,
-                                    amount: exp.amount,
-                                    date: exp.date,
-                                    categoryId: exp.category.id,
-                                    category: exp.category,
-                                    paidById: exp.paidBy.id,
-                                    paidBy: exp.paidBy,
-                                    isFromPoolFund: exp.isFromPoolFund,
-                                    notes: exp.notes,
-                                    installmentNumber: exp.installmentNumber,
-                                    totalInstallments: exp.totalInstallments,
-                                    isPersonal: false,
-                                  });
-                                  triggerHaptic(10);
-                                  setIsDetailModalOpen(true);
-                                }}
-                                className={`super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition-all duration-300 cursor-pointer group ${
-                                  deletingId === exp.id
-                                    ? "opacity-0 -translate-x-6 scale-95 pointer-events-none"
-                                    : "opacity-100"
-                                }`}
-                              >
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                  <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
-                                    <CategoryIcon name={exp.category.name} className="w-5 h-5" />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <span className="text-[15px] font-semibold text-white block group-hover:text-blue-300 transition-colors truncate tracking-[-0.015em]">
-                                      {exp.title}
-                                    </span>
-                                    <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-300 font-medium min-w-0">
-                                      <span className="shrink-0">{dateStr}</span>
-                                      <span className="shrink-0">•</span>
-                                      <span
-                                        className={`font-bold px-2 py-0.5 rounded-full text-[10px] border shrink-0 ${
-                                          isAgus
-                                            ? "bg-blue-500/20 text-blue-200 border-blue-400/30"
-                                            : "bg-rose-500/20 text-rose-200 border-rose-400/30"
-                                        }`}
-                                      >
-                                        Pagó {exp.paidBy.name}
-                                      </span>
-                                      <span className="shrink-0 text-zinc-500">•</span>
-                                      <span className="text-zinc-400 truncate">
-                                        {exp.category.name}
-                                      </span>
-                                      {isPendingSync && (
-                                        <span className="text-[10px] text-amber-300 font-medium animate-pulse flex items-center gap-1 ml-1 shrink-0">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-ping" />
-                                          Sincronizando...
-                                        </span>
-                                      )}
-                                    </div>
-                                    {exp.notes && (
-                                      <p className="text-[11px] text-zinc-400 italic mt-1 line-clamp-1 flex items-center gap-1">
-                                        <span>💬</span>
-                                        <span>{exp.notes}</span>
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                                  <span className="text-[15px] font-bold text-white font-mono tabular-nums tracking-[-0.02em]">
-                                    ${Math.round(exp.amount).toLocaleString("es-AR")}
-                                  </span>
-                                  <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
-                                </div>
-                              </div>
-                            );
-                          })
+                          filteredHogarExpenses.map((exp) => (
+                            <HogarExpenseRow
+                              key={exp.id}
+                              exp={exp}
+                              users={users}
+                              deletingId={deletingId}
+                              onOpenDetail={(targetExp) => {
+                                setSelectedExpense({
+                                  id: targetExp.id,
+                                  title: targetExp.title,
+                                  amount: targetExp.amount,
+                                  date: targetExp.date,
+                                  categoryId: targetExp.category.id,
+                                  category: targetExp.category,
+                                  paidById: targetExp.paidBy.id,
+                                  paidBy: targetExp.paidBy,
+                                  isFromPoolFund: targetExp.isFromPoolFund,
+                                  notes: targetExp.notes,
+                                  installmentNumber: targetExp.installmentNumber,
+                                  totalInstallments: targetExp.totalInstallments,
+                                  isPersonal: false,
+                                });
+                                setIsDetailModalOpen(true);
+                              }}
+                              onLongPress={(targetExp) => {
+                                setContextMenuExpense({
+                                  id: targetExp.id,
+                                  title: targetExp.title,
+                                  amount: targetExp.amount,
+                                  date: targetExp.date,
+                                  category: targetExp.category,
+                                  paidBy: targetExp.paidBy,
+                                  isPersonal: false,
+                                  notes: targetExp.notes,
+                                });
+                                setIsContextMenuOpen(true);
+                              }}
+                              showToast={showToast}
+                            />
+                          ))
                         )}
                       </div>
                     );
@@ -2392,6 +2440,36 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           });
           showToast("✓ Gasto actualizado", "success");
         }}
+      />
+
+      {/* Menú Contextual iOS (Long Press) para Gastos del Hogar */}
+      <ExpenseContextMenu
+        isOpen={isContextMenuOpen}
+        onClose={() => {
+          setIsContextMenuOpen(false);
+          setContextMenuExpense(null);
+        }}
+        expense={contextMenuExpense}
+        isPersonal={false}
+        onOpenDetail={(exp) => {
+          setSelectedExpense({
+            id: exp.id,
+            title: exp.title,
+            amount: exp.amount,
+            date: exp.date,
+            categoryId: exp.category?.id,
+            category: exp.category as any,
+            paidById: exp.paidBy?.id,
+            paidBy: exp.paidBy as any,
+            notes: exp.notes,
+            installmentNumber: exp.installmentNumber,
+            totalInstallments: exp.totalInstallments,
+            isPersonal: false,
+          });
+          setIsDetailModalOpen(true);
+        }}
+        onMoveExpense={handleOptimisticMoveHogarToPersonal}
+        onDeleteExpense={handleOptimisticDeleteHogarExpense}
       />
 
       {/* Modal de Gestión de Categorías */}
