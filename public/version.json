@@ -1,7 +1,7 @@
 {
-  "version": "1.18.1",
-  "build": 2026102116,
-  "releasedAt": "2026-10-21T20:41:00Z",
-  "title": "Experiencia iPhone 15 Pro+ (Taptic Engine, 120Hz ProMotion y Dynamic Island)",
-  "description": "Vibración háptica nativa en iOS, Pull-to-Refresh a 120Hz con requestAnimationFrame + GPU, tipografía 100% nativa SF Pro/Mono sin descargas de red y fusión OLED con Dynamic Island."
+  "version": "1.18.2",
+  "build": 2026102117,
+  "releasedAt": "2026-10-22T02:18:30Z",
+  "title": "Rediseño Apple Wallet de Detalle de Gasto",
+  "description": "Ficha compacta estilo Apple Wallet con monto y título editables en cabecera, lista agrupada estilo iOS, selector de categoría desplegable bajo demanda y barra de acciones rápidas en una sola fila."
 }

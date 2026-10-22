@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
   Trash2,
@@ -10,11 +10,10 @@ import {
   Check,
   User,
   Users,
-  Sparkles,
   Layers,
-  Edit3,
   Plus,
   AlertCircle,
+  ChevronDown,
 } from "./ui/icons";
 import { CategoryManagerModal } from "./CategoryManagerModal";
 import { useToast, ToastBanner } from "./ui/ConfirmDialog";
@@ -35,6 +34,7 @@ import {
   getCleanNotes,
   getCardSourceTag,
 } from "@/lib/expense-review";
+import { triggerHaptic } from "@/lib/haptics";
 
 export interface CategoryItem {
   id: string;
@@ -94,6 +94,8 @@ export function ExpenseDetailModal({
   const [paidById, setPaidById] = useState("");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [isDuplicatingAcross, setIsDuplicatingAcross] = useState(false);
@@ -113,17 +115,55 @@ export function ExpenseDetailModal({
       setAmount(expense.amount ? expense.amount.toString() : "");
       setCategoryId(expense.categoryId || expense.category?.id || categories[0]?.id || "");
       setPaidById(expense.paidById || expense.paidBy?.id || users[0]?.id || "");
-      
+
       const d = expense.date ? new Date(expense.date) : new Date();
       setDate(d.toISOString().split("T")[0]);
-      
-      // Mostrar notas limpias en el textarea para una edición cómoda
+
       setNotes(getCleanNotes(expense.notes) || "");
       setPendingConfirm(null);
+      setIsCategoryPickerOpen(false);
     }
   }, [expense, categories, users]);
 
+  const initialDateStr = useMemo(() => {
+    if (!expense?.date) return "";
+    return new Date(expense.date).toISOString().split("T")[0];
+  }, [expense?.date]);
+
+  const initialCleanNotes = useMemo(() => getCleanNotes(expense?.notes) || "", [expense?.notes]);
+
+  const hasChanges = useMemo(() => {
+    if (!expense) return false;
+    const initialCatId = expense.categoryId || expense.category?.id || categories[0]?.id || "";
+    const initialPayerId = expense.paidById || expense.paidBy?.id || users[0]?.id || "";
+    return (
+      title.trim() !== (expense.title || "").trim() ||
+      Number(amount) !== Number(expense.amount) ||
+      categoryId !== initialCatId ||
+      (!isPersonal && paidById !== initialPayerId) ||
+      date !== initialDateStr ||
+      notes.trim() !== initialCleanNotes.trim()
+    );
+  }, [
+    expense,
+    title,
+    amount,
+    categoryId,
+    paidById,
+    date,
+    notes,
+    isPersonal,
+    categories,
+    users,
+    initialDateStr,
+    initialCleanNotes,
+  ]);
+
   if (!isOpen || !expense) return null;
+
+  const selectedCategoryObj =
+    categories.find((c) => c.id === categoryId) ||
+    expense.category || { id: "", name: "Sin categoría", icon: null };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,6 +173,7 @@ export function ExpenseDetailModal({
       return;
     }
 
+    triggerHaptic(15);
     setIsSubmitting(true);
     const selectedCategory = categories.find((c) => c.id === categoryId) || expense.category || null;
     const selectedPayer = users.find((u) => u.id === paidById) || expense.paidBy;
@@ -185,6 +226,7 @@ export function ExpenseDetailModal({
   };
 
   const handleDuplicate = async () => {
+    triggerHaptic(10);
     if (pendingConfirm !== "duplicate") {
       setPendingConfirm("duplicate");
       return;
@@ -209,6 +251,7 @@ export function ExpenseDetailModal({
   };
 
   const handleDuplicateToShared = async () => {
+    triggerHaptic(10);
     if (pendingConfirm !== "duplicateToShared") {
       setPendingConfirm("duplicateToShared");
       return;
@@ -231,6 +274,7 @@ export function ExpenseDetailModal({
   };
 
   const handleDuplicateToPersonal = async () => {
+    triggerHaptic(10);
     if (pendingConfirm !== "duplicateToPersonal") {
       setPendingConfirm("duplicateToPersonal");
       return;
@@ -253,6 +297,7 @@ export function ExpenseDetailModal({
   };
 
   const handleMarkAsReviewed = async () => {
+    triggerHaptic(12);
     setIsMarkingReviewed(true);
     onClose();
     try {
@@ -267,6 +312,7 @@ export function ExpenseDetailModal({
   };
 
   const handleToggleReview = async () => {
+    triggerHaptic(12);
     setIsMarkingReviewed(true);
     onClose();
     try {
@@ -285,6 +331,7 @@ export function ExpenseDetailModal({
   };
 
   const handleDelete = async () => {
+    triggerHaptic(15);
     if (pendingConfirm !== "delete") {
       setPendingConfirm("delete");
       return;
@@ -319,49 +366,47 @@ export function ExpenseDetailModal({
       role="dialog"
       aria-modal="true"
       aria-label="Detalle del Gasto"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in"
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-md animate-fade-in"
     >
       <ToastBanner toast={toast} />
-      <div className="w-full max-w-md apple-glass-sheet rounded-[28px] p-5 shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto no-scrollbar animate-scale-up">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md apple-glass-sheet rounded-t-[30px] sm:rounded-[28px] px-5 pt-3 pb-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar animate-scale-up"
+      >
         {/* Grabber estilo iOS Sheet (sheets.md › Mobile) */}
-        <div className="w-9 h-1 rounded-full bg-white/25 mx-auto mb-3 shrink-0" />
+        <div className="w-9 h-1 rounded-full bg-white/25 mx-auto mb-2.5 shrink-0" />
 
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.08]">
-          <div className="flex items-center gap-2.5">
-            <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-inner ${
-                isPersonal
-                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-400/35"
-                  : "bg-blue-500/20 text-blue-300 border border-blue-400/35"
-              }`}
-            >
-              <Edit3 className="w-4 h-4 stroke-[2]" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-white tracking-tight">
-                Detalle del Gasto
-              </h2>
-              <span
-                className={`text-[10px] font-semibold block ${
-                  isPersonal ? "text-indigo-300/90" : "text-blue-300/90"
-                }`}
-              >
-                {isPersonal ? "Espacio Personal" : "Fondo Compartido Hogar"}
-              </span>
-            </div>
-          </div>
+        {/* Barra de Navegación Superior del Sheet (Cerrar | Contexto | Guardar) */}
+        <div className="flex items-center justify-between gap-2 pb-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[32px] px-3 rounded-full bg-white/[0.07] hover:bg-white/[0.12] text-xs font-semibold text-zinc-300 hover:text-white active:scale-95 transition flex items-center gap-1"
+          >
+            <span>Cerrar</span>
+          </button>
 
           <div className="flex items-center gap-1.5">
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                isPersonal
+                  ? "bg-indigo-500/15 text-indigo-300 border-indigo-400/25"
+                  : "bg-blue-500/15 text-blue-300 border-blue-400/25"
+              }`}
+            >
+              {isPersonal ? "Personal" : "Hogar"}
+            </span>
+
             {isPersonal && (
               <button
                 type="button"
                 onClick={handleToggleReview}
                 disabled={isMarkingReviewed}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all duration-200 active:scale-95 border ${
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1 transition active:scale-95 border ${
                   isReviewPending
-                    ? "bg-amber-500/25 text-amber-200 border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.25)] hover:bg-amber-500/35"
-                    : "bg-white/[0.05] text-zinc-400 hover:text-amber-200 border-white/[0.1] hover:border-amber-500/35"
+                    ? "bg-amber-500/25 text-amber-200 border-amber-400/50"
+                    : "bg-white/[0.05] text-zinc-400 hover:text-amber-200 border-white/[0.08]"
                 }`}
                 title={
                   isReviewPending
@@ -370,52 +415,60 @@ export function ExpenseDetailModal({
                 }
               >
                 <AlertCircle className="w-3 h-3 text-amber-400" />
-                <span>{isReviewPending ? "Por revisar" : "Marcar revisión"}</span>
+                <span>{isReviewPending ? "Por revisar" : "Revisión"}</span>
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.06] hover:bg-white/[0.12] active:scale-90 transition-all duration-150"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
+
+          <button
+            type="submit"
+            form="expense-detail-form"
+            disabled={isSubmitting || isDuplicating || isDeleting}
+            className={`min-h-[32px] px-3.5 rounded-full text-xs font-bold transition-all active:scale-95 flex items-center gap-1 ${
+              hasChanges
+                ? isPersonal
+                  ? "bg-[#5E5CE6] text-white shadow-md shadow-indigo-500/30"
+                  : "bg-[#0A84FF] text-white shadow-md shadow-blue-500/30"
+                : "bg-white/[0.07] text-zinc-300 hover:text-white"
+            }`}
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>{isSubmitting ? "..." : "Guardar"}</span>
+          </button>
         </div>
 
-        <form onSubmit={handleSave} className="mt-4 space-y-4">
-
+        <form id="expense-detail-form" onSubmit={handleSave} className="space-y-3.5 mt-1">
           {/* Banner de Revisión Pendiente (Gasto de Tarjeta) */}
           {isReviewPending && (
-            <div className="card-review-pending rounded-2xl p-4 space-y-3 animate-fade-in">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/25 text-amber-300 border border-amber-400/40 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+            <div className="card-review-pending rounded-2xl p-3.5 space-y-2.5 animate-fade-in">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-amber-500/25 text-amber-300 border border-amber-400/40 flex items-center justify-center shrink-0 mt-0.5">
                   <AlertCircle className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-xs font-extrabold text-amber-200 uppercase tracking-wider truncate">
+                    <span className="text-[11px] font-extrabold text-amber-200 uppercase tracking-wider truncate">
                       {cardSource ? `Tarjeta ${cardSource}` : "Resumen de Tarjeta"}
                     </span>
-                    <span className="text-[10px] bg-amber-500/25 text-amber-200 px-2 py-0.5 rounded-full font-bold border border-amber-400/40 shrink-0 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                      Revisión
+                    <span className="text-[10px] bg-amber-500/25 text-amber-200 px-2 py-0.5 rounded-full font-bold border border-amber-400/40 shrink-0">
+                      Por revisar
                     </span>
                   </div>
-                  <p className="text-xs text-amber-100/90 leading-relaxed mt-1">
-                    ¿Este consumo también corresponde al fondo compartido del hogar?
+                  <p className="text-xs text-amber-100/90 leading-snug mt-0.5">
+                    ¿Corresponde también al fondo común del hogar?
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={handleDuplicateToShared}
                   disabled={isSubmitting || isDuplicating || isDeleting || isDuplicatingAcross}
-                  className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 border ${
+                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 border ${
                     pendingConfirm === "duplicateToShared"
-                      ? "bg-blue-600 text-white border-sky-300 shadow-lg shadow-blue-600/40"
-                      : "bg-gradient-to-r from-blue-600/80 to-sky-600/80 hover:from-blue-500 hover:to-sky-500 text-white border-sky-400/40 shadow-md shadow-blue-950/50"
+                      ? "bg-blue-600 text-white border-sky-300"
+                      : "bg-blue-600/80 hover:bg-blue-500 text-white border-sky-400/40"
                   }`}
                 >
                   <Users className="w-3.5 h-3.5" />
@@ -430,7 +483,7 @@ export function ExpenseDetailModal({
                   type="button"
                   onClick={handleMarkAsReviewed}
                   disabled={isMarkingReviewed || isSubmitting}
-                  className="py-2.5 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 shadow-sm"
+                  className="py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95"
                 >
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Solo Personal</span>
@@ -438,212 +491,217 @@ export function ExpenseDetailModal({
               </div>
             </div>
           )}
-          
-          {/* Campo Monto Grande */}
-          <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 text-center">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1">
-              Monto del Gasto
-            </label>
-            <div className="relative inline-flex items-center justify-center">
-              <span className="text-2xl font-bold font-mono text-zinc-400 mr-1">$</span>
+
+          {/* Cabecera Hero Tipo Apple Wallet (Monto + Concepto editables en el lugar) */}
+          <div className="pt-2 pb-1 text-center flex flex-col items-center">
+            <div className="inline-flex items-baseline justify-center gap-1 px-3 py-1 rounded-2xl hover:bg-white/[0.03] focus-within:bg-white/[0.05] focus-within:ring-1 focus-within:ring-white/15 transition">
+              <span className="text-2xl font-bold font-mono text-zinc-400 select-none">$</span>
               <input
                 type="number"
                 step="any"
                 required
+                aria-label="Monto del gasto"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="bg-transparent text-3xl font-extrabold text-white font-mono tabular-nums text-center focus:outline-none w-44"
+                style={{ width: `${Math.max(3, (amount || "0").length + 1)}ch` }}
+                className="bg-transparent text-4xl font-extrabold text-white font-mono tabular-nums text-center focus:outline-none max-w-[240px]"
+              />
+            </div>
+
+            <input
+              type="text"
+              required
+              aria-label="Nombre o concepto del gasto"
+              placeholder="Nombre del gasto..."
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="mt-1 w-full max-w-[300px] bg-transparent hover:bg-white/[0.03] focus:bg-white/[0.06] border border-transparent focus:border-white/[0.14] rounded-xl py-1.5 px-3 text-center text-[16px] font-semibold text-zinc-100 placeholder:text-zinc-500 focus:outline-none transition tracking-[-0.015em]"
+            />
+
+            {expense.totalInstallments && (
+              <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/30 text-[11px] font-semibold text-purple-200">
+                <Layers className="w-3 h-3 text-purple-400 shrink-0" />
+                <span>
+                  Cuota <strong className="text-white">{expense.installmentNumber}</strong> de{" "}
+                  <strong className="text-white">{expense.totalInstallments}</strong>
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Lista Agrupada Estilo iOS (Inset Grouped List) */}
+          <div className="super-card-subtle rounded-2xl divide-y divide-white/[0.07] overflow-hidden">
+            {/* Fila 1: Categoría (Desplegable bajo demanda) */}
+            <div className="p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[13px] font-medium text-zinc-400">Categoría</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic(8);
+                    setIsCategoryPickerOpen((prev) => !prev);
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] text-xs font-semibold text-white transition active:scale-95"
+                >
+                  <CategoryIcon
+                    name={selectedCategoryObj.name}
+                    icon={selectedCategoryObj.icon}
+                    className="w-3.5 h-3.5 text-blue-400"
+                  />
+                  <span>{selectedCategoryObj.name}</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+                      isCategoryPickerOpen ? "rotate-180 text-white" : ""
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Grilla de Categorías Desplegable (Progressive Disclosure) */}
+              {isCategoryPickerOpen && (
+                <div className="mt-3 pt-2.5 border-t border-white/[0.06] animate-fade-in">
+                  <div className="grid grid-cols-4 gap-1.5 max-h-40 overflow-y-auto no-scrollbar">
+                    {categories.map((cat) => {
+                      const isSelected = categoryId === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => {
+                            triggerHaptic(10);
+                            setCategoryId(cat.id);
+                            setIsCategoryPickerOpen(false);
+                          }}
+                          className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all active:scale-95 ${
+                            isSelected
+                              ? "bg-blue-600/30 border-blue-400 text-white shadow-sm"
+                              : "bg-white/[0.03] border-white/[0.07] text-zinc-400 hover:text-zinc-200"
+                          }`}
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-white/[0.07] flex items-center justify-center mb-1">
+                            <CategoryIcon name={cat.name} icon={cat.icon} className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-[10px] font-semibold truncate w-full">
+                            {cat.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryModalOpen(true)}
+                      className="flex flex-col items-center justify-center p-2 rounded-xl border border-dashed border-white/20 bg-white/[0.02] text-zinc-300 hover:text-white hover:border-white/40 transition active:scale-95 text-center"
+                    >
+                      <div className="w-6 h-6 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center mb-1">
+                        <Plus className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-[10px] font-semibold truncate w-full">Gestionar</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Fila 2: Pagador (solo en Hogar) */}
+            {!isPersonal && users.length > 0 && (
+              <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+                <span className="text-[13px] font-medium text-zinc-400">Pagó</span>
+                <div className="inline-flex p-0.5 rounded-xl bg-white/[0.05] border border-white/[0.08] gap-1">
+                  {users.map((u) => {
+                    const isSelected = paidById === u.id;
+                    const isAugusto = u.name.toLowerCase().includes("augusto");
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic(10);
+                          setPaidById(u.id);
+                        }}
+                        className={`px-3 py-1 rounded-[9px] text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 ${
+                          isSelected
+                            ? isAugusto
+                              ? "bg-blue-600 text-white shadow-sm"
+                              : "bg-rose-600 text-white shadow-sm"
+                            : "text-zinc-400 hover:text-white"
+                        }`}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: u.avatarColor }}
+                        />
+                        <span>{u.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Fila 3: Fecha */}
+            <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+              <span className="text-[13px] font-medium text-zinc-400 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Fecha</span>
+              </span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="bg-white/[0.05] border border-white/[0.08] rounded-xl py-1 px-2.5 text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Fila 4: Notas */}
+            <div className="p-3">
+              <textarea
+                rows={notes.length > 45 ? 2 : 1}
+                placeholder="Agregar nota o detalle (opcional)..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full bg-transparent text-white text-xs placeholder:text-zinc-500 focus:outline-none resize-none leading-relaxed"
               />
             </div>
           </div>
 
-          {/* Título o Concepto */}
-          <div>
-            <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block mb-1">
-              Nombre / Concepto
-            </label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/[0.12] rounded-2xl py-3 px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-            />
-          </div>
-
-          {/* Selector de Pagador en Hogar (Augusto vs Agus) */}
-          {!isPersonal && users.length > 0 && (
-            <div>
-              <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block mb-1.5">
-                ¿Quién lo pagó?
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {users.map((u) => {
-                  const isSelected = paidById === u.id;
-                  const isAugusto = u.name.toLowerCase().includes("augusto");
-
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => setPaidById(u.id)}
-                      className={`py-2.5 px-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
-                        isSelected
-                          ? isAugusto
-                            ? "bg-blue-600/30 border-blue-400 text-blue-200 shadow-md shadow-blue-600/20"
-                            : "bg-rose-600/30 border-rose-400 text-rose-200 shadow-md shadow-rose-600/20"
-                          : "bg-white/[0.03] border-white/[0.08] text-zinc-400 hover:text-white"
-                      }`}
-                    >
-                      <div
-                        className="w-3.5 h-3.5 rounded-full"
-                        style={{ backgroundColor: u.avatarColor }}
-                      />
-                      <span>Pagó {u.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Selector de Categoría */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
-                Categoría
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsCategoryModalOpen(true)}
-                className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 active:scale-95 transition"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Gestionar</span>
-              </button>
-            </div>
-            <div className="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto no-scrollbar p-1">
-              {/* Botón + Nueva */}
-              <button
-                type="button"
-                onClick={() => setIsCategoryModalOpen(true)}
-                className="flex flex-col items-center justify-center p-2 rounded-2xl border border-dashed border-white/20 bg-white/[0.02] text-zinc-400 hover:text-white hover:border-white/40 transition active:scale-95 text-center"
-              >
-                <div className="w-7 h-7 rounded-xl bg-white/[0.06] text-blue-400 flex items-center justify-center mb-1">
-                  <Plus className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-semibold truncate w-full text-zinc-300">
-                  + Nueva
-                </span>
-              </button>
-
-              {categories.map((cat) => {
-                const isSelected = categoryId === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setCategoryId(cat.id)}
-                    className={`flex flex-col items-center justify-center p-2 rounded-2xl border text-center transition-all ${
-                      isSelected
-                        ? "bg-blue-600/30 border-blue-400 text-white shadow-md shadow-blue-600/20"
-                        : "bg-white/[0.03] border-white/[0.08] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]"
-                    }`}
-                  >
-                    <div className="w-7 h-7 rounded-xl bg-white/[0.08] flex items-center justify-center mb-1">
-                      <CategoryIcon name={cat.name} icon={cat.icon} className="w-4 h-4" />
-                    </div>
-                    <span className="text-[10px] font-semibold truncate w-full">
-                      {cat.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Fecha */}
-          <div>
-            <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block mb-1 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-zinc-400" />
-              Fecha del gasto
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/[0.12] rounded-2xl py-2.5 px-3 text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* Notas / Descripción Enriquecida */}
-          <div>
-            <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block mb-1">
-              Notas / Descripción Detallada
-            </label>
-            <textarea
-              rows={3}
-              placeholder="Ej. Asado del fin de semana, incluye cosas de limpieza para 2 meses..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/[0.12] rounded-2xl p-3 text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition resize-none leading-relaxed"
-            />
-          </div>
-
-          {/* Cuotas info si aplica */}
-          {expense.totalInstallments && (
-            <div className="bg-purple-950/30 border border-purple-500/30 rounded-2xl p-3 flex items-center gap-2.5 text-xs text-purple-200">
-              <Layers className="w-4 h-4 text-purple-400 shrink-0" />
-              <span>
-                Este gasto forma parte de una compra en cuotas (Cuota{" "}
-                <strong className="text-white">{expense.installmentNumber}</strong> de{" "}
-                <strong className="text-white">{expense.totalInstallments}</strong>).
-              </span>
-            </div>
-          )}
-
-          {/* Botones de Acción */}
-          <div className="pt-2 space-y-2.5">
+          {/* Botón Guardar prominente cuando el usuario editó algún campo */}
+          {hasChanges && (
             <button
               type="submit"
               disabled={isSubmitting || isDuplicating || isDeleting}
-              className={`w-full py-3.5 rounded-2xl disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-200 border-t border-white/25 ${
+              className={`w-full py-3 rounded-2xl text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all animate-fade-in ${
                 isPersonal
-                  ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-600/30"
-                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-blue-600/30"
+                  ? "bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-600/30"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg shadow-blue-600/30"
               }`}
             >
               <Check className="w-4 h-4" />
-              <span>{isSubmitting ? "Guardando cambios..." : "Guardar Cambios"}</span>
+              <span>{isSubmitting ? "Guardando..." : "Guardar Cambios"}</span>
             </button>
+          )}
 
-            {/* Opción de Duplicar entre Espacios (Personal <-> Compartidos) */}
+          {/* Barra de Acciones Secundarias en 1 Sola Fila (Enviar a otro espacio | Duplicar | Eliminar) */}
+          <div className="grid grid-cols-3 gap-2 pt-0.5">
             {isPersonal ? (
               <button
                 type="button"
                 onClick={handleDuplicateToShared}
                 disabled={isSubmitting || isDuplicating || isDeleting || isDuplicatingAcross}
-                className={`w-full py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-between transition-all duration-200 active:scale-[0.98] ${
+                className={`py-2.5 px-2 rounded-2xl font-semibold text-[11px] flex flex-col items-center justify-center gap-1 transition active:scale-95 border ${
                   pendingConfirm === "duplicateToShared"
-                    ? "bg-blue-600 text-white border border-sky-300 shadow-lg shadow-blue-600/40 ring-2 ring-sky-400/30"
-                    : "btn-hogar-gradient text-sky-100"
+                    ? "bg-blue-600 text-white border-sky-300 shadow-md"
+                    : "bg-blue-500/10 hover:bg-blue-500/20 text-sky-200 border-sky-400/25"
                 }`}
                 title="Copiar este gasto al fondo común del hogar"
               >
-                <span className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-lg bg-sky-400/20 text-sky-300 flex items-center justify-center border border-sky-400/30">
-                    <Users className="w-3.5 h-3.5" />
-                  </span>
-                  <span>
-                    {isDuplicatingAcross
-                      ? "Duplicando a Hogar..."
-                      : pendingConfirm === "duplicateToShared"
-                      ? "¿Confirmar envío a Compartidos?"
-                      : "Duplicar en Gastos Compartidos"}
-                  </span>
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-sky-400/20 text-sky-200 border border-sky-400/30 text-[10px] font-extrabold tracking-wide">
-                  Hogar
+                <Users className="w-4 h-4 text-sky-400" />
+                <span className="truncate w-full text-center">
+                  {isDuplicatingAcross
+                    ? "Enviando..."
+                    : pendingConfirm === "duplicateToShared"
+                    ? "¿Confirmar?"
+                    : "A Hogar"}
                 </span>
               </button>
             ) : (
@@ -651,74 +709,65 @@ export function ExpenseDetailModal({
                 type="button"
                 onClick={handleDuplicateToPersonal}
                 disabled={isSubmitting || isDuplicating || isDeleting || isDuplicatingAcross}
-                className={`w-full py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-between transition-all duration-200 active:scale-[0.98] ${
+                className={`py-2.5 px-2 rounded-2xl font-semibold text-[11px] flex flex-col items-center justify-center gap-1 transition active:scale-95 border ${
                   pendingConfirm === "duplicateToPersonal"
-                    ? "bg-indigo-600 text-white border border-indigo-300 shadow-lg shadow-indigo-600/40 ring-2 ring-indigo-400/30"
-                    : "btn-personal-gradient text-indigo-100"
+                    ? "bg-indigo-600 text-white border-indigo-300 shadow-md"
+                    : "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 border-indigo-400/25"
                 }`}
                 title="Copiar este gasto a tus gastos personales"
               >
-                <span className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-lg bg-indigo-400/20 text-indigo-300 flex items-center justify-center border border-indigo-400/30">
-                    <User className="w-3.5 h-3.5" />
-                  </span>
-                  <span>
-                    {isDuplicatingAcross
-                      ? "Duplicando a Personal..."
-                      : pendingConfirm === "duplicateToPersonal"
-                      ? "¿Confirmar envío a Personales?"
-                      : "Duplicar en Gastos Personales"}
-                  </span>
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-indigo-400/20 text-indigo-200 border border-indigo-400/30 text-[10px] font-extrabold tracking-wide">
-                  Personal
+                <User className="w-4 h-4 text-indigo-400" />
+                <span className="truncate w-full text-center">
+                  {isDuplicatingAcross
+                    ? "Enviando..."
+                    : pendingConfirm === "duplicateToPersonal"
+                    ? "¿Confirmar?"
+                    : "A Personal"}
                 </span>
               </button>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleDuplicate}
-                disabled={isSubmitting || isDuplicating || isDeleting}
-                className={`py-3 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] border ${
-                  pendingConfirm === "duplicate"
-                    ? "bg-zinc-700 text-white border-zinc-400 shadow-md"
-                    : "bg-zinc-800/70 hover:bg-zinc-700/70 text-zinc-200 border-white/[0.1]"
-                }`}
-                title="Crear una copia exacta en este mismo listado"
-              >
-                <Copy className="w-3.5 h-3.5 text-zinc-400" />
-                <span>
-                  {isDuplicating
-                    ? "Copiando..."
-                    : pendingConfirm === "duplicate"
-                    ? "¿Confirmar copia?"
-                    : "Duplicar Copia"}
-                </span>
-              </button>
+            <button
+              type="button"
+              onClick={handleDuplicate}
+              disabled={isSubmitting || isDuplicating || isDeleting}
+              className={`py-2.5 px-2 rounded-2xl font-semibold text-[11px] flex flex-col items-center justify-center gap-1 transition active:scale-95 border ${
+                pendingConfirm === "duplicate"
+                  ? "bg-zinc-700 text-white border-zinc-400 shadow-md"
+                  : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 border-white/[0.08]"
+              }`}
+              title="Crear una copia exacta en este mismo listado"
+            >
+              <Copy className="w-4 h-4 text-zinc-400" />
+              <span className="truncate w-full text-center">
+                {isDuplicating
+                  ? "Copiando..."
+                  : pendingConfirm === "duplicate"
+                  ? "¿Confirmar?"
+                  : "Duplicar"}
+              </span>
+            </button>
 
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={isSubmitting || isDuplicating || isDeleting}
-                className={`py-3 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] border ${
-                  pendingConfirm === "delete"
-                    ? "bg-rose-600 text-white border-rose-400 shadow-lg shadow-rose-600/35"
-                    : "bg-rose-500/12 hover:bg-rose-500/22 text-rose-300 border-rose-500/25"
-                }`}
-                title="Eliminar este gasto"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>
-                  {isDeleting
-                    ? "Eliminando..."
-                    : pendingConfirm === "delete"
-                    ? "¿Confirmar borrar?"
-                    : "Eliminar"}
-                </span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isSubmitting || isDuplicating || isDeleting}
+              className={`py-2.5 px-2 rounded-2xl font-semibold text-[11px] flex flex-col items-center justify-center gap-1 transition active:scale-95 border ${
+                pendingConfirm === "delete"
+                  ? "bg-rose-600 text-white border-rose-400 shadow-lg shadow-rose-600/35"
+                  : "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/20"
+              }`}
+              title="Eliminar este gasto"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="truncate w-full text-center">
+                {isDeleting
+                  ? "Borrando..."
+                  : pendingConfirm === "delete"
+                  ? "¿Borrar?"
+                  : "Eliminar"}
+              </span>
+            </button>
           </div>
         </form>
       </div>
@@ -730,6 +779,7 @@ export function ExpenseDetailModal({
         categories={categories}
         onSelectCategory={(newCat) => {
           setCategoryId(newCat.id);
+          setIsCategoryPickerOpen(false);
           setIsCategoryModalOpen(false);
         }}
       />
