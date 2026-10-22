@@ -120,13 +120,13 @@ input, textarea, select {
 }
 
 .apple-glass-sheet {
-  background: rgba(22, 27, 40, 0.88);
-  backdrop-filter: blur(36px) saturate(190%);
-  -webkit-backdrop-filter: blur(36px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(30, 37, 54, 0.95) 0%, rgba(18, 22, 34, 0.98) 100%);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow:
-    0 24px 60px -12px rgba(0, 0, 0, 0.78),
-    inset 0 0.5px 0 0 rgba(255, 255, 255, 0.2);
+    0 -2px 16px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
 }
 
 /* Segmented Control al estilo iOS Dark Mode */

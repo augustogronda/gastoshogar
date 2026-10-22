@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Plus, CategoryIcon, Check, Layers, AlertCircle } from "./ui/icons";
 import { addPersonalExpenseAction } from "@/app/actions";
 import { CategoryManagerModal } from "./CategoryManagerModal";
 import { addReviewFlag } from "@/lib/expense-review";
 import { useSheetGesture } from "@/lib/use-sheet-gesture";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface Category {
   id: string;
@@ -57,6 +58,11 @@ export function PersonalExpenseModal({
   const [totalInstallments, setTotalInstallments] = useState("3");
   const [markForReview, setMarkForReview] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [localCategories, setLocalCategories] = useState<Category[]>(categories);
+
+  useEffect(() => {
+    setLocalCategories(categories);
+  }, [categories]);
 
   const {
     scrollContainerRef,
@@ -72,6 +78,7 @@ export function PersonalExpenseModal({
 
   // Manejo del teclado numérico táctil (idéntico a Hogar)
   const handleNumClick = (val: string) => {
+    triggerHaptic(10);
     if (displayAmount === "0") {
       setDisplayAmount(val);
     } else if (displayAmount.length < 9) {
@@ -80,6 +87,7 @@ export function PersonalExpenseModal({
   };
 
   const handleBackspace = () => {
+    triggerHaptic(10);
     if (displayAmount.length <= 1) {
       setDisplayAmount("0");
     } else {
@@ -91,10 +99,11 @@ export function PersonalExpenseModal({
     if (e) e.preventDefault();
     const numericAmount = parseFloat(displayAmount);
     if (numericAmount <= 0) return;
+    triggerHaptic(18);
 
     const finalTitle =
       title.trim() ||
-      categories.find((c) => c.id === selectedCategoryId)?.name ||
+      localCategories.find((c) => c.id === selectedCategoryId)?.name ||
       "Gasto Personal";
 
     const finalNotes = markForReview ? addReviewFlag(undefined) : undefined;
@@ -136,13 +145,21 @@ export function PersonalExpenseModal({
       role="dialog"
       aria-modal="true"
       aria-label="Nuevo Gasto Personal"
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-md animate-fade-in"
+      onClick={() => {
+        if (!isCategoryModalOpen) onClose();
+      }}
+      className={`fixed inset-0 z-50 flex items-end justify-center transition-colors duration-150 ${
+        isCategoryModalOpen
+          ? "bg-transparent pointer-events-none"
+          : "bg-black/45 backdrop-blur-sm animate-fade-in"
+      }`}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={sheetStyle}
-        className="w-full max-w-md apple-glass-sheet rounded-t-[32px] pt-2 px-5 pb-safe shadow-2xl flex flex-col overflow-hidden"
+        className={`w-full max-w-md apple-glass-sheet rounded-t-[32px] pt-2 px-5 pb-safe flex flex-col overflow-hidden ${
+          isCategoryModalOpen ? "hidden" : ""
+        }`}
       >
         {/* Cabecera del Sheet con Grabber iOS (Arrastrar para cerrar o tocar para cambiar tamaño) */}
         <div
@@ -216,7 +233,10 @@ export function PersonalExpenseModal({
           <div className="grid grid-cols-2 gap-2 mb-3">
             <button
               type="button"
-              onClick={() => setIsInstallment(!isInstallment)}
+              onClick={() => {
+                triggerHaptic(10);
+                setIsInstallment(!isInstallment);
+              }}
               className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-2xl border text-xs font-semibold transition active:scale-[0.97] ${
                 isInstallment
                   ? "bg-purple-600/30 border-purple-400 text-purple-200 shadow-md ring-1 ring-purple-400/50"
@@ -229,7 +249,10 @@ export function PersonalExpenseModal({
 
             <button
               type="button"
-              onClick={() => setMarkForReview(!markForReview)}
+              onClick={() => {
+                triggerHaptic(10);
+                setMarkForReview(!markForReview);
+              }}
               className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-2xl border text-xs font-semibold transition active:scale-[0.97] ${
                 markForReview
                   ? "bg-amber-500/25 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/50"
@@ -279,7 +302,10 @@ export function PersonalExpenseModal({
               </label>
               <button
                 type="button"
-                onClick={() => setIsCategoryModalOpen(true)}
+                onClick={() => {
+                  triggerHaptic(10);
+                  setIsCategoryModalOpen(true);
+                }}
                 className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 active:scale-95 transition"
               >
                 <Plus className="w-3 h-3" />
@@ -290,20 +316,26 @@ export function PersonalExpenseModal({
               {/* Botón rápido "+ Nueva" al frente */}
               <button
                 type="button"
-                onClick={() => setIsCategoryModalOpen(true)}
+                onClick={() => {
+                  triggerHaptic(10);
+                  setIsCategoryModalOpen(true);
+                }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border border-dashed border-white/20 bg-white/[0.03] text-zinc-300 hover:text-white hover:border-white/40 active:scale-95 transition shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 text-indigo-400" />
                 <span>+ Nueva</span>
               </button>
 
-              {categories.map((cat) => {
+              {localCategories.map((cat) => {
                 const isSelected = selectedCategoryId === cat.id;
                 return (
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => setSelectedCategoryId(cat.id)}
+                    onClick={() => {
+                      triggerHaptic(10);
+                      setSelectedCategoryId(cat.id);
+                    }}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition active:scale-95 shrink-0 ${
                       isSelected
                         ? "bg-white text-zinc-950 border-white shadow-md font-bold"
@@ -353,8 +385,14 @@ export function PersonalExpenseModal({
       <CategoryManagerModal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
-        categories={categories}
+        categories={localCategories}
+        selectedCategoryId={selectedCategoryId}
+        onCategoriesChange={setLocalCategories}
         onSelectCategory={(newCat) => {
+          setLocalCategories((prev) => [
+            newCat,
+            ...prev.filter((c) => c.id !== newCat.id),
+          ]);
           setSelectedCategoryId(newCat.id);
           setIsCategoryModalOpen(false);
         }}

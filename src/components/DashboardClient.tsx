@@ -1641,6 +1641,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                                     totalInstallments: exp.totalInstallments,
                                     isPersonal: false,
                                   });
+                                  triggerHaptic(10);
                                   setIsDetailModalOpen(true);
                                 }}
                                 className={`super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition-all duration-300 cursor-pointer group ${
@@ -2387,6 +2388,12 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
         categories={categories}
+        onCategoriesChange={(nextCats) => {
+          setDashboardData((curr) => ({
+            ...curr,
+            categories: nextCats as typeof curr.categories,
+          }));
+        }}
       />
 
       {/* Selector Rápido de Meses */}
@@ -2407,7 +2414,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           <div className="w-full max-w-md mx-auto px-4 flex justify-end">
             <button
               type="button"
-              onClick={() => setIsExpenseModalOpen(true)}
+              onClick={() => {
+                triggerHaptic(12);
+                setIsExpenseModalOpen(true);
+              }}
               className="pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-[0_10px_30px_rgba(37,99,235,0.6)] border border-blue-400/40 active:scale-95 transition-all"
               title="Cargar nuevo gasto compartido"
             >

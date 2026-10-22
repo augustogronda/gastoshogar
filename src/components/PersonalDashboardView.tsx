@@ -30,6 +30,7 @@ import { PersonalExpenseModal } from "./PersonalExpenseModal";
 import { PersonalRecurringModal } from "./PersonalRecurringModal";
 import { ExpenseDetailModal, EditableExpense } from "./ExpenseDetailModal";
 import { CategoryManagerModal } from "./CategoryManagerModal";
+import { triggerHaptic } from "@/lib/haptics";
 import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
 import { PersonalCardsView } from "./PersonalCardsView";
 import { CardShoppingAdvisorBanner } from "./CardShoppingAdvisorBanner";
@@ -783,6 +784,7 @@ export function PersonalDashboardView({
                           totalInstallments: exp.totalInstallments,
                           isPersonal: true,
                         });
+                        triggerHaptic(10);
                         setIsDetailModalOpen(true);
                       }}
                       className={`rounded-2xl p-3.5 transition-all duration-300 cursor-pointer group ${
@@ -1184,11 +1186,14 @@ export function PersonalDashboardView({
           <div className="w-full max-w-md mx-auto px-4 flex justify-end">
             <button
               type="button"
-              onClick={() =>
-                personalTab === "cuotas"
-                  ? setIsRecurringModalOpen(true)
-                  : setIsExpenseModalOpen(true)
-              }
+              onClick={() => {
+                triggerHaptic(12);
+                if (personalTab === "cuotas") {
+                  setIsRecurringModalOpen(true);
+                } else {
+                  setIsExpenseModalOpen(true);
+                }
+              }}
               aria-label={personalTab === "cuotas" ? "Cargar nueva cuota" : "Cargar nuevo gasto personal"}
               className="pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-full apple-segment-active-personal hover:brightness-110 text-white font-bold text-xs shadow-[0_10px_30px_rgba(94,92,230,0.6)] border border-indigo-400/40 active:scale-95 transition-all"
             >

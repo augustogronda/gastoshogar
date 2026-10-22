@@ -104,6 +104,11 @@ export function ExpenseDetailModal({
     "delete" | "moveToShared" | "moveToPersonal" | "duplicateToShared" | null
   >(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [localCategories, setLocalCategories] = useState<CategoryItem[]>(categories);
+
+  useEffect(() => {
+    setLocalCategories(categories);
+  }, [categories]);
 
   const isReviewPending = isPersonal && hasReviewFlag(expense?.notes);
   const cardSource = getCardSourceTag(expense?.notes);
@@ -163,7 +168,7 @@ export function ExpenseDetailModal({
   if (!isOpen || !expense) return null;
 
   const selectedCategoryObj =
-    categories.find((c) => c.id === categoryId) ||
+    localCategories.find((c) => c.id === categoryId) ||
     expense.category || { id: "", name: "Sin categoría", icon: null };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -176,7 +181,8 @@ export function ExpenseDetailModal({
 
     triggerHaptic(15);
     setIsSubmitting(true);
-    const selectedCategory = categories.find((c) => c.id === categoryId) || expense.category || null;
+    const selectedCategory =
+      localCategories.find((c) => c.id === categoryId) || expense.category || null;
     const selectedPayer = users.find((u) => u.id === paidById) || expense.paidBy;
     let finalNotesToSave = notes.trim() || undefined;
     if (isPersonal && isReviewPending) {
@@ -382,13 +388,21 @@ export function ExpenseDetailModal({
       role="dialog"
       aria-modal="true"
       aria-label="Detalle del Gasto"
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-md animate-fade-in"
+      onClick={() => {
+        if (!isCategoryModalOpen) onClose();
+      }}
+      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 transition-colors duration-150 ${
+        isCategoryModalOpen
+          ? "bg-transparent pointer-events-none"
+          : "bg-black/45 backdrop-blur-sm animate-fade-in"
+      }`}
     >
       <ToastBanner toast={toast} />
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md apple-glass-sheet rounded-t-[30px] sm:rounded-[28px] px-5 pt-3 pb-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar animate-scale-up"
+        className={`w-full max-w-md apple-glass-sheet rounded-t-[30px] sm:rounded-[28px] px-5 pt-3 pb-6 flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar ${
+          isCategoryModalOpen ? "hidden" : "animate-scale-up"
+        }`}
       >
         {/* Grabber estilo iOS Sheet (sheets.md › Mobile) */}
         <div className="w-9 h-1 rounded-full bg-white/25 mx-auto mb-2.5 shrink-0" />
@@ -577,7 +591,7 @@ export function ExpenseDetailModal({
               {isCategoryPickerOpen && (
                 <div className="mt-3 pt-2.5 border-t border-white/[0.06] animate-fade-in">
                   <div className="grid grid-cols-4 gap-1.5 max-h-40 overflow-y-auto no-scrollbar">
-                    {categories.map((cat) => {
+                    {localCategories.map((cat) => {
                       const isSelected = categoryId === cat.id;
                       return (
                         <button
@@ -606,7 +620,10 @@ export function ExpenseDetailModal({
 
                     <button
                       type="button"
-                      onClick={() => setIsCategoryModalOpen(true)}
+                      onClick={() => {
+                        triggerHaptic(10);
+                        setIsCategoryModalOpen(true);
+                      }}
                       className="flex flex-col items-center justify-center p-2 rounded-xl border border-dashed border-white/20 bg-white/[0.02] text-zinc-300 hover:text-white hover:border-white/40 transition active:scale-95 text-center"
                     >
                       <div className="w-6 h-6 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center mb-1">
@@ -771,8 +788,14 @@ export function ExpenseDetailModal({
       <CategoryManagerModal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
-        categories={categories}
+        categories={localCategories}
+        selectedCategoryId={categoryId}
+        onCategoriesChange={setLocalCategories}
         onSelectCategory={(newCat) => {
+          setLocalCategories((prev) => [
+            newCat,
+            ...prev.filter((c) => c.id !== newCat.id),
+          ]);
           setCategoryId(newCat.id);
           setIsCategoryPickerOpen(false);
           setIsCategoryModalOpen(false);
