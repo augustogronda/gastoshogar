@@ -1,7 +1,7 @@
 {
-  "version": "1.19.3",
-  "build": 2026102210,
-  "releasedAt": "2026-10-22T20:11:00Z",
+  "version": "1.19.4",
+  "build": 2026102211,
+  "releasedAt": "2026-10-22T20:31:00Z",
   "title": "Confirmación directa de gastos por revisar",
   "description": "Confirmación inmediata en 1 toque de gastos por revisar desde la tarjeta sin entrar al detalle, y cierre automático al confirmar dentro del modal."
 }
