@@ -1462,6 +1462,148 @@ export async function verifyEmailOtpAction(
   }
 }
 
+/**
+ * Consulta si el usuario ya tiene un PIN de 4 dígitos configurado
+ */
+export async function checkUserPinStatusAction(targetEmail: string): Promise<{
+  success: boolean;
+  hasPin: boolean;
+  userName?: string;
+  error?: string;
+}> {
+  try {
+    const normalizedEmail = (targetEmail || "").trim().toLowerCase();
+    if (!AUTHORIZED_EMAILS.includes(normalizedEmail)) {
+      return { success: false, hasPin: false, error: "Usuario no autorizado" };
+    }
+
+    await ensureDefaultHousehold();
+
+    let user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: "insensitive" } },
+    });
+
+    if (!user) {
+      const isAugusto = normalizedEmail.includes("augusto");
+      const nameMatch = isAugusto ? "Augusto" : "Agus";
+      user = await prisma.user.findFirst({
+        where: { name: { contains: nameMatch, mode: "insensitive" } },
+      });
+      if (user) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { email: normalizedEmail },
+        });
+      }
+    }
+
+    return {
+      success: true,
+      hasPin: Boolean(user?.pin),
+      userName: user?.name,
+    };
+  } catch (err: unknown) {
+    console.error("Error en checkUserPinStatusAction:", err);
+    return { success: false, hasPin: false };
+  }
+}
+
+/**
+ * Autentica o crea el PIN de 4 dígitos para acceso instantáneo (sin necesidad de SMTP ni correos)
+ */
+export async function loginWithPinAction(
+  targetEmail: string,
+  pin: string,
+  isSettingNewPin = false
+): Promise<{
+  success: boolean;
+  error?: string;
+  needsSetup?: boolean;
+  user?: any;
+}> {
+  try {
+    const normalizedEmail = (targetEmail || "").trim().toLowerCase();
+    const cleanPin = (pin || "").trim();
+
+    if (!AUTHORIZED_EMAILS.includes(normalizedEmail)) {
+      return { success: false, error: "Correo no autorizado en el sistema." };
+    }
+
+    if (!/^\d{4}$/.test(cleanPin)) {
+      return { success: false, error: "El PIN debe ser exactamente de 4 dígitos numéricos." };
+    }
+
+    await ensureDefaultHousehold();
+
+    let user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: "insensitive" } },
+    });
+
+    if (!user) {
+      const isAugusto = normalizedEmail.includes("augusto");
+      const nameMatch = isAugusto ? "Augusto" : "Agus";
+      user = await prisma.user.findFirst({
+        where: { name: { contains: nameMatch, mode: "insensitive" } },
+      });
+      if (user) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { email: normalizedEmail },
+        });
+      }
+    }
+
+    if (!user) {
+      return { success: false, error: "Usuario no encontrado." };
+    }
+
+    const hashedPin = crypto
+      .createHash("sha256")
+      .update(cleanPin + user.id)
+      .digest("hex");
+
+    if (!user.pin) {
+      // Primera vez: si aún no configuró PIN
+      if (isSettingNewPin) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { pin: hashedPin },
+        });
+      } else {
+        return {
+          success: false,
+          needsSetup: true,
+          error: "Aún no tenés un PIN asignado. Elegí 4 dígitos para configurarlo ahora.",
+        };
+      }
+    } else {
+      // Validar PIN ingresado
+      const isValid = user.pin === hashedPin || user.pin === cleanPin;
+      if (!isValid) {
+        return { success: false, error: "PIN incorrecto. Intentá nuevamente." };
+      }
+    }
+
+    const cookieStore = await cookies();
+    cookieStore.set("auth_user_id", user.id, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365, // 1 año
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    revalidatePath("/");
+    return { success: true, user };
+  } catch (err: unknown) {
+    console.error("Error en loginWithPinAction:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error al validar PIN.",
+    };
+  }
+}
+
 export async function logoutAction() {
   const cookieStore = await cookies();
   cookieStore.delete("auth_user_id");
