@@ -1,7 +1,7 @@
 {
-  "version": "1.19.1",
-  "build": 2026102208,
-  "releasedAt": "2026-10-22T19:21:00Z",
-  "title": "Colores consistentes de usuarios y pagador predeterminado por perfil",
-  "description": "Augusto siempre en azul, Agus siempre en rojo, y selección automática del pagador según el perfil activo en nuevo gasto permitiendo alternar fácilmente."
+  "version": "1.19.2",
+  "build": 2026102209,
+  "releasedAt": "2026-10-22T19:59:00Z",
+  "title": "Vibraciones hápticas en iOS y respuesta táctil mejorada",
+  "description": "Soporte de Taptic Engine físico nativo en iOS/Safari PWA, confirmación en pulsación larga para menú contextual, gestos de modales, selector de meses, tarjetas e inversiones."
 }
