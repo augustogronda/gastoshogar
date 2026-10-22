@@ -1,7 +1,7 @@
 {
-  "version": "1.18.8",
-  "build": 2026102205,
-  "releasedAt": "2026-10-22T18:18:00Z",
+  "version": "1.18.9",
+  "build": 2026102206,
+  "releasedAt": "2026-10-22T18:46:00Z",
   "title": "Ajuste de Actuador Háptico Taptic Engine iOS",
   "description": "Optimización del despacho de eventos hacia el switch nativo sin restricciones de pointer-events, asegurando compatibilidad en PWA de Safari."
 }
