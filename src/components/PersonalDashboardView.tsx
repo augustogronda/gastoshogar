@@ -163,7 +163,7 @@ function PersonalExpenseRow({
   const cleanNotes = getCleanNotes(exp.notes);
   const isBusy = actioningId === exp.id || deletingId === exp.id;
 
-  const handlePressDuplicate = (e: React.MouseEvent) => {
+  const handlePressDuplicate = (e: React.MouseEvent | React.PointerEvent) => {
     e.stopPropagation();
     if (confirmAction !== "duplicate") {
       triggerHaptic(10);
@@ -178,17 +178,8 @@ function PersonalExpenseRow({
     handleQuickDuplicateToShared(exp.id);
   };
 
-  const handlePressReviewed = (e: React.MouseEvent) => {
+  const handlePressReviewed = (e: React.MouseEvent | React.PointerEvent) => {
     e.stopPropagation();
-    if (confirmAction !== "reviewed") {
-      triggerHaptic(10);
-      setConfirmAction("reviewed");
-      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
-      confirmTimerRef.current = setTimeout(() => setConfirmAction(null), 4000);
-      return;
-    }
-    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
-    setConfirmAction(null);
     triggerHaptic(15);
     handleQuickMarkReviewed(exp.id);
   };
@@ -303,6 +294,8 @@ function PersonalExpenseRow({
         <div
           className="mt-3 pt-2.5 border-t border-amber-500/20 flex items-center gap-2"
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
         >
           {confirmAction === "duplicate" ? (
             <div className="flex-1 flex items-center gap-1.5 animate-fade-in">
@@ -310,6 +303,8 @@ function PersonalExpenseRow({
                 type="button"
                 disabled={isBusy}
                 onClick={handlePressDuplicate}
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
                 className="flex-1 min-h-[38px] py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white border border-blue-400 shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
               >
                 <Users className="w-3.5 h-3.5 text-white shrink-0" />
@@ -321,6 +316,8 @@ function PersonalExpenseRow({
                   e.stopPropagation();
                   setConfirmAction(null);
                 }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
                 className="min-h-[38px] px-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-zinc-300 text-xs transition"
               >
                 ✕
@@ -331,6 +328,8 @@ function PersonalExpenseRow({
               type="button"
               disabled={isBusy}
               onClick={handlePressDuplicate}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
               className="flex-1 min-h-[38px] py-2 px-3 rounded-xl btn-hogar-gradient font-semibold text-xs tracking-[-0.01em] text-blue-100 flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98]"
             >
               <Users className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
@@ -338,39 +337,17 @@ function PersonalExpenseRow({
             </button>
           )}
 
-          {confirmAction === "reviewed" ? (
-            <div className="flex-1 flex items-center gap-1.5 animate-fade-in">
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={handlePressReviewed}
-                className="flex-1 min-h-[38px] py-2 px-3 rounded-xl bg-[#30D158] hover:bg-emerald-500 font-bold text-xs text-white border border-emerald-300 shadow-md shadow-emerald-600/30 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
-              >
-                <Check className="w-3.5 h-3.5 text-white shrink-0" />
-                <span className="truncate">¿Confirmar Personal?</span>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConfirmAction(null);
-                }}
-                className="min-h-[38px] px-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-zinc-300 text-xs transition"
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={handlePressReviewed}
-              className="flex-1 min-h-[38px] py-2 px-3 rounded-xl bg-[#30D158]/15 hover:bg-[#30D158]/25 text-emerald-100 border border-[#30D158]/40 hover:border-[#30D158]/65 font-semibold text-xs tracking-[-0.01em] flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98]"
-            >
-              <Check className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
-              <span className="truncate">Confirmar Personal</span>
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={handlePressReviewed}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            className="flex-1 min-h-[38px] py-2 px-3 rounded-xl bg-[#30D158]/20 hover:bg-[#30D158]/35 text-emerald-100 border border-[#30D158]/45 hover:border-[#30D158]/70 font-bold text-xs tracking-[-0.01em] flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] shadow-sm"
+          >
+            <Check className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
+            <span className="truncate">Confirmar Personal</span>
+          </button>
         </div>
       )}
     </div>

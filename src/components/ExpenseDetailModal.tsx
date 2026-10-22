@@ -246,11 +246,7 @@ export function ExpenseDetailModal({
   };
 
   const handleDuplicateToShared = async () => {
-    triggerHaptic(10);
-    if (pendingConfirm !== "duplicateToShared") {
-      setPendingConfirm("duplicateToShared");
-      return;
-    }
+    triggerHaptic(15);
     setPendingConfirm(null);
     setIsMovingAcross(true);
 
@@ -409,11 +405,7 @@ export function ExpenseDetailModal({
   };
 
   const handleMarkAsReviewed = async () => {
-    triggerHaptic(12);
-    if (pendingConfirm !== "markReviewed") {
-      setPendingConfirm("markReviewed");
-      return;
-    }
+    triggerHaptic(15);
     setPendingConfirm(null);
     setIsMarkingReviewed(true);
 
@@ -619,36 +611,20 @@ export function ExpenseDetailModal({
                   type="button"
                   onClick={handleDuplicateToShared}
                   disabled={isSubmitting || isDeleting || isMovingAcross}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 border ${
-                    pendingConfirm === "duplicateToShared"
-                      ? "bg-blue-600 text-white border-sky-300"
-                      : "bg-blue-600/80 hover:bg-blue-500 text-white border-sky-400/40"
-                  }`}
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 border bg-blue-600/85 hover:bg-blue-500 text-white border-sky-400/40 shadow-sm"
                 >
                   <Users className="w-3.5 h-3.5" />
-                  <span>
-                    {pendingConfirm === "duplicateToShared"
-                      ? "¿Confirmar envío?"
-                      : "Duplicar a Hogar"}
-                  </span>
+                  <span>Duplicar a Hogar</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleMarkAsReviewed}
                   disabled={isMarkingReviewed || isSubmitting}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 border ${
-                    pendingConfirm === "markReviewed"
-                      ? "bg-emerald-600 text-white border-emerald-300 shadow-md"
-                      : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/40"
-                  }`}
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 border bg-emerald-600/85 hover:bg-emerald-500 text-white border-emerald-400/40 shadow-sm"
                 >
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>
-                    {pendingConfirm === "markReviewed"
-                      ? "¿Confirmar Personal?"
-                      : "Solo Personal"}
-                  </span>
+                  <Check className="w-3.5 h-3.5 text-white" />
+                  <span>Confirmar Personal</span>
                 </button>
               </div>
             </div>

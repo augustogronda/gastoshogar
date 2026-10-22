@@ -32,6 +32,12 @@ export function useLongPress({
       // Solo botón primario (toque o clic izquierdo)
       if (e.button !== 0) return;
 
+      // Si el toque proviene de un botón secundario u otro control interactivo, no activar long press ni clic de tarjeta
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("button, a, input, select, textarea, [data-no-card-click]")) {
+        return;
+      }
+
       isLongPressRef.current = false;
       startPosRef.current = { x: e.clientX, y: e.clientY };
 
@@ -63,11 +69,18 @@ export function useLongPress({
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
+      const hadTimer = timerRef.current !== null;
       clearTimer();
       startPosRef.current = null;
 
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("button, a, input, select, textarea, [data-no-card-click]")) {
+        isLongPressRef.current = false;
+        return;
+      }
+
       // Si no se alcanzó a disparar el long press, ejecutar el clic normal
-      if (!isLongPressRef.current) {
+      if (!isLongPressRef.current && hadTimer) {
         onClick();
       }
     },

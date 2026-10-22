@@ -1,7 +1,7 @@
 {
-  "version": "1.19.2",
-  "build": 2026102209,
-  "releasedAt": "2026-10-22T19:59:00Z",
-  "title": "Vibraciones hápticas en iOS y respuesta táctil mejorada",
-  "description": "Soporte de Taptic Engine físico nativo en iOS/Safari PWA, confirmación en pulsación larga para menú contextual, gestos de modales, selector de meses, tarjetas e inversiones."
+  "version": "1.19.3",
+  "build": 2026102210,
+  "releasedAt": "2026-10-22T20:11:00Z",
+  "title": "Confirmación directa de gastos por revisar",
+  "description": "Confirmación inmediata en 1 toque de gastos por revisar desde la tarjeta sin entrar al detalle, y cierre automático al confirmar dentro del modal."
 }

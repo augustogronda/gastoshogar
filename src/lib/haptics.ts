@@ -16,9 +16,7 @@ export type HapticInput = number | HapticPreset;
 let audioCtx: AudioContext | null = null;
 let programmaticLabel: HTMLLabelElement | null = null;
 let programmaticInput: HTMLInputElement | null = null;
-let autoHapticsInitialized = false;
 
-// Asegurar que en iOS el audio funcione incluso si el switch físico de silencio está activo
 function initAudioSession(): void {
   try {
     if (typeof navigator !== "undefined" && "audioSession" in navigator) {
@@ -30,9 +28,6 @@ function initAudioSession(): void {
   }
 }
 
-/**
- * Detecta dispositivos táctiles Apple (iPhone, iPad, iPod, o iPads que reportan MacIntel)
- */
 export function isAppleTouchDevice(): boolean {
   if (typeof navigator === "undefined") return false;
   return (
@@ -41,9 +36,6 @@ export function isAppleTouchDevice(): boolean {
   );
 }
 
-/**
- * Crea e inicializa el switch en viewport para disparos programáticos de respaldo en iOS.
- */
 function ensureProgrammaticSwitch(): HTMLLabelElement | null {
   if (typeof document === "undefined" || !document.body) return null;
 
@@ -71,7 +63,7 @@ function ensureProgrammaticSwitch(): HTMLLabelElement | null {
     const container = document.createElement("div");
     container.setAttribute("aria-hidden", "true");
     container.style.cssText =
-      "position:fixed;bottom:8px;left:8px;width:20px;height:20px;opacity:0.005;pointer-events:none;z-index:999999;";
+      "position:fixed;bottom:8px;left:8px;width:20px;height:20px;opacity:0.001;pointer-events:none;z-index:999999;";
 
     const input = document.createElement("input");
     input.type = "checkbox";
@@ -97,7 +89,6 @@ function ensureProgrammaticSwitch(): HTMLLabelElement | null {
   }
 }
 
-// Inicialización temprana tras el primer toque
 if (typeof window !== "undefined") {
   const setupOnInteraction = () => {
     initAudioSession();
@@ -113,11 +104,6 @@ if (typeof window !== "undefined") {
   window.addEventListener("pointerdown", setupOnInteraction, { once: true, passive: true });
 }
 
-/**
- * Síntesis de respuesta acústica táctil de alta definición.
- * Combina un impulso sub-grave para resonancia física en el chasis del teléfono
- * con un micro-click de banda pasante que emula la respuesta mecánica del Taptic Engine.
- */
 function playAudioHapticClick(intensity = 0.5): void {
   try {
     initAudioSession();
@@ -137,7 +123,7 @@ function playAudioHapticClick(intensity = 0.5): void {
     const t = audioCtx.currentTime;
     const clampedIntensity = Math.max(0.1, Math.min(1, intensity));
 
-    // 1. Pulso sub-grave (resonancia de chasis)
+    // Pulso acústico de baja frecuencia para resonancia
     const subOsc = audioCtx.createOscillator();
     const subGain = audioCtx.createGain();
     subOsc.type = "sine";
@@ -153,7 +139,7 @@ function playAudioHapticClick(intensity = 0.5): void {
     subOsc.start(t);
     subOsc.stop(t + 0.016);
 
-    // 2. Micro-click mecánico (Taptic detent)
+    // Click mecánico
     const duration = 0.004;
     const sampleRate = audioCtx.sampleRate;
     const buffer = audioCtx.createBuffer(1, Math.floor(sampleRate * duration), sampleRate);
@@ -185,9 +171,6 @@ function playAudioHapticClick(intensity = 0.5): void {
   }
 }
 
-/**
- * Traduce presets o milisegundos a patrones de vibración para Android
- */
 function resolveVibrationPattern(input: HapticInput): number | number[] {
   if (typeof input === "number") {
     return Math.max(10, input);
@@ -217,9 +200,6 @@ function resolveVibrationPattern(input: HapticInput): number | number[] {
   }
 }
 
-/**
- * Resuelve la intensidad de audio (0.1 a 1.0)
- */
 function resolveIntensity(input: HapticInput): number {
   if (typeof input === "number") {
     return Math.min(1, Math.max(0.2, input / 25));
@@ -249,28 +229,20 @@ function resolveIntensity(input: HapticInput): number {
   }
 }
 
-/**
- * Dispara feedback háptico general:
- * - En Android: Vibration API nativa con patrones hápticos calibrados.
- * - En iOS / Safari PWA: Disparo de switch físico en iOS + síntesis acústico-táctil.
- *
- * Soporta números (ej: triggerHaptic(10)) para compatibilidad retroactiva,
- * o nombres semánticos ("selection", "light", "medium", "heavy", "success", "error").
- */
 export function triggerHaptic(input: HapticInput = 15): void {
   if (typeof window === "undefined") return;
 
   const isApple = isAppleTouchDevice();
 
   try {
-    // 1. Android / Dispositivos no-Apple con Vibration API nativa
+    // Android con Vibration API nativa
     if (!isApple && typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
       const pattern = resolveVibrationPattern(input);
       navigator.vibrate(pattern);
       return;
     }
 
-    // 2. iOS WebKit: Accionar switch en viewport
+    // iOS WebKit: intento de disparo de switch
     const label = ensureProgrammaticSwitch();
     if (label) {
       label.click();
@@ -278,7 +250,7 @@ export function triggerHaptic(input: HapticInput = 15): void {
       programmaticInput.click();
     }
 
-    // 3. Audio táctil complementario
+    // Audio táctil complementario
     const intensity = resolveIntensity(input);
     playAudioHapticClick(intensity);
   } catch {
@@ -286,150 +258,15 @@ export function triggerHaptic(input: HapticInput = 15): void {
   }
 }
 
-/**
- * Asocia un interruptor de switch nativo invisible sobre un elemento táctil (botón, tarjeta, chip).
- * Cuando el usuario toca con su dedo en iOS (Safari 17.4+ / iOS 18+), WebKit registra un toque nativo
- * directo sobre el switch, disparando con total certeza el Taptic Engine físico de Apple.
- *
- * La navegación táctil (scroll/pan) se respeta completamente: si el dedo se mueve más de 10px,
- * se cancela el switch para no interferir con el desplazamiento de listas.
- */
-export function attachHapticTrigger(element: HTMLElement | null): (() => void) | void {
-  if (!element || typeof window === "undefined") return;
-  if (element.hasAttribute("data-haptic-bound")) return;
-  element.setAttribute("data-haptic-bound", "true");
-
-  let cleanupSwitch: (() => void) | null = null;
-
-  if (isAppleTouchDevice()) {
-    try {
-      const switchInput = document.createElement("input");
-      switchInput.type = "checkbox";
-      switchInput.setAttribute("switch", "");
-      switchInput.setAttribute("data-haptic-trigger", "true");
-      switchInput.setAttribute("aria-hidden", "true");
-      switchInput.tabIndex = -1;
-
-      Object.assign(switchInput.style, {
-        position: "absolute",
-        inset: "0",
-        width: "100%",
-        height: "100%",
-        margin: "0",
-        padding: "0",
-        opacity: "0.001",
-        clipPath: "inset(0 round 999px)",
-        touchAction: "pan-x pan-y",
-        cursor: "pointer",
-        zIndex: "0",
-      });
-      switchInput.style.setProperty("-webkit-tap-highlight-color", "transparent");
-
-      const computedPos = getComputedStyle(element).position;
-      if (computedPos === "static") {
-        element.style.position = "relative";
-      }
-
-      let startY = 0;
-      let startX = 0;
-      let isScrolling = false;
-
-      const onPointerDown = (e: PointerEvent) => {
-        startY = e.clientY;
-        startX = e.clientX;
-        isScrolling = false;
-      };
-
-      const onPointerMove = (e: PointerEvent) => {
-        if (Math.hypot(e.clientX - startX, e.clientY - startY) > 10) {
-          isScrolling = true;
-          switchInput.checked = false;
-        }
-      };
-
-      const onPointerUp = () => {
-        if (isScrolling) {
-          switchInput.checked = false;
-        }
-        isScrolling = false;
-      };
-
-      const onPointerCancel = () => {
-        isScrolling = false;
-        switchInput.checked = false;
-      };
-
-      switchInput.addEventListener("pointerdown", onPointerDown, { passive: true });
-      switchInput.addEventListener("pointermove", onPointerMove, { passive: true });
-      switchInput.addEventListener("pointerup", onPointerUp, { passive: true });
-      switchInput.addEventListener("pointercancel", onPointerCancel, { passive: true });
-
-      element.insertAdjacentElement("beforeend", switchInput);
-
-      cleanupSwitch = () => {
-        switchInput.removeEventListener("pointerdown", onPointerDown);
-        switchInput.removeEventListener("pointermove", onPointerMove);
-        switchInput.removeEventListener("pointerup", onPointerUp);
-        switchInput.removeEventListener("pointercancel", onPointerCancel);
-        switchInput.remove();
-      };
-    } catch {
-      // Silencioso
-    }
-  }
-
-  return () => {
-    element.removeAttribute("data-haptic-bound");
-    if (cleanupSwitch) cleanupSwitch();
-  };
+export function attachHapticTrigger(_element: HTMLElement | null): (() => void) | void {
+  // No-op seguro para no alterar el DOM de botones ni bloquear scrolls táctiles
+  return () => {};
 }
 
-/**
- * Ref callback de React para botones interactivos:
- * <button ref={hapticRef} onClick={...}>
- */
-export function hapticRef<T extends HTMLElement>(node: T | null): void {
-  if (node) {
-    attachHapticTrigger(node);
-  }
+export function hapticRef<T extends HTMLElement>(_node: T | null): void {
+  // No-op
 }
 
-/**
- * Inicializador automático que vincula elementos marcados con data-haptic
- */
 export function initAutoHaptics(): () => void {
-  if (typeof window === "undefined" || autoHapticsInitialized) return () => {};
-  autoHapticsInitialized = true;
-
-  const bindElements = (root: ParentNode = document) => {
-    root.querySelectorAll<HTMLElement>("[data-haptic]").forEach((el) => {
-      attachHapticTrigger(el);
-    });
-  };
-
-  bindElements();
-
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.type === "childList") {
-        mutation.addedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            if (node.hasAttribute("data-haptic")) {
-              attachHapticTrigger(node);
-            }
-            bindElements(node);
-          }
-        });
-      }
-    }
-  });
-
-  if (document.body) {
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
-
-  return () => {
-    observer.disconnect();
-    autoHapticsInitialized = false;
-  };
+  return () => {};
 }
