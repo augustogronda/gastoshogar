@@ -553,6 +553,7 @@ export async function duplicateExpenseAction(expenseId: string) {
 export async function duplicateSharedToPersonalExpenseAction(data: {
   expenseId: string;
   targetUserId?: string;
+  move?: boolean;
 }) {
   const existing = await prisma.expense.findUnique({
     where: { id: data.expenseId },
@@ -576,7 +577,11 @@ export async function duplicateSharedToPersonalExpenseAction(data: {
   });
 
   const notesClean = existing.notes ? removeReviewFlag(existing.notes) : "";
-  const finalNotes = notesClean ? `(Copia de Hogar) ${notesClean}` : "(Copia de Hogar)";
+  const finalNotes = data.move
+    ? notesClean || null
+    : notesClean
+    ? `(Copia de Hogar) ${notesClean}`
+    : "(Copia de Hogar)";
 
   const newPersonalExpense = await prisma.personalExpense.create({
     data: {
@@ -595,6 +600,12 @@ export async function duplicateSharedToPersonalExpenseAction(data: {
       category: { select: { id: true, name: true, icon: true, color: true } },
     },
   });
+
+  if (data.move) {
+    await prisma.expense.delete({
+      where: { id: existing.id },
+    });
+  }
 
   await touchCategory(existing.categoryId);
 
@@ -1321,6 +1332,7 @@ export async function duplicatePersonalToSharedExpenseAction(data: {
   personalExpenseId: string;
   paidById?: string;
   markAsReviewed?: boolean;
+  move?: boolean;
 }) {
   const existing = await prisma.personalExpense.findUnique({
     where: { id: data.personalExpenseId },
@@ -1368,7 +1380,9 @@ export async function duplicatePersonalToSharedExpenseAction(data: {
 
   // Quitar la marca de [POR_REVISAR] para el gasto del hogar
   const sharedNotesClean = existing.notes ? removeReviewFlag(existing.notes) : "";
-  const finalSharedNotes = sharedNotesClean
+  const finalSharedNotes = data.move
+    ? sharedNotesClean || null
+    : sharedNotesClean
     ? `(Copia de Personal) ${sharedNotesClean}`
     : "(Copia de Personal)";
 
@@ -1391,8 +1405,12 @@ export async function duplicatePersonalToSharedExpenseAction(data: {
     },
   });
 
-  // Si se marcó para quitar la revisión del gasto personal, actualizar el original
-  if (data.markAsReviewed !== false && existing.notes && hasReviewFlag(existing.notes)) {
+  if (data.move) {
+    await prisma.personalExpense.delete({
+      where: { id: existing.id },
+    });
+  } else if (data.markAsReviewed !== false && existing.notes && hasReviewFlag(existing.notes)) {
+    // Si se marcó para quitar la revisión del gasto personal, actualizar el original
     const cleanPersonalNotes = removeReviewFlag(existing.notes);
     await prisma.personalExpense.update({
       where: { id: existing.id },

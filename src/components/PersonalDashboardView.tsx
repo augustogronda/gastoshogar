@@ -120,6 +120,7 @@ interface PersonalDashboardViewProps {
   activeTab?: "gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones";
   onTabChange?: (tab: "gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones") => void;
   externalMenuAction?: { type: "income" | "closeOrReopen"; seq: number } | null;
+  onSyncPersonalExpenses?: (expenses: PersonalExpenseItem[]) => void;
 }
 
 const SHORT_MONTHS = [
@@ -137,6 +138,7 @@ export function PersonalDashboardView({
   activeTab = "gastos",
   onTabChange,
   externalMenuAction,
+  onSyncPersonalExpenses,
 }: PersonalDashboardViewProps) {
   const personalTab = activeTab;
   const { toast, showToast } = useToast();
@@ -318,31 +320,34 @@ export function PersonalDashboardView({
     };
 
     const previousExpenses = [...localExpenses];
+    const optimisticList = [optimisticExpense, ...localExpenses];
 
     // 1. IMPACTO INMEDIATO EN UI (0ms de latencia)
-    setLocalExpenses((prev) => [optimisticExpense, ...prev]);
+    setLocalExpenses(optimisticList);
+    onSyncPersonalExpenses?.(optimisticList);
     showToast(`✓ Gasto de $${Math.round(data.amount).toLocaleString("es-AR")} agregado`, "success");
 
     // 2. Conciliación en segundo plano en la base de datos
     try {
       const res = await addPersonalExpenseAction(data);
       if (res?.expense) {
-        setLocalExpenses((prev) =>
-          prev.map((e) =>
-            e.id === tempId
-              ? {
-                  ...e,
-                  id: res.expense.id,
-                  date: res.expense.date ? new Date(res.expense.date).toISOString() : e.date,
-                  category: res.expense.category || e.category,
-                }
-              : e
-          )
+        const reconciledList = optimisticList.map((e) =>
+          e.id === tempId
+            ? {
+                ...e,
+                id: res.expense.id,
+                date: res.expense.date ? new Date(res.expense.date).toISOString() : e.date,
+                category: res.expense.category || e.category,
+              }
+            : e
         );
+        setLocalExpenses(reconciledList);
+        onSyncPersonalExpenses?.(reconciledList);
       }
     } catch (err: unknown) {
       console.error("Error al guardar gasto personal:", err);
       setLocalExpenses(previousExpenses);
+      onSyncPersonalExpenses?.(previousExpenses);
       showToast(err instanceof Error ? err.message : "Error al guardar el gasto personal", "error");
     }
   };
@@ -1329,34 +1334,57 @@ export function PersonalDashboardView({
         isPersonal={true}
         onDeleteExpense={async (id) => {
           const previousList = [...localExpenses];
+          const updatedList = localExpenses.filter((e) => e.id !== id);
           setDeletingId(id);
-          setLocalExpenses((prev) => prev.filter((e) => e.id !== id));
+          setLocalExpenses(updatedList);
+          onSyncPersonalExpenses?.(updatedList);
           showToast("✓ Gasto personal eliminado");
           try {
             await deletePersonalExpenseAction(id);
           } catch (err) {
             setLocalExpenses(previousList);
+            onSyncPersonalExpenses?.(previousList);
             showToast("Error al eliminar gasto", "error");
           } finally {
             setDeletingId(null);
           }
         }}
+        onMoveExpense={async (id) => {
+          const previousList = [...localExpenses];
+          const updatedList = localExpenses.filter((e) => e.id !== id);
+          setDeletingId(id);
+          setLocalExpenses(updatedList);
+          onSyncPersonalExpenses?.(updatedList);
+          showToast("✓ Gasto movido a Hogar");
+          try {
+            await duplicatePersonalToSharedExpenseAction({
+              personalExpenseId: id,
+              move: true,
+            });
+          } catch (err) {
+            setLocalExpenses(previousList);
+            onSyncPersonalExpenses?.(previousList);
+            showToast("Error al mover gasto a Hogar", "error");
+          } finally {
+            setDeletingId(null);
+          }
+        }}
         onUpdateExpense={(updated) => {
-          setLocalExpenses((prev) =>
-            prev.map((e) =>
-              e.id === updated.id
-                ? {
-                    ...e,
-                    title: updated.title,
-                    amount: updated.amount,
-                    date: updated.date,
-                    categoryId: updated.categoryId,
-                    category: updated.category,
-                    notes: updated.notes,
-                  }
-                : e
-            )
+          const updatedList = localExpenses.map((e) =>
+            e.id === updated.id
+              ? {
+                  ...e,
+                  title: updated.title,
+                  amount: updated.amount,
+                  date: updated.date,
+                  categoryId: updated.categoryId,
+                  category: updated.category,
+                  notes: updated.notes,
+                }
+              : e
           );
+          setLocalExpenses(updatedList);
+          onSyncPersonalExpenses?.(updatedList);
           showToast("✓ Gasto actualizado");
         }}
       />

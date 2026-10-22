@@ -1,7 +1,7 @@
 {
-  "version": "1.18.2",
-  "build": 2026102117,
-  "releasedAt": "2026-10-22T02:18:30Z",
-  "title": "Rediseño Apple Wallet de Detalle de Gasto",
-  "description": "Ficha compacta estilo Apple Wallet con monto y título editables en cabecera, lista agrupada estilo iOS, selector de categoría desplegable bajo demanda y barra de acciones rápidas en una sola fila."
+  "version": "1.18.3",
+  "build": 2026102118,
+  "releasedAt": "2026-10-22T02:42:30Z",
+  "title": "Mover Gastos entre Hogar/Personal y Fix de Eliminación",
+  "description": "Eliminación instantánea en gastos personales, reemplazo del botón redundante de duplicar por Mover a Personal / Mover a Hogar y sincronización inmediata entre pestañas."
 }

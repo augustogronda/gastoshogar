@@ -2,9 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  X,
   Trash2,
-  Copy,
   Calendar,
   CategoryIcon,
   Check,
@@ -19,11 +17,9 @@ import { CategoryManagerModal } from "./CategoryManagerModal";
 import { useToast, ToastBanner } from "./ui/ConfirmDialog";
 import {
   updateExpenseAction,
-  duplicateExpenseAction,
   duplicateSharedToPersonalExpenseAction,
   deleteExpenseAction,
   updatePersonalExpenseAction,
-  duplicatePersonalExpenseAction,
   duplicatePersonalToSharedExpenseAction,
   markPersonalExpenseAsReviewedAction,
   togglePersonalExpenseReviewAction,
@@ -50,6 +46,8 @@ export interface HouseholdUserItem {
   avatarColor: string;
 }
 
+const EMPTY_USERS: HouseholdUserItem[] = [];
+
 export interface EditableExpense {
   id: string;
   title: string;
@@ -74,6 +72,7 @@ interface ExpenseDetailModalProps {
   categories: CategoryItem[];
   isPersonal?: boolean;
   onDeleteExpense?: (expenseId: string) => Promise<void> | void;
+  onMoveExpense?: (expenseId: string) => Promise<void> | void;
   onUpdateExpense?: (updated: EditableExpense) => void;
 }
 
@@ -81,10 +80,11 @@ export function ExpenseDetailModal({
   isOpen,
   onClose,
   expense,
-  users = [],
+  users = EMPTY_USERS,
   categories,
   isPersonal = false,
   onDeleteExpense,
+  onMoveExpense,
   onUpdateExpense,
 }: ExpenseDetailModalProps) {
   const { toast, showToast } = useToast();
@@ -97,12 +97,11 @@ export function ExpenseDetailModal({
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDuplicating, setIsDuplicating] = useState(false);
-  const [isDuplicatingAcross, setIsDuplicatingAcross] = useState(false);
+  const [isMovingAcross, setIsMovingAcross] = useState(false);
   const [isMarkingReviewed, setIsMarkingReviewed] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<
-    "delete" | "duplicate" | "duplicateToShared" | "duplicateToPersonal" | null
+    "delete" | "moveToShared" | "moveToPersonal" | "duplicateToShared" | null
   >(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
@@ -110,7 +109,7 @@ export function ExpenseDetailModal({
   const cardSource = getCardSourceTag(expense?.notes);
 
   useEffect(() => {
-    if (expense) {
+    if (expense && isOpen) {
       setTitle(expense.title || "");
       setAmount(expense.amount ? expense.amount.toString() : "");
       setCategoryId(expense.categoryId || expense.category?.id || categories[0]?.id || "");
@@ -123,7 +122,9 @@ export function ExpenseDetailModal({
       setPendingConfirm(null);
       setIsCategoryPickerOpen(false);
     }
-  }, [expense, categories, users]);
+    // Solo reinicializar el formulario al abrir el modal o cambiar de gasto (nunca en re-renders internos)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expense?.id, isOpen]);
 
   const initialDateStr = useMemo(() => {
     if (!expense?.date) return "";
@@ -225,31 +226,6 @@ export function ExpenseDetailModal({
     }
   };
 
-  const handleDuplicate = async () => {
-    triggerHaptic(10);
-    if (pendingConfirm !== "duplicate") {
-      setPendingConfirm("duplicate");
-      return;
-    }
-    setPendingConfirm(null);
-    setIsDuplicating(true);
-    onClose();
-    try {
-      if (isPersonal) {
-        await duplicatePersonalExpenseAction(expense.id);
-        showToast("✓ Copia creada en Gastos Personales");
-      } else {
-        await duplicateExpenseAction(expense.id);
-        showToast("✓ Copia creada en Gastos Compartidos");
-      }
-    } catch (err: unknown) {
-      console.error(err);
-      showToast(err instanceof Error ? err.message : "Error al duplicar gasto", "error");
-    } finally {
-      setIsDuplicating(false);
-    }
-  };
-
   const handleDuplicateToShared = async () => {
     triggerHaptic(10);
     if (pendingConfirm !== "duplicateToShared") {
@@ -257,42 +233,82 @@ export function ExpenseDetailModal({
       return;
     }
     setPendingConfirm(null);
-    setIsDuplicatingAcross(true);
+    setIsMovingAcross(true);
     onClose();
     try {
       await duplicatePersonalToSharedExpenseAction({
         personalExpenseId: expense.id,
         markAsReviewed: true,
       });
-      showToast("✓ Gasto duplicado en Fondo Compartido (Hogar)");
+      showToast("✓ Gasto enviado a Fondo Compartido (Hogar)");
     } catch (err: unknown) {
       console.error(err);
-      showToast(err instanceof Error ? err.message : "Error al duplicar a compartidos", "error");
+      showToast(err instanceof Error ? err.message : "Error al enviar a compartidos", "error");
     } finally {
-      setIsDuplicatingAcross(false);
+      setIsMovingAcross(false);
     }
   };
 
-  const handleDuplicateToPersonal = async () => {
+  const handleMoveToShared = async () => {
     triggerHaptic(10);
-    if (pendingConfirm !== "duplicateToPersonal") {
-      setPendingConfirm("duplicateToPersonal");
+    if (pendingConfirm !== "moveToShared") {
+      setPendingConfirm("moveToShared");
       return;
     }
+    const targetId = expense.id;
     setPendingConfirm(null);
-    setIsDuplicatingAcross(true);
+    setIsMovingAcross(true);
     onClose();
+
+    if (onMoveExpense) {
+      await onMoveExpense(targetId);
+      setIsMovingAcross(false);
+      return;
+    }
+
     try {
-      await duplicateSharedToPersonalExpenseAction({
-        expenseId: expense.id,
-        targetUserId: paidById || users[0]?.id,
+      await duplicatePersonalToSharedExpenseAction({
+        personalExpenseId: targetId,
+        move: true,
       });
-      showToast("✓ Gasto duplicado en Gastos Personales");
+      showToast("✓ Gasto movido a Hogar");
     } catch (err: unknown) {
       console.error(err);
-      showToast(err instanceof Error ? err.message : "Error al duplicar a personales", "error");
+      showToast(err instanceof Error ? err.message : "Error al mover a Hogar", "error");
     } finally {
-      setIsDuplicatingAcross(false);
+      setIsMovingAcross(false);
+    }
+  };
+
+  const handleMoveToPersonal = async () => {
+    triggerHaptic(10);
+    if (pendingConfirm !== "moveToPersonal") {
+      setPendingConfirm("moveToPersonal");
+      return;
+    }
+    const targetId = expense.id;
+    setPendingConfirm(null);
+    setIsMovingAcross(true);
+    onClose();
+
+    if (onMoveExpense) {
+      await onMoveExpense(targetId);
+      setIsMovingAcross(false);
+      return;
+    }
+
+    try {
+      await duplicateSharedToPersonalExpenseAction({
+        expenseId: targetId,
+        targetUserId: paidById || users[0]?.id,
+        move: true,
+      });
+      showToast("✓ Gasto movido a Gastos Personales");
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al mover a personales", "error");
+    } finally {
+      setIsMovingAcross(false);
     }
   };
 
@@ -423,7 +439,7 @@ export function ExpenseDetailModal({
           <button
             type="submit"
             form="expense-detail-form"
-            disabled={isSubmitting || isDuplicating || isDeleting}
+            disabled={isSubmitting || isMovingAcross || isDeleting}
             className={`min-h-[32px] px-3.5 rounded-full text-xs font-bold transition-all active:scale-95 flex items-center gap-1 ${
               hasChanges
                 ? isPersonal
@@ -464,7 +480,7 @@ export function ExpenseDetailModal({
                 <button
                   type="button"
                   onClick={handleDuplicateToShared}
-                  disabled={isSubmitting || isDuplicating || isDeleting || isDuplicatingAcross}
+                  disabled={isSubmitting || isDeleting || isMovingAcross}
                   className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 border ${
                     pendingConfirm === "duplicateToShared"
                       ? "bg-blue-600 text-white border-sky-300"
@@ -669,7 +685,7 @@ export function ExpenseDetailModal({
           {hasChanges && (
             <button
               type="submit"
-              disabled={isSubmitting || isDuplicating || isDeleting}
+              disabled={isSubmitting || isMovingAcross || isDeleting}
               className={`w-full py-3 rounded-2xl text-white font-bold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all animate-fade-in ${
                 isPersonal
                   ? "bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-600/30"
@@ -681,90 +697,69 @@ export function ExpenseDetailModal({
             </button>
           )}
 
-          {/* Barra de Acciones Secundarias en 1 Sola Fila (Enviar a otro espacio | Duplicar | Eliminar) */}
-          <div className="grid grid-cols-3 gap-2 pt-0.5">
+          {/* Barra de Acciones Secundarias en 1 Sola Fila (Mover de espacio | Eliminar) */}
+          <div className="grid grid-cols-2 gap-2.5 pt-0.5">
             {isPersonal ? (
               <button
                 type="button"
-                onClick={handleDuplicateToShared}
-                disabled={isSubmitting || isDuplicating || isDeleting || isDuplicatingAcross}
-                className={`py-2.5 px-2 rounded-2xl font-semibold text-[11px] flex flex-col items-center justify-center gap-1 transition active:scale-95 border ${
-                  pendingConfirm === "duplicateToShared"
+                onClick={handleMoveToShared}
+                disabled={isSubmitting || isDeleting || isMovingAcross}
+                className={`py-2.5 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border ${
+                  pendingConfirm === "moveToShared"
                     ? "bg-blue-600 text-white border-sky-300 shadow-md"
                     : "bg-blue-500/10 hover:bg-blue-500/20 text-sky-200 border-sky-400/25"
                 }`}
-                title="Copiar este gasto al fondo común del hogar"
+                title="Mover este gasto al fondo común del hogar"
               >
-                <Users className="w-4 h-4 text-sky-400" />
-                <span className="truncate w-full text-center">
-                  {isDuplicatingAcross
-                    ? "Enviando..."
-                    : pendingConfirm === "duplicateToShared"
-                    ? "¿Confirmar?"
-                    : "A Hogar"}
+                <Users className="w-4 h-4 text-sky-400 shrink-0" />
+                <span className="truncate">
+                  {isMovingAcross
+                    ? "Moviendo..."
+                    : pendingConfirm === "moveToShared"
+                    ? "¿Mover a Hogar?"
+                    : "Mover a Hogar"}
                 </span>
               </button>
             ) : (
               <button
                 type="button"
-                onClick={handleDuplicateToPersonal}
-                disabled={isSubmitting || isDuplicating || isDeleting || isDuplicatingAcross}
-                className={`py-2.5 px-2 rounded-2xl font-semibold text-[11px] flex flex-col items-center justify-center gap-1 transition active:scale-95 border ${
-                  pendingConfirm === "duplicateToPersonal"
+                onClick={handleMoveToPersonal}
+                disabled={isSubmitting || isDeleting || isMovingAcross}
+                className={`py-2.5 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border ${
+                  pendingConfirm === "moveToPersonal"
                     ? "bg-indigo-600 text-white border-indigo-300 shadow-md"
                     : "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 border-indigo-400/25"
                 }`}
-                title="Copiar este gasto a tus gastos personales"
+                title="Mover este gasto a tus gastos personales"
               >
-                <User className="w-4 h-4 text-indigo-400" />
-                <span className="truncate w-full text-center">
-                  {isDuplicatingAcross
-                    ? "Enviando..."
-                    : pendingConfirm === "duplicateToPersonal"
-                    ? "¿Confirmar?"
-                    : "A Personal"}
+                <User className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span className="truncate">
+                  {isMovingAcross
+                    ? "Moviendo..."
+                    : pendingConfirm === "moveToPersonal"
+                    ? "¿Mover a Personal?"
+                    : "Mover a Personal"}
                 </span>
               </button>
             )}
 
             <button
               type="button"
-              onClick={handleDuplicate}
-              disabled={isSubmitting || isDuplicating || isDeleting}
-              className={`py-2.5 px-2 rounded-2xl font-semibold text-[11px] flex flex-col items-center justify-center gap-1 transition active:scale-95 border ${
-                pendingConfirm === "duplicate"
-                  ? "bg-zinc-700 text-white border-zinc-400 shadow-md"
-                  : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 border-white/[0.08]"
-              }`}
-              title="Crear una copia exacta en este mismo listado"
-            >
-              <Copy className="w-4 h-4 text-zinc-400" />
-              <span className="truncate w-full text-center">
-                {isDuplicating
-                  ? "Copiando..."
-                  : pendingConfirm === "duplicate"
-                  ? "¿Confirmar?"
-                  : "Duplicar"}
-              </span>
-            </button>
-
-            <button
-              type="button"
               onClick={handleDelete}
-              disabled={isSubmitting || isDuplicating || isDeleting}
-              className={`py-2.5 px-2 rounded-2xl font-semibold text-[11px] flex flex-col items-center justify-center gap-1 transition active:scale-95 border ${
+              disabled={isSubmitting || isMovingAcross || isDeleting}
+              className={`py-2.5 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border ${
                 pendingConfirm === "delete"
                   ? "bg-rose-600 text-white border-rose-400 shadow-lg shadow-rose-600/35"
                   : "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/20"
               }`}
               title="Eliminar este gasto"
             >
-              <Trash2 className="w-4 h-4" />
-              <span className="truncate w-full text-center">
+              <Trash2 className="w-4 h-4 shrink-0" />
+              <span className="truncate">
                 {isDeleting
                   ? "Borrando..."
                   : pendingConfirm === "delete"
-                  ? "¿Borrar?"
+                  ? "¿Confirmar borrar?"
                   : "Eliminar"}
               </span>
             </button>

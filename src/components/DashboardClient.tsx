@@ -682,6 +682,117 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     }
   };
 
+  const handleOptimisticMoveHogarToPersonal = async (id: string) => {
+    triggerHaptic(15);
+    setDeletingId(id);
+
+    const previousData = dashboardData;
+    const targetExpense = period.expenses.find((e) => e.id === id);
+    const deletedAmount = targetExpense ? targetExpense.amount : 0;
+    const updatedExpenses = period.expenses.filter((e) => e.id !== id);
+
+    const newTotalExpenses = Math.max(0, dashboardData.poolSummary.totalExpenses - deletedAmount);
+    const newRemainingPool = Math.max(
+      0,
+      dashboardData.poolSummary.totalAvailablePool - newTotalExpenses - dashboardData.poolSummary.investedInFCI
+    );
+    const newBurnRatePct =
+      dashboardData.poolSummary.totalAvailablePool > 0
+        ? (newTotalExpenses / dashboardData.poolSummary.totalAvailablePool) * 100
+        : 0;
+
+    const updatedMemberBalances = dashboardData.poolSummary.memberBalances.map((mb) => {
+      if (targetExpense && !targetExpense.isFromPoolFund && mb.userId === targetExpense.paidBy.id) {
+        const newOutOfPocket = Math.max(0, mb.outOfPocketPaid - deletedAmount);
+        return {
+          ...mb,
+          outOfPocketPaid: newOutOfPocket,
+          netBalance: newOutOfPocket - mb.committedAmount,
+        };
+      }
+      return mb;
+    });
+
+    const optimisticData = {
+      ...dashboardData,
+      period: {
+        ...dashboardData.period,
+        expenses: updatedExpenses,
+      },
+      poolSummary: {
+        ...dashboardData.poolSummary,
+        totalExpenses: newTotalExpenses,
+        remainingPool: newRemainingPool,
+        burnRatePct: newBurnRatePct,
+        memberBalances: updatedMemberBalances,
+      },
+    };
+
+    setDashboardData(optimisticData);
+    const cacheKey = `${currentYear}-${currentMonth}`;
+    dataCacheRef.current.set(cacheKey, optimisticData);
+    showToast("✓ Gasto movido a Gastos Personales", "success");
+
+    try {
+      const res = await duplicateSharedToPersonalExpenseAction({
+        expenseId: id,
+        targetUserId: currentUser?.id,
+        move: true,
+      });
+      if (res?.expense) {
+        setDashboardData((curr) => {
+          if (!curr.personalData) return curr;
+          const nextPersonalExpenses = [res.expense, ...(curr.personalData.expenses || [])];
+          const totalPersonalExpenses = nextPersonalExpenses.reduce((acc: number, e: any) => acc + e.amount, 0);
+          const totalPersonalAvailable = curr.personalData.totalPersonalAvailable || 0;
+          const nextState = {
+            ...curr,
+            personalData: {
+              ...curr.personalData,
+              expenses: nextPersonalExpenses,
+              totalPersonalExpenses,
+              remainingPersonalPool: Math.max(0, totalPersonalAvailable - totalPersonalExpenses),
+              personalBurnRatePct:
+                totalPersonalAvailable > 0 ? (totalPersonalExpenses / totalPersonalAvailable) * 100 : 0,
+            },
+          };
+          dataCacheRef.current.set(cacheKey, nextState);
+          return nextState;
+        });
+      }
+    } catch (err: unknown) {
+      setDashboardData(previousData);
+      dataCacheRef.current.set(cacheKey, previousData);
+      showToast(err instanceof Error ? err.message : "Error al mover gasto a personal", "error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleSyncPersonalExpenses = (updatedPersonalExpenses: any[]) => {
+    setDashboardData((curr) => {
+      if (!curr.personalData) return curr;
+      const totalPersonalExpenses = updatedPersonalExpenses.reduce((acc, e) => acc + e.amount, 0);
+      const totalPersonalAvailable = curr.personalData.totalPersonalAvailable || 0;
+      const remainingPersonalPool = Math.max(0, totalPersonalAvailable - totalPersonalExpenses);
+      const personalBurnRatePct =
+        totalPersonalAvailable > 0 ? (totalPersonalExpenses / totalPersonalAvailable) * 100 : 0;
+
+      const nextState = {
+        ...curr,
+        personalData: {
+          ...curr.personalData,
+          expenses: updatedPersonalExpenses,
+          totalPersonalExpenses,
+          remainingPersonalPool,
+          personalBurnRatePct,
+        },
+      };
+      dataCacheRef.current.set(`${curr.currentYear}-${curr.currentMonth}`, nextState);
+      return nextState;
+    });
+  };
+
   const executeHogarConfirmAction = async () => {
     if (confirmHogarState.type === "deleteExpense" && confirmHogarState.targetId) {
       const id = confirmHogarState.targetId;
@@ -1258,6 +1369,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               activeTab={personalTab}
               onTabChange={setPersonalTab}
               externalMenuAction={personalMenuAction}
+              onSyncPersonalExpenses={handleSyncPersonalExpenses}
             />
           )
         ) : (
@@ -2223,6 +2335,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         categories={categories}
         isPersonal={false}
         onDeleteExpense={handleOptimisticDeleteHogarExpense}
+        onMoveExpense={handleOptimisticMoveHogarToPersonal}
         onUpdateExpense={(updated) => {
           setDashboardData((curr) => {
             const oldExp = curr.period.expenses.find((e) => e.id === updated.id);
