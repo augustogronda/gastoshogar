@@ -213,9 +213,11 @@ export function PersonalDashboardView({
       const id = current.id;
       setDeletingId(id);
       const previousList = [...localExpenses];
+      const updatedList = localExpenses.filter((e) => e.id !== id);
 
       // 1. IMPACTO INMEDIATO EN UI (0ms de latencia)
-      setLocalExpenses((prev) => prev.filter((e) => e.id !== id));
+      setLocalExpenses(updatedList);
+      onSyncPersonalExpenses?.(updatedList);
       showToast("✓ Gasto personal eliminado");
 
       // 2. Persistencia en segundo plano en la base de datos
@@ -223,6 +225,7 @@ export function PersonalDashboardView({
         await deletePersonalExpenseAction(id);
       } catch (err) {
         setLocalExpenses(previousList);
+        onSyncPersonalExpenses?.(previousList);
         showToast("Error al eliminar gasto", "error");
       } finally {
         setDeletingId(null);

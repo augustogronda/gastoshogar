@@ -484,11 +484,45 @@ export async function addExpenseAction(data: {
 }
 
 export async function deleteExpenseAction(expenseId: string) {
-  await prisma.expense.delete({
-    where: { id: expenseId },
-  });
-  revalidatePath("/");
-  return { success: true };
+  if (!expenseId) throw new Error("ID de gasto requerido");
+
+  try {
+    const shared = await prisma.expense.findUnique({
+      where: { id: expenseId },
+    });
+
+    if (shared) {
+      await prisma.expense.delete({
+        where: { id: expenseId },
+      });
+      revalidatePath("/");
+      return { success: true };
+    }
+
+    // Fallback: si el ID pertenecía a un gasto personal
+    const personal = await prisma.personalExpense.findUnique({
+      where: { id: expenseId },
+    });
+
+    if (personal) {
+      await prisma.personalExpense.delete({
+        where: { id: expenseId },
+      });
+      revalidatePath("/");
+      return { success: true };
+    }
+
+    // Si no existe en ninguna (ya fue eliminado), devolver éxito de forma idempotente
+    revalidatePath("/");
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("Error en deleteExpenseAction:", err);
+    if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2025") {
+      revalidatePath("/");
+      return { success: true };
+    }
+    throw err;
+  }
 }
 
 export async function updateExpenseAction(data: {
@@ -1402,11 +1436,53 @@ export async function addPersonalExpenseAction(data: {
 }
 
 export async function deletePersonalExpenseAction(expenseId: string) {
-  await prisma.personalExpense.delete({
-    where: { id: expenseId },
-  });
-  revalidatePath("/");
-  return { success: true };
+  if (!expenseId) throw new Error("ID de gasto requerido");
+
+  try {
+    // 1. Buscar y borrar en personalExpense
+    const personal = await prisma.personalExpense.findUnique({
+      where: { id: expenseId },
+    });
+
+    if (personal) {
+      await prisma.personalExpense.delete({
+        where: { id: expenseId },
+      });
+
+      // Desvincular de resúmenes de tarjeta si hubiere
+      await prisma.cardMonthlyPeriod.updateMany({
+        where: { linkedExpenseId: expenseId },
+        data: { linkedExpenseId: null, isPaid: false, paidAt: null },
+      });
+
+      revalidatePath("/");
+      return { success: true };
+    }
+
+    // 2. Fallback: buscar en expense (Hogar) por si provenía de una copia o movimiento
+    const shared = await prisma.expense.findUnique({
+      where: { id: expenseId },
+    });
+
+    if (shared) {
+      await prisma.expense.delete({
+        where: { id: expenseId },
+      });
+      revalidatePath("/");
+      return { success: true };
+    }
+
+    // 3. Si no existe en ninguna (ya fue eliminado), devolver éxito de forma idempotente
+    revalidatePath("/");
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("Error en deletePersonalExpenseAction:", err);
+    if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2025") {
+      revalidatePath("/");
+      return { success: true };
+    }
+    throw err;
+  }
 }
 
 export async function updatePersonalExpenseAction(data: {
