@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { ChevronLeft, ChevronRight, X, Calendar } from "./ui/icons";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface MonthPickerModalProps {
   isOpen: boolean;
@@ -42,11 +43,13 @@ export function MonthPickerModal({
   const realCurrentMonth = now.getMonth() + 1;
 
   const handleSelect = (monthNum: number) => {
+    triggerHaptic(10);
     onSelectMonth(selectedYear, monthNum);
     onClose();
   };
 
   const handleGoToCurrentMonth = () => {
+    triggerHaptic(12);
     setSelectedYear(realCurrentYear);
     onSelectMonth(realCurrentYear, realCurrentMonth);
     onClose();
@@ -63,7 +66,10 @@ export function MonthPickerModal({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSelectedYear((prev) => prev - 1)}
+              onClick={() => {
+                triggerHaptic(8);
+                setSelectedYear((prev) => prev - 1);
+              }}
               className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.05] hover:bg-white/[0.12] text-zinc-300 hover:text-white transition active:scale-90"
               title="Año anterior"
             >
@@ -74,7 +80,10 @@ export function MonthPickerModal({
             </span>
             <button
               type="button"
-              onClick={() => setSelectedYear((prev) => prev + 1)}
+              onClick={() => {
+                triggerHaptic(8);
+                setSelectedYear((prev) => prev + 1);
+              }}
               className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.05] hover:bg-white/[0.12] text-zinc-300 hover:text-white transition active:scale-90"
               title="Año siguiente"
             >
@@ -84,7 +93,10 @@ export function MonthPickerModal({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              triggerHaptic(6);
+              onClose();
+            }}
             className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-90 transition"
           >
             <X className="w-4 h-4" />

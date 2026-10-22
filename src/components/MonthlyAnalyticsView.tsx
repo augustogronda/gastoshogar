@@ -17,6 +17,7 @@ import {
   Lock,
   Unlock,
 } from "./ui/icons";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface ExpenseItem {
   id: string;
@@ -167,7 +168,10 @@ export function MonthlyAnalyticsView({
           <div className="mt-3.5">
             {investedInFCI > 0 && remainingPool === 0 ? (
               <div
-                onClick={onOpenFCIModal}
+                onClick={() => {
+                  triggerHaptic(10);
+                  onOpenFCIModal();
+                }}
                 className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
               >
                 <div className="flex items-center gap-3">
@@ -190,7 +194,10 @@ export function MonthlyAnalyticsView({
               </div>
             ) : (
               <div
-                onClick={onOpenFCIModal}
+                onClick={() => {
+                  triggerHaptic(10);
+                  onOpenFCIModal();
+                }}
                 className="cursor-pointer bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all duration-150 active:scale-[0.98] group shadow-sm"
               >
                 <div className="flex items-center gap-3">
@@ -221,7 +228,10 @@ export function MonthlyAnalyticsView({
             {onOpenSalaryModal && (
               <button
                 type="button"
-                onClick={onOpenSalaryModal}
+                onClick={() => {
+                  triggerHaptic(10);
+                  onOpenSalaryModal();
+                }}
                 className="py-2.5 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-xs font-semibold text-zinc-200 flex items-center justify-center gap-1.5 transition active:scale-95 border border-white/[0.08]"
               >
                 <Settings className="w-3.5 h-3.5 text-blue-400" />
@@ -232,7 +242,10 @@ export function MonthlyAnalyticsView({
             {onCloseOrReopenMonth && (
               <button
                 type="button"
-                onClick={onCloseOrReopenMonth}
+                onClick={() => {
+                  triggerHaptic(15);
+                  onCloseOrReopenMonth();
+                }}
                 disabled={isProcessingClose}
                 className={`py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95 border disabled:opacity-50 ${
                   isClosed

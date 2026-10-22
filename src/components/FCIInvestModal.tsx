@@ -20,6 +20,7 @@ import {
   createFCIWithdrawalAction,
   deleteFCIWithdrawalAction,
 } from "@/app/actions";
+import { triggerHaptic } from "@/lib/haptics";
 
 export interface FCIWithdrawalItem {
   id: string;
@@ -80,6 +81,7 @@ export function FCIInvestModal({
     setErrorMsg(null);
     try {
       await transferSurplusToFCIAction(periodId, fundId);
+      triggerHaptic("success");
       onClose();
     } catch (err: unknown) {
       console.error(err);
@@ -96,6 +98,7 @@ export function FCIInvestModal({
     setErrorMsg(null);
     try {
       await updateFCIValueAction(fundId, val);
+      triggerHaptic(15);
       setIsUpdatingValue(false);
     } catch (err: unknown) {
       console.error(err);
@@ -143,6 +146,7 @@ export function FCIInvestModal({
       setWithdrawAmount("");
       setWithdrawPurpose("");
       setWithdrawDestination("POOL_FUND");
+      triggerHaptic("success");
       onClose();
     } catch (err: unknown) {
       console.error(err);
@@ -158,6 +162,7 @@ export function FCIInvestModal({
     setErrorMsg(null);
     try {
       await deleteFCIWithdrawalAction(withdrawalId);
+      triggerHaptic(12);
     } catch (err: unknown) {
       console.error(err);
       setErrorMsg(err instanceof Error ? err.message : "Error al anular el retiro");
@@ -177,7 +182,10 @@ export function FCIInvestModal({
             <h2 className="text-base font-bold text-white tracking-tight">Fondo Común de Inversión</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              triggerHaptic(6);
+              onClose();
+            }}
             className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
           >
             <X className="w-4 h-4" />
@@ -229,6 +237,7 @@ export function FCIInvestModal({
           <button
             type="button"
             onClick={() => {
+              triggerHaptic(8);
               setActiveTab("INVEST");
               setErrorMsg(null);
             }}
@@ -244,6 +253,7 @@ export function FCIInvestModal({
           <button
             type="button"
             onClick={() => {
+              triggerHaptic(8);
               setActiveTab("WITHDRAW");
               setErrorMsg(null);
             }}

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { X, CreditCard, Repeat } from "./ui/icons";
 import { createPersonalRecurringExpenseAction } from "@/app/actions";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface Category {
   id: string;
@@ -76,6 +77,7 @@ export function PersonalRecurringModal({
       setInstallmentAmount("");
       setCreditCardId("");
       setNotes("");
+      triggerHaptic("success");
       onClose();
     } catch (err: unknown) {
       console.error(err);
@@ -102,7 +104,10 @@ export function PersonalRecurringModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              triggerHaptic(6);
+              onClose();
+            }}
             className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
           >
             <X className="w-4 h-4" />
@@ -114,7 +119,10 @@ export function PersonalRecurringModal({
           <div className="grid grid-cols-2 gap-2 bg-white/[0.03] p-1 rounded-2xl border border-white/[0.08]">
             <button
               type="button"
-              onClick={() => setIsInstallmentPlan(true)}
+              onClick={() => {
+                triggerHaptic(8);
+                setIsInstallmentPlan(true);
+              }}
               className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
                 isInstallmentPlan
                   ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
@@ -126,7 +134,10 @@ export function PersonalRecurringModal({
             </button>
             <button
               type="button"
-              onClick={() => setIsInstallmentPlan(false)}
+              onClick={() => {
+                triggerHaptic(8);
+                setIsInstallmentPlan(false);
+              }}
               className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
                 !isInstallmentPlan
                   ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"

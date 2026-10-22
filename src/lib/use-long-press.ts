@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useCallback } from "react";
+import { triggerHaptic } from "./haptics";
 
 interface UseLongPressOptions {
   onLongPress: () => void;
@@ -37,6 +38,7 @@ export function useLongPress({
       clearTimer();
       timerRef.current = setTimeout(() => {
         isLongPressRef.current = true;
+        triggerHaptic(20);
         onLongPress();
       }, thresholdMs);
     },

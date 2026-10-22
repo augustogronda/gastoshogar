@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Sparkles, ArrowRight, ChevronDown, ChevronUp, AlertCircle, Check, CreditCard, Clock } from "./ui/icons";
 import { computeCardShoppingStrategy, CardShoppingAdvice } from "@/lib/card-recommendation";
 import { BANK_THEMES } from "@/lib/cards-service";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface CardShoppingAdvisorBannerProps {
   cards: any[];
@@ -30,7 +31,10 @@ export function CardShoppingAdvisorBanner({
   if (compact) {
     return (
       <div
-        onClick={onNavigateToCards}
+        onClick={() => {
+          triggerHaptic(8);
+          onNavigateToCards?.();
+        }}
         className="cursor-pointer group relative overflow-hidden rounded-2xl p-3.5 bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-zinc-900/80 border border-purple-500/30 hover:border-purple-400/50 shadow-md transition-all active:scale-[0.99]"
       >
         <div className="flex items-center justify-between gap-3">
@@ -87,7 +91,10 @@ export function CardShoppingAdvisorBanner({
 
       {/* Tarjeta Ganadora */}
       <div
-        onClick={() => onSelectCard?.(bestCard.cardId)}
+        onClick={() => {
+          triggerHaptic(8);
+          onSelectCard?.(bestCard.cardId);
+        }}
         className="cursor-pointer group p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.08] transition-all relative overflow-hidden"
       >
         <div className="flex items-start justify-between gap-3">
@@ -157,7 +164,10 @@ export function CardShoppingAdvisorBanner({
         <div className="mt-3 pt-2.5 border-t border-white/[0.06]">
           <button
             type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={() => {
+              triggerHaptic(8);
+              setIsExpanded(!isExpanded);
+            }}
             className="w-full flex items-center justify-between text-xs font-semibold text-zinc-400 hover:text-white transition py-1"
           >
             <span>Comparar plazo de todas mis tarjetas ({ranking.length})</span>

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { X, Sparkles, Wallet, Check } from "./ui/icons";
 import { updatePersonalExtraIncomeAction } from "@/app/actions";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface PersonalIncomeModalProps {
   isOpen: boolean;
@@ -57,6 +58,7 @@ export function PersonalIncomeModal({
         extraVal,
         notesInput
       );
+      triggerHaptic("success");
       onClose();
     } catch (err: unknown) {
       console.error(err);
@@ -85,7 +87,10 @@ export function PersonalIncomeModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              triggerHaptic(6);
+              onClose();
+            }}
             className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
           >
             <X className="w-4 h-4" />

@@ -3,6 +3,7 @@
 import React from "react";
 import { Check, Clock, Calendar, AlertCircle, ArrowRight, Repeat, Sparkles } from "./ui/icons";
 import { BANK_THEMES } from "@/lib/cards-service";
+import { triggerHaptic } from "@/lib/haptics";
 
 const SHORT_MONTHS_ES = [
   "Ene", "Feb", "Mar", "Abr", "May", "Jun",
@@ -355,6 +356,7 @@ export function CreditCardVisual({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    triggerHaptic(10);
                     onEdit();
                   }}
                   className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-[11px] font-semibold text-white backdrop-blur-md transition border border-white/20"
@@ -368,6 +370,7 @@ export function CreditCardVisual({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    triggerHaptic(15);
                     onTogglePaid();
                   }}
                   disabled={isProcessing}
@@ -396,6 +399,7 @@ export function CreditCardVisual({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                triggerHaptic(12);
                 onNextSummary();
               }}
               disabled={isProcessing}

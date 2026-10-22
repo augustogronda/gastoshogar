@@ -33,7 +33,7 @@ import {
 } from "./ui/icons";
 import { forceCheckAppUpdate } from "./AppUpdateChecker";
 import currentAppVersion from "../../public/version.json";
-import { triggerHaptic } from "@/lib/haptics";
+import { triggerHaptic, initAutoHaptics } from "@/lib/haptics";
 import { CategoryIcon } from "./ui/icons";
 import { ConfirmDialog, ToastBanner, useToast } from "./ui/ConfirmDialog";
 import { QuickExpenseModal } from "./QuickExpenseModal";
@@ -264,6 +264,11 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     } catch (e) {
       console.warn("Error leyendo caché local:", e);
     }
+
+    const cleanupHaptics = initAutoHaptics();
+    return () => {
+      cleanupHaptics();
+    };
   }, []);
 
   // 2. Sincronizar datos si initialData se actualiza desde el servidor y persistir en el dispositivo

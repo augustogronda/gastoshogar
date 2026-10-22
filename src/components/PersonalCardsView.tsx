@@ -7,6 +7,7 @@ import { CardStatementModal } from "./CardStatementModal";
 import { CardShoppingAdvisorBanner } from "./CardShoppingAdvisorBanner";
 import { computeCardShoppingStrategy } from "@/lib/card-recommendation";
 import { toggleCardPaidAction, advanceCardToNextSummaryAction } from "@/app/actions";
+import { triggerHaptic } from "@/lib/haptics";
 
 const MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -136,6 +137,7 @@ export function PersonalCardsView({
     const previousCards = [...localCards];
 
     // 1. Impacto visual inmediato (0ms)
+    triggerHaptic(15);
     setHighlightedCardId(cardItem.id);
     setTimeout(() => setHighlightedCardId(null), 1200);
 
@@ -179,6 +181,7 @@ export function PersonalCardsView({
   // Confirmar y ejecutar el paso al siguiente resumen
   const confirmAdvanceNextSummary = async () => {
     if (!cardForNextSummary) return;
+    triggerHaptic("success");
     const cardItem = cardForNextSummary;
     setCardForNextSummary(null);
     setProcessingCardId(cardItem.id);

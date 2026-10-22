@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Check, Percent, Users, Calendar } from "./ui/icons";
 import { updateSalariesAction, updateMemberNamesAction } from "@/app/actions";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface HouseholdUser {
   id: string;
@@ -85,6 +86,7 @@ export function SalaryConfigModal({
           { userId: userAgus.id, amount: numB, pct: clampedPct / 100 },
         ]);
       }
+      triggerHaptic("success");
       onClose();
     } catch (err) {
       console.error(err);
@@ -109,7 +111,10 @@ export function SalaryConfigModal({
             </span>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              triggerHaptic(6);
+              onClose();
+            }}
             className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
           >
             <X className="w-4 h-4" />

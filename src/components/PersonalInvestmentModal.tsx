@@ -17,6 +17,7 @@ import {
   fetchMarketQuoteAction,
 } from "@/app/actions";
 import { POPULAR_ARGENTINA_ASSETS } from "@/lib/investments-service";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface PersonalInvestmentModalProps {
   isOpen: boolean;
@@ -152,6 +153,7 @@ export function PersonalInvestmentModal({
     currency?: string;
     defaultCurrency?: string;
   }) => {
+    triggerHaptic(8);
     setTicker(item.ticker);
     setName(item.name);
     setAssetType(item.assetType);
@@ -213,6 +215,7 @@ export function PersonalInvestmentModal({
       }
 
       if (onSaved) onSaved();
+      triggerHaptic("success");
       onClose();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Error al guardar inversión.");
@@ -247,7 +250,10 @@ export function PersonalInvestmentModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              triggerHaptic(6);
+              onClose();
+            }}
             className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
           >
             <X className="w-4 h-4" />
@@ -259,7 +265,10 @@ export function PersonalInvestmentModal({
           <div className="flex bg-zinc-900/90 p-1 rounded-2xl border border-white/[0.08] mt-3.5 mb-1">
             <button
               type="button"
-              onClick={() => setActiveMode("search")}
+              onClick={() => {
+                triggerHaptic(8);
+                setActiveMode("search");
+              }}
               className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition ${
                 activeMode === "search"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
@@ -271,6 +280,7 @@ export function PersonalInvestmentModal({
             <button
               type="button"
               onClick={() => {
+                triggerHaptic(8);
                 setActiveMode("manual");
                 setAssetType("FCI");
               }}

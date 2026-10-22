@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { triggerHaptic } from "./haptics";
 
 interface UseSheetGestureOptions {
   onClose: () => void;
@@ -59,6 +60,7 @@ export function useSheetGesture({
       setDragY(deltaY);
     } else if (deltaY < -35 && detent === "medium") {
       // Arrastrando hacia arriba cuando está en detent medio -> expandir a large
+      triggerHaptic(10);
       setDetent("large");
       setDragY(0);
       setIsDragging(false);
@@ -81,6 +83,7 @@ export function useSheetGesture({
 
     // Si arrastró suficiente distancia o hizo un flick rápido hacia abajo
     if (dragY > dismissThreshold || (dragY > 35 && velocity > 0.55)) {
+      triggerHaptic(12);
       setIsDragging(false);
       setDragY(0);
       startYRef.current = null;
@@ -96,6 +99,7 @@ export function useSheetGesture({
   }, [dragY, dismissThreshold, onClose]);
 
   const toggleDetent = useCallback(() => {
+    triggerHaptic(8);
     setDetent((prev) => (prev === "large" ? "medium" : "large"));
   }, []);
 

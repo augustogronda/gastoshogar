@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { CreditCard, X, Check, Calendar, AlertCircle } from "./ui/icons";
 import { updateCardStatementAction } from "@/app/actions";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface CardStatementModalProps {
   isOpen: boolean;
@@ -111,6 +112,7 @@ export function CardStatementModal({
     };
 
     // 1. Actualización optimista instantánea (0ms)
+    triggerHaptic("success");
     if (onOptimisticSave) {
       onOptimisticSave(cardData.id, {
         statementAmount: cleanAmount,
@@ -160,7 +162,10 @@ export function CardStatementModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              triggerHaptic(6);
+              onClose();
+            }}
             className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
           >
             <X className="w-4 h-4" />
