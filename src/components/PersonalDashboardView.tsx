@@ -152,6 +152,9 @@ function PersonalExpenseRow({
   handleQuickDuplicateToShared,
   handleQuickMarkReviewed,
 }: PersonalExpenseRowProps) {
+  const [confirmAction, setConfirmAction] = useState<"duplicate" | "reviewed" | null>(null);
+  const confirmTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
   const dateObj = new Date(exp.date);
   const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
   const isPendingSync = exp.id.startsWith("temp-");
@@ -159,6 +162,36 @@ function PersonalExpenseRow({
   const cardTag = getCardSourceTag(exp.notes);
   const cleanNotes = getCleanNotes(exp.notes);
   const isBusy = actioningId === exp.id || deletingId === exp.id;
+
+  const handlePressDuplicate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirmAction !== "duplicate") {
+      triggerHaptic(10);
+      setConfirmAction("duplicate");
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(() => setConfirmAction(null), 4000);
+      return;
+    }
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    setConfirmAction(null);
+    triggerHaptic(15);
+    handleQuickDuplicateToShared(exp.id);
+  };
+
+  const handlePressReviewed = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirmAction !== "reviewed") {
+      triggerHaptic(10);
+      setConfirmAction("reviewed");
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(() => setConfirmAction(null), 4000);
+      return;
+    }
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    setConfirmAction(null);
+    triggerHaptic(15);
+    handleQuickMarkReviewed(exp.id);
+  };
 
   const longPressHandlers = useLongPress({
     onLongPress: () => {
@@ -265,30 +298,79 @@ function PersonalExpenseRow({
         </div>
       </div>
 
-      {/* Barra inferior de acciones rápidas cuando el gasto está marcado para revisar */}
+      {/* Barra inferior de acciones rápidas cuando el gasto está marcado para revisar con confirmación elegante */}
       {isReview && !isPendingSync && (
         <div
           className="mt-3 pt-2.5 border-t border-amber-500/20 flex items-center gap-2"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => handleQuickDuplicateToShared(exp.id)}
-            className="flex-1 min-h-[38px] py-2 px-3 rounded-xl btn-hogar-gradient font-semibold text-xs tracking-[-0.01em] text-blue-100 flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98]"
-          >
-            <Users className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
-            <span className="truncate">Duplicar a Hogar</span>
-          </button>
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => handleQuickMarkReviewed(exp.id)}
-            className="flex-1 min-h-[38px] py-2 px-3 rounded-xl bg-[#30D158]/15 hover:bg-[#30D158]/25 text-emerald-100 border border-[#30D158]/40 hover:border-[#30D158]/65 font-semibold text-xs tracking-[-0.01em] flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98]"
-          >
-            <Check className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
-            <span className="truncate">Confirmar Personal</span>
-          </button>
+          {confirmAction === "duplicate" ? (
+            <div className="flex-1 flex items-center gap-1.5 animate-fade-in">
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={handlePressDuplicate}
+                className="flex-1 min-h-[38px] py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white border border-blue-400 shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+              >
+                <Users className="w-3.5 h-3.5 text-white shrink-0" />
+                <span className="truncate">¿Confirmar Duplicar?</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmAction(null);
+                }}
+                className="min-h-[38px] px-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-zinc-300 text-xs transition"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={handlePressDuplicate}
+              className="flex-1 min-h-[38px] py-2 px-3 rounded-xl btn-hogar-gradient font-semibold text-xs tracking-[-0.01em] text-blue-100 flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98]"
+            >
+              <Users className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+              <span className="truncate">Duplicar a Hogar</span>
+            </button>
+          )}
+
+          {confirmAction === "reviewed" ? (
+            <div className="flex-1 flex items-center gap-1.5 animate-fade-in">
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={handlePressReviewed}
+                className="flex-1 min-h-[38px] py-2 px-3 rounded-xl bg-[#30D158] hover:bg-emerald-500 font-bold text-xs text-white border border-emerald-300 shadow-md shadow-emerald-600/30 flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+              >
+                <Check className="w-3.5 h-3.5 text-white shrink-0" />
+                <span className="truncate">¿Confirmar Personal?</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmAction(null);
+                }}
+                className="min-h-[38px] px-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-zinc-300 text-xs transition"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={handlePressReviewed}
+              className="flex-1 min-h-[38px] py-2 px-3 rounded-xl bg-[#30D158]/15 hover:bg-[#30D158]/25 text-emerald-100 border border-[#30D158]/40 hover:border-[#30D158]/65 font-semibold text-xs tracking-[-0.01em] flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98]"
+            >
+              <Check className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
+              <span className="truncate">Confirmar Personal</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -432,15 +514,19 @@ export function PersonalDashboardView({
   const handleQuickDuplicateToShared = async (expId: string) => {
     if (actioningId === expId) return;
     setActioningId(expId);
+    const prevExpenses = [...localExpenses];
+    const updated = localExpenses.map((e) =>
+      e.id === expId ? { ...e, notes: removeReviewFlag(e.notes) || null } : e
+    );
+    setLocalExpenses(updated);
+    onSyncPersonalExpenses?.(updated);
+    showToast("✓ Duplicado en Fondo Compartido (Hogar)");
     try {
-      // Optimista: quitar flag de revisión de inmediato
-      setLocalExpenses((prev) =>
-        prev.map((e) => (e.id === expId ? { ...e, notes: removeReviewFlag(e.notes) || null } : e))
-      );
-      showToast("✓ Duplicado en Fondo Compartido (Hogar)");
       await duplicatePersonalToSharedExpenseAction({ personalExpenseId: expId, markAsReviewed: true });
     } catch (err: unknown) {
       console.error(err);
+      setLocalExpenses(prevExpenses);
+      onSyncPersonalExpenses?.(prevExpenses);
       showToast(err instanceof Error ? err.message : "Error al duplicar a compartidos", "error");
     } finally {
       setActioningId(null);
@@ -450,14 +536,19 @@ export function PersonalDashboardView({
   const handleQuickMarkReviewed = async (expId: string) => {
     if (actioningId === expId) return;
     setActioningId(expId);
+    const prevExpenses = [...localExpenses];
+    const updated = localExpenses.map((e) =>
+      e.id === expId ? { ...e, notes: removeReviewFlag(e.notes) || null } : e
+    );
+    setLocalExpenses(updated);
+    onSyncPersonalExpenses?.(updated);
+    showToast("✓ Gasto confirmado como Personal");
     try {
-      setLocalExpenses((prev) =>
-        prev.map((e) => (e.id === expId ? { ...e, notes: removeReviewFlag(e.notes) || null } : e))
-      );
-      showToast("✓ Gasto confirmado como Personal");
       await markPersonalExpenseAsReviewedAction(expId);
     } catch (err: unknown) {
       console.error(err);
+      setLocalExpenses(prevExpenses);
+      onSyncPersonalExpenses?.(prevExpenses);
       showToast(err instanceof Error ? err.message : "Error al confirmar gasto", "error");
     } finally {
       setActioningId(null);
@@ -500,6 +591,21 @@ export function PersonalDashboardView({
       showToast("Error al mover gasto a Hogar", "error");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleCopyPersonalExpenseToHogar = async (id: string) => {
+    triggerHaptic(12);
+    showToast("✓ Copiando a Fondo Compartido (Hogar)...", "info");
+    try {
+      await duplicatePersonalToSharedExpenseAction({
+        personalExpenseId: id,
+        move: false,
+      });
+      showToast("✓ Gasto copiado a Fondo Compartido (Hogar)");
+    } catch (err) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al copiar gasto a Hogar", "error");
     }
   };
 
@@ -1451,6 +1557,7 @@ export function PersonalDashboardView({
         isPersonal={true}
         onDeleteExpense={handleDeletePersonalExpense}
         onMoveExpense={handleMovePersonalExpenseToHogar}
+        onCopyExpense={handleCopyPersonalExpenseToHogar}
         onUpdateExpense={(updated) => {
           const updatedList = localExpenses.map((e) =>
             e.id === updated.id
@@ -1495,6 +1602,7 @@ export function PersonalDashboardView({
           });
           setIsDetailModalOpen(true);
         }}
+        onCopyExpense={handleCopyPersonalExpenseToHogar}
         onMoveExpense={handleMovePersonalExpenseToHogar}
         onDeleteExpense={handleDeletePersonalExpense}
       />

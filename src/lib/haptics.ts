@@ -4,10 +4,21 @@ let audioCtx: AudioContext | null = null;
 let hapticLabel: HTMLLabelElement | null = null;
 let hapticInput: HTMLInputElement | null = null;
 
+// Asegurar que en iOS el audio funcione incluso si el switch físico de silencio está activo
+function initAudioSession(): void {
+  try {
+    if (typeof navigator !== "undefined" && "audioSession" in navigator) {
+      // @ts-expect-error - WebKit AudioSession API
+      navigator.audioSession.type = "playback";
+    }
+  } catch {
+    // Silencioso
+  }
+}
+
 /**
  * Crea e inicializa el switch nativo para accionar el Taptic Engine de Apple en iOS (17.4+ / 18+).
- * Ubicado fuera del área visual interactiva sin usar pointer-events: none (para que WebKit
- * no descarte el evento sintético dispatchEvent/click).
+ * Debe estar dentro del viewport para evitar que RenderThemeIOS lo descarte por offscreen culling.
  */
 function ensureHapticElements(): HTMLLabelElement | null {
   if (typeof document === "undefined" || !document.body) return null;
@@ -36,25 +47,25 @@ function ensureHapticElements(): HTMLLabelElement | null {
     const container = document.createElement("div");
     container.setAttribute("aria-hidden", "true");
     container.style.cssText =
-      "position:fixed;bottom:-50px;left:-50px;width:10px;height:10px;opacity:0.01;overflow:hidden;z-index:-9999;";
+      "position:fixed;bottom:1px;left:1px;width:2px;height:2px;opacity:0.01;overflow:hidden;z-index:-1;user-select:none;-webkit-user-select:none;";
 
     const input = document.createElement("input");
     input.type = "checkbox";
     input.setAttribute("switch", "");
     input.id = inputId;
     input.tabIndex = -1;
-    input.style.cssText = "width:10px;height:10px;margin:0;padding:0;border:0;";
+    input.style.cssText = "width:2px;height:2px;margin:0;padding:0;border:0;";
 
     const label = document.createElement("label");
     label.id = labelId;
     label.htmlFor = inputId;
-    label.style.cssText = "display:inline-block;width:10px;height:10px;";
+    label.style.cssText = "display:block;width:2px;height:2px;cursor:pointer;";
 
     container.appendChild(input);
     container.appendChild(label);
     document.body.appendChild(container);
 
-    // Forzar cálculo de layout para registrar RenderThemeIOS
+    // Forzar cálculo de layout
     void container.offsetHeight;
 
     hapticLabel = label;
@@ -72,11 +83,19 @@ if (typeof window !== "undefined") {
   } else {
     window.addEventListener("DOMContentLoaded", () => ensureHapticElements(), { once: true });
   }
-  window.addEventListener("pointerdown", () => ensureHapticElements(), { once: true, passive: true });
+  window.addEventListener(
+    "pointerdown",
+    () => {
+      initAudioSession();
+      ensureHapticElements();
+    },
+    { once: true, passive: true }
+  );
 }
 
 function playAudioHapticClick(): void {
   try {
+    initAudioSession();
     const AudioContextClass =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -135,7 +154,7 @@ export function triggerHaptic(durationMs = 15): void {
       return;
     }
 
-    // 2. iOS WebKit / Safari PWA: Taptic Engine físico
+    // 2. iOS WebKit / Safari PWA: Taptic Engine físico vía switch
     const label = ensureHapticElements();
     if (label) {
       label.click();

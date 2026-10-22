@@ -864,6 +864,45 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     }
   };
 
+  const handleOptimisticCopyHogarToPersonal = async (id: string) => {
+    triggerHaptic(12);
+    showToast("✓ Copiando a Gastos Personales...", "info");
+    const cacheKey = `${currentYear}-${currentMonth}`;
+
+    try {
+      const res = await duplicateSharedToPersonalExpenseAction({
+        expenseId: id,
+        targetUserId: currentUser?.id,
+        move: false,
+      });
+
+      if (res?.expense) {
+        setDashboardData((curr) => {
+          if (!curr.personalData) return curr;
+          const nextPersonalExpenses = [res.expense, ...(curr.personalData.expenses || [])];
+          const totalPersonalExpenses = nextPersonalExpenses.reduce((acc: number, e: any) => acc + e.amount, 0);
+          const totalPersonalAvailable = curr.personalData.totalPersonalAvailable || 0;
+          const nextState = {
+            ...curr,
+            personalData: {
+              ...curr.personalData,
+              expenses: nextPersonalExpenses,
+              totalPersonalExpenses,
+              remainingPersonalPool: Math.max(0, totalPersonalAvailable - totalPersonalExpenses),
+              personalBurnRatePct:
+                totalPersonalAvailable > 0 ? (totalPersonalExpenses / totalPersonalAvailable) * 100 : 0,
+            },
+          };
+          dataCacheRef.current.set(cacheKey, nextState);
+          return nextState;
+        });
+      }
+      showToast("✓ Gasto copiado a Gastos Personales", "success");
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Error al copiar gasto a personal", "error");
+    }
+  };
+
   const handleSyncPersonalExpenses = (updatedPersonalExpenses: any[]) => {
     setDashboardData((curr) => {
       if (!curr.personalData) return curr;
@@ -2396,6 +2435,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         isPersonal={false}
         onDeleteExpense={handleOptimisticDeleteHogarExpense}
         onMoveExpense={handleOptimisticMoveHogarToPersonal}
+        onCopyExpense={handleOptimisticCopyHogarToPersonal}
         onUpdateExpense={(updated) => {
           setDashboardData((curr) => {
             const oldExp = curr.period.expenses.find((e) => e.id === updated.id);
@@ -2468,6 +2508,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           });
           setIsDetailModalOpen(true);
         }}
+        onCopyExpense={handleOptimisticCopyHogarToPersonal}
         onMoveExpense={handleOptimisticMoveHogarToPersonal}
         onDeleteExpense={handleOptimisticDeleteHogarExpense}
       />

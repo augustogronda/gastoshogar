@@ -8,6 +8,8 @@ import {
   Check,
   User,
   Users,
+  Repeat,
+  Copy,
   Layers,
   Plus,
   AlertCircle,
@@ -29,6 +31,8 @@ import {
   hasReviewFlag,
   getCleanNotes,
   getCardSourceTag,
+  removeReviewFlag,
+  addReviewFlag,
 } from "@/lib/expense-review";
 import { triggerHaptic } from "@/lib/haptics";
 
@@ -73,6 +77,7 @@ interface ExpenseDetailModalProps {
   isPersonal?: boolean;
   onDeleteExpense?: (expenseId: string) => Promise<void> | void;
   onMoveExpense?: (expenseId: string) => Promise<void> | void;
+  onCopyExpense?: (expenseId: string) => Promise<void> | void;
   onUpdateExpense?: (updated: EditableExpense) => void;
 }
 
@@ -85,6 +90,7 @@ export function ExpenseDetailModal({
   isPersonal = false,
   onDeleteExpense,
   onMoveExpense,
+  onCopyExpense,
   onUpdateExpense,
 }: ExpenseDetailModalProps) {
   const { toast, showToast } = useToast();
@@ -101,7 +107,14 @@ export function ExpenseDetailModal({
   const [isMarkingReviewed, setIsMarkingReviewed] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<
-    "delete" | "moveToShared" | "moveToPersonal" | "duplicateToShared" | null
+    | "delete"
+    | "moveToShared"
+    | "moveToPersonal"
+    | "copyToShared"
+    | "copyToPersonal"
+    | "duplicateToShared"
+    | "markReviewed"
+    | null
   >(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [localCategories, setLocalCategories] = useState<CategoryItem[]>(categories);
@@ -240,16 +253,93 @@ export function ExpenseDetailModal({
     }
     setPendingConfirm(null);
     setIsMovingAcross(true);
+
+    const prevNotes = notes;
+    const cleanNotes = removeReviewFlag(notes) || null;
+    setNotes(cleanNotes || "");
+    if (onUpdateExpense && expense) {
+      onUpdateExpense({
+        ...expense,
+        notes: cleanNotes,
+      });
+    }
+
     onClose();
+    showToast("✓ Gasto enviado a Fondo Compartido (Hogar)");
     try {
       await duplicatePersonalToSharedExpenseAction({
         personalExpenseId: expense.id,
         markAsReviewed: true,
       });
-      showToast("✓ Gasto enviado a Fondo Compartido (Hogar)");
     } catch (err: unknown) {
       console.error(err);
+      if (onUpdateExpense && expense) {
+        onUpdateExpense({ ...expense, notes: prevNotes });
+      }
       showToast(err instanceof Error ? err.message : "Error al enviar a compartidos", "error");
+    } finally {
+      setIsMovingAcross(false);
+    }
+  };
+
+  const handleCopyToShared = async () => {
+    triggerHaptic(10);
+    if (pendingConfirm !== "copyToShared") {
+      setPendingConfirm("copyToShared");
+      return;
+    }
+    const targetId = expense.id;
+    setPendingConfirm(null);
+    setIsMovingAcross(true);
+    onClose();
+
+    if (onCopyExpense) {
+      await onCopyExpense(targetId);
+      setIsMovingAcross(false);
+      return;
+    }
+
+    try {
+      await duplicatePersonalToSharedExpenseAction({
+        personalExpenseId: targetId,
+        move: false,
+      });
+      showToast("✓ Gasto copiado a Fondo Compartido (Hogar)");
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al copiar a Hogar", "error");
+    } finally {
+      setIsMovingAcross(false);
+    }
+  };
+
+  const handleCopyToPersonal = async () => {
+    triggerHaptic(10);
+    if (pendingConfirm !== "copyToPersonal") {
+      setPendingConfirm("copyToPersonal");
+      return;
+    }
+    const targetId = expense.id;
+    setPendingConfirm(null);
+    setIsMovingAcross(true);
+    onClose();
+
+    if (onCopyExpense) {
+      await onCopyExpense(targetId);
+      setIsMovingAcross(false);
+      return;
+    }
+
+    try {
+      await duplicateSharedToPersonalExpenseAction({
+        expenseId: targetId,
+        targetUserId: paidById || users[0]?.id,
+        move: false,
+      });
+      showToast("✓ Gasto copiado a Gastos Personales");
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : "Error al copiar a personales", "error");
     } finally {
       setIsMovingAcross(false);
     }
@@ -320,13 +410,32 @@ export function ExpenseDetailModal({
 
   const handleMarkAsReviewed = async () => {
     triggerHaptic(12);
+    if (pendingConfirm !== "markReviewed") {
+      setPendingConfirm("markReviewed");
+      return;
+    }
+    setPendingConfirm(null);
     setIsMarkingReviewed(true);
+
+    const prevNotes = notes;
+    const cleanNotes = removeReviewFlag(notes) || null;
+    setNotes(cleanNotes || "");
+    if (onUpdateExpense && expense) {
+      onUpdateExpense({
+        ...expense,
+        notes: cleanNotes,
+      });
+    }
+
     onClose();
+    showToast("✓ Gasto confirmado como Personal");
     try {
       await markPersonalExpenseAsReviewedAction(expense.id);
-      showToast("✓ Gasto confirmado como Personal");
     } catch (err: unknown) {
       console.error(err);
+      if (onUpdateExpense && expense) {
+        onUpdateExpense({ ...expense, notes: prevNotes });
+      }
       showToast(err instanceof Error ? err.message : "Error al confirmar gasto", "error");
     } finally {
       setIsMarkingReviewed(false);
@@ -335,20 +444,35 @@ export function ExpenseDetailModal({
 
   const handleToggleReview = async () => {
     triggerHaptic(12);
-    setIsMarkingReviewed(true);
-    onClose();
+    const currentlyMarked = hasReviewFlag(notes);
+    const newNotes = currentlyMarked
+      ? removeReviewFlag(notes) || null
+      : addReviewFlag(notes);
+
+    const prevNotes = notes;
+    setNotes(newNotes || "");
+    if (onUpdateExpense && expense) {
+      onUpdateExpense({
+        ...expense,
+        notes: newNotes,
+      });
+    }
+
+    showToast(
+      !currentlyMarked
+        ? "🔍 Marcado para revisar si es compartido"
+        : "✓ Marca de revisión quitada"
+    );
+
     try {
-      const res = await togglePersonalExpenseReviewAction(expense.id);
-      showToast(
-        res.needsReview
-          ? "🔍 Marcado para revisar si es compartido"
-          : "✓ Marca de revisión quitada"
-      );
+      await togglePersonalExpenseReviewAction(expense.id);
     } catch (err: unknown) {
       console.error(err);
+      setNotes(prevNotes);
+      if (onUpdateExpense && expense) {
+        onUpdateExpense({ ...expense, notes: prevNotes });
+      }
       showToast("Error al cambiar marca de revisión", "error");
-    } finally {
-      setIsMarkingReviewed(false);
     }
   };
 
@@ -513,10 +637,18 @@ export function ExpenseDetailModal({
                   type="button"
                   onClick={handleMarkAsReviewed}
                   disabled={isMarkingReviewed || isSubmitting}
-                  className="py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95"
+                  className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 border ${
+                    pendingConfirm === "markReviewed"
+                      ? "bg-emerald-600 text-white border-emerald-300 shadow-md"
+                      : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/40"
+                  }`}
                 >
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Solo Personal</span>
+                  <span>
+                    {pendingConfirm === "markReviewed"
+                      ? "¿Confirmar Personal?"
+                      : "Solo Personal"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -714,27 +846,73 @@ export function ExpenseDetailModal({
             </button>
           )}
 
-          {/* Barra de Acciones Secundarias en 1 Sola Fila (Mover de espacio | Eliminar) */}
-          <div className="grid grid-cols-2 gap-2.5 pt-0.5">
+          {/* Barra de Acciones Secundarias en 3 Columnas (Copiar | Mover | Eliminar) */}
+          <div className="grid grid-cols-3 gap-2 pt-0.5">
+            {/* Botón 1: Copiar a otro espacio */}
+            {isPersonal ? (
+              <button
+                type="button"
+                onClick={handleCopyToShared}
+                disabled={isSubmitting || isDeleting || isMovingAcross}
+                className={`py-2.5 px-2 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1 transition active:scale-95 border ${
+                  pendingConfirm === "copyToShared"
+                    ? "bg-cyan-600 text-white border-cyan-300 shadow-md"
+                    : "bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 border-cyan-400/25"
+                }`}
+                title="Copiar este gasto al fondo común del hogar manteniendo el personal"
+              >
+                <Copy className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">
+                  {isMovingAcross
+                    ? "Copiando..."
+                    : pendingConfirm === "copyToShared"
+                    ? "¿Confirmar?"
+                    : "Copiar"}
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleCopyToPersonal}
+                disabled={isSubmitting || isDeleting || isMovingAcross}
+                className={`py-2.5 px-2 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1 transition active:scale-95 border ${
+                  pendingConfirm === "copyToPersonal"
+                    ? "bg-cyan-600 text-white border-cyan-300 shadow-md"
+                    : "bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 border-cyan-400/25"
+                }`}
+                title="Copiar este gasto a tus gastos personales manteniendo el compartido"
+              >
+                <Copy className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">
+                  {isMovingAcross
+                    ? "Copiando..."
+                    : pendingConfirm === "copyToPersonal"
+                    ? "¿Confirmar?"
+                    : "Copiar"}
+                </span>
+              </button>
+            )}
+
+            {/* Botón 2: Mover de espacio */}
             {isPersonal ? (
               <button
                 type="button"
                 onClick={handleMoveToShared}
                 disabled={isSubmitting || isDeleting || isMovingAcross}
-                className={`py-2.5 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border ${
+                className={`py-2.5 px-2 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1 transition active:scale-95 border ${
                   pendingConfirm === "moveToShared"
                     ? "bg-blue-600 text-white border-sky-300 shadow-md"
                     : "bg-blue-500/10 hover:bg-blue-500/20 text-sky-200 border-sky-400/25"
                 }`}
                 title="Mover este gasto al fondo común del hogar"
               >
-                <Users className="w-4 h-4 text-sky-400 shrink-0" />
+                <Repeat className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                 <span className="truncate">
                   {isMovingAcross
                     ? "Moviendo..."
                     : pendingConfirm === "moveToShared"
-                    ? "¿Mover a Hogar?"
-                    : "Mover a Hogar"}
+                    ? "¿Confirmar?"
+                    : "Mover"}
                 </span>
               </button>
             ) : (
@@ -742,41 +920,42 @@ export function ExpenseDetailModal({
                 type="button"
                 onClick={handleMoveToPersonal}
                 disabled={isSubmitting || isDeleting || isMovingAcross}
-                className={`py-2.5 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border ${
+                className={`py-2.5 px-2 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1 transition active:scale-95 border ${
                   pendingConfirm === "moveToPersonal"
                     ? "bg-indigo-600 text-white border-indigo-300 shadow-md"
                     : "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 border-indigo-400/25"
                 }`}
                 title="Mover este gasto a tus gastos personales"
               >
-                <User className="w-4 h-4 text-indigo-400 shrink-0" />
+                <Repeat className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                 <span className="truncate">
                   {isMovingAcross
                     ? "Moviendo..."
                     : pendingConfirm === "moveToPersonal"
-                    ? "¿Mover a Personal?"
-                    : "Mover a Personal"}
+                    ? "¿Confirmar?"
+                    : "Mover"}
                 </span>
               </button>
             )}
 
+            {/* Botón 3: Eliminar */}
             <button
               type="button"
               onClick={handleDelete}
               disabled={isSubmitting || isMovingAcross || isDeleting}
-              className={`py-2.5 px-3 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border ${
+              className={`py-2.5 px-2 rounded-2xl font-semibold text-xs flex items-center justify-center gap-1 transition active:scale-95 border ${
                 pendingConfirm === "delete"
                   ? "bg-rose-600 text-white border-rose-400 shadow-lg shadow-rose-600/35"
                   : "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/20"
               }`}
               title="Eliminar este gasto"
             >
-              <Trash2 className="w-4 h-4 shrink-0" />
+              <Trash2 className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">
                 {isDeleting
                   ? "Borrando..."
                   : pendingConfirm === "delete"
-                  ? "¿Confirmar borrar?"
+                  ? "¿Borrar?"
                   : "Eliminar"}
               </span>
             </button>

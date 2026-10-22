@@ -5,6 +5,7 @@ import {
   Edit3,
   Trash2,
   Repeat,
+  Copy,
   CategoryIcon,
   User,
   Calendar,
@@ -31,6 +32,7 @@ interface ExpenseContextMenuProps {
   expense: ContextMenuExpense | null;
   isPersonal?: boolean;
   onOpenDetail: (expense: ContextMenuExpense) => void;
+  onCopyExpense?: (expenseId: string) => void;
   onMoveExpense: (expenseId: string) => void;
   onDeleteExpense: (expenseId: string) => void;
 }
@@ -41,6 +43,7 @@ export function ExpenseContextMenu({
   expense,
   isPersonal = false,
   onOpenDetail,
+  onCopyExpense,
   onMoveExpense,
   onDeleteExpense,
 }: ExpenseContextMenuProps) {
@@ -151,7 +154,27 @@ export function ExpenseContextMenu({
             <Edit3 className="w-4 h-4 text-blue-400 shrink-0" />
           </button>
 
-          {/* Opción 2: Mover entre Compartido y Personal */}
+          {/* Opción 2: Copiar entre Compartido y Personal */}
+          {onCopyExpense && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic(10);
+                onClose();
+                onCopyExpense(expense.id);
+              }}
+              className="w-full px-4 py-3.5 flex items-center justify-between text-left text-sm font-medium text-white hover:bg-white/[0.08] active:bg-white/[0.15] transition"
+            >
+              <span>
+                {isPersonal
+                  ? "Copiar a Fondo Compartido (Hogar)"
+                  : "Copiar a Gastos Personales"}
+              </span>
+              <Copy className="w-4 h-4 text-cyan-400 shrink-0" />
+            </button>
+          )}
+
+          {/* Opción 3: Mover entre Compartido y Personal */}
           <button
             type="button"
             onClick={() => {
@@ -162,7 +185,9 @@ export function ExpenseContextMenu({
             className="w-full px-4 py-3.5 flex items-center justify-between text-left text-sm font-medium text-white hover:bg-white/[0.08] active:bg-white/[0.15] transition"
           >
             <span>
-              {isPersonal ? "Mover a Fondo Compartido (Hogar)" : "Mover a Gastos Personales"}
+              {isPersonal
+                ? "Mover a Fondo Compartido (Hogar)"
+                : "Mover a Gastos Personales"}
             </span>
             <Repeat className="w-4 h-4 text-purple-400 shrink-0" />
           </button>

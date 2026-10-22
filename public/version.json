@@ -1,7 +1,7 @@
 {
-  "version": "1.18.9",
-  "build": 2026102206,
-  "releasedAt": "2026-10-22T18:46:00Z",
-  "title": "Ajuste de Actuador Háptico Taptic Engine iOS",
-  "description": "Optimización del despacho de eventos hacia el switch nativo sin restricciones de pointer-events, asegurando compatibilidad en PWA de Safari."
+  "version": "1.19.0",
+  "build": 2026102207,
+  "releasedAt": "2026-10-22T19:10:00Z",
+  "title": "Copiar/Mover entre espacios, flujo de revisión instantáneo y reconfirmación",
+  "description": "Agrega copiar y mover gastos entre Hogar y Personal en menú contextual y detalle, optimiza el flujo de revisión a 0ms con reconciliación en segundo plano y mejora la experiencia de confirmación."
 }
