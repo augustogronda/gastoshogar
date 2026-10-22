@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Sparkles, Check, ArrowRight, AlertCircle, Mail, Lock } from "./ui/icons";
 import { requestMagicLinkAction, verifyEmailOtpAction } from "@/app/actions";
 import { triggerHaptic } from "@/lib/haptics";
@@ -14,15 +14,41 @@ export function LoginScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [accessResult, setAccessResult] = useState<{
     email: string;
-    emailSent: boolean;
+    emailSent?: boolean;
   } | null>(null);
+
+  // Detectar si el usuario volvió de un enlace con error de Supabase (ej: otp_expired en Safari)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlError = params.get("error");
+      if (urlError) {
+        if (urlError === "otp_expired" || urlError.toLowerCase().includes("expired")) {
+          setErrorMsg(
+            "El enlace del correo ya fue utilizado o ha expirado. Por favor solicitá un nuevo enlace o ingresá el código de 6 dígitos."
+          );
+        } else if (urlError === "pkce_context_missing") {
+          setErrorMsg(
+            "Al abrir el enlace en otra aplicación no se sincronizó la sesión de Safari. Podés ingresar escribiendo el código de 6 dígitos del mail o pegando el enlace acá."
+          );
+          setShowDirectTokenInput(true);
+        } else {
+          try {
+            setErrorMsg(decodeURIComponent(urlError.replace(/\+/g, " ")));
+          } catch {
+            setErrorMsg(urlError);
+          }
+        }
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const targetEmail = email.trim().toLowerCase();
 
     if (!targetEmail) {
-      setErrorMsg("Ingresá tu correo electrónico registrado.");
+      setErrorMsg("Seleccioná o ingresá tu correo electrónico.");
       return;
     }
 
@@ -32,12 +58,19 @@ export function LoginScreen() {
 
     try {
       const res = await requestMagicLinkAction(targetEmail);
-      setAccessResult(res);
+      if (!res.success) {
+        setErrorMsg(res.error || "Error al solicitar acceso.");
+        return;
+      }
+      setAccessResult({
+        email: res.email || targetEmail,
+        emailSent: res.emailSent,
+      });
     } catch (err: unknown) {
       setErrorMsg(
         err instanceof Error
           ? err.message
-          : "Error al solicitar código de acceso"
+          : "Error de conexión al solicitar acceso."
       );
     } finally {
       setIsLoading(false);
@@ -57,13 +90,18 @@ export function LoginScreen() {
 
     try {
       const targetEmail = (accessResult?.email || email).trim().toLowerCase();
-      await verifyEmailOtpAction(targetEmail, otpOrToken);
+      const res = await verifyEmailOtpAction(targetEmail, otpOrToken);
+      if (!res.success) {
+        setErrorMsg(res.error || "Código o enlace no válido.");
+        setIsVerifying(false);
+        return;
+      }
       window.location.href = "/";
     } catch (err: unknown) {
       setErrorMsg(
         err instanceof Error
           ? err.message
-          : "Código o enlace inválido. Intentá nuevamente."
+          : "Error de red al verificar el acceso."
       );
       setIsVerifying(false);
     }
@@ -157,7 +195,7 @@ export function LoginScreen() {
             </button>
           </div>
         ) : (
-          /* Pantalla Inicial: Correo + Opción directa de Código/Token */
+          /* Pantalla Inicial: Selector rápido + Correo + Opción directa de Código/Token */
           <div className="w-full mt-6 space-y-4">
             {errorMsg && (
               <div className="bg-rose-500/15 border border-rose-500/30 text-rose-200 px-3.5 py-2.5 rounded-2xl text-xs text-left flex items-start gap-2">
@@ -165,6 +203,40 @@ export function LoginScreen() {
                 <span>{errorMsg}</span>
               </div>
             )}
+
+            {/* Selector rápido para no tener que escribir en iOS */}
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(10);
+                  setEmail("augustogronda@gmail.com");
+                  setErrorMsg(null);
+                }}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition active:scale-95 ${
+                  email === "augustogronda@gmail.com"
+                    ? "bg-[#0A84FF]/25 border-[#0A84FF] text-white shadow-sm shadow-[#0A84FF]/30"
+                    : "bg-white/[0.04] border-white/10 text-zinc-400 hover:text-white"
+                }`}
+              >
+                👤 Augusto
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(10);
+                  setEmail("agusaux@gmail.com");
+                  setErrorMsg(null);
+                }}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition active:scale-95 ${
+                  email === "agusaux@gmail.com"
+                    ? "bg-pink-500/25 border-pink-500 text-white shadow-sm shadow-pink-500/30"
+                    : "bg-white/[0.04] border-white/10 text-zinc-400 hover:text-white"
+                }`}
+              >
+                👤 Agus
+              </button>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <div className="text-left">

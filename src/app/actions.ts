@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import {
   hydrateInvestments,
   searchTickers,
@@ -1113,239 +1114,352 @@ export async function unapplyRecurringExpenseAction(expenseId: string) {
 
 const AUTHORIZED_EMAILS = ["augustogronda@gmail.com", "agusaux@gmail.com"];
 
-export async function requestMagicLinkAction(inputEmail: string) {
-  const normalizedEmail = inputEmail.trim().toLowerCase();
+export async function requestMagicLinkAction(inputEmail: string): Promise<{
+  success: boolean;
+  emailSent?: boolean;
+  email?: string;
+  error?: string;
+}> {
+  try {
+    const normalizedEmail = (inputEmail || "").trim().toLowerCase();
 
-  if (!AUTHORIZED_EMAILS.includes(normalizedEmail)) {
-    throw new Error(
-      "El correo ingresado no se encuentra autorizado en el sistema."
-    );
-  }
+    if (!normalizedEmail) {
+      return {
+        success: false,
+        error: "Por favor ingresá un correo electrónico.",
+      };
+    }
 
-  // Asegurar que el hogar y los usuarios estén actualizados
-  await ensureDefaultHousehold();
+    if (!AUTHORIZED_EMAILS.includes(normalizedEmail)) {
+      return {
+        success: false,
+        error: "El correo ingresado no se encuentra autorizado en el sistema.",
+      };
+    }
 
-  let user = await prisma.user.findFirst({
-    where: { email: { equals: normalizedEmail } },
-  });
+    // Asegurar que el hogar y los usuarios estén actualizados
+    await ensureDefaultHousehold();
 
-  if (!user) {
-    const isAugusto = normalizedEmail.includes("augusto");
-    const nameMatch = isAugusto ? "Augusto" : "Agus";
-    user = await prisma.user.findFirst({
-      where: { name: { contains: nameMatch } },
+    let user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: "insensitive" } },
     });
 
-    if (user) {
+    if (!user) {
+      const isAugusto = normalizedEmail.includes("augusto");
+      const nameMatch = isAugusto ? "Augusto" : "Agus";
+      user = await prisma.user.findFirst({
+        where: { name: { contains: nameMatch, mode: "insensitive" } },
+      });
+
+      if (user) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { email: normalizedEmail },
+        });
+      }
+    }
+
+    if (!user) {
+      return {
+        success: false,
+        error: "Usuario no encontrado en el sistema.",
+      };
+    }
+
+    // Generar token mágico si no existe
+    let token = user.magicToken;
+    if (!token) {
+      token = crypto.randomBytes(24).toString("hex");
       user = await prisma.user.update({
         where: { id: user.id },
-        data: { email: normalizedEmail },
+        data: { magicToken: token },
       });
     }
-  }
 
-  if (!user) {
-    throw new Error("Usuario no encontrado en el sistema.");
-  }
+    // Disparo de Magic Link vía Supabase Auth con el dominio de producción
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://gastoshogar-jade.vercel.app";
+    const redirectUrl = `${siteUrl.replace(/\/$/, "")}/auth/callback`;
 
-  // Generar token mágico si no existe
-  let token = user.magicToken;
-  if (!token) {
-    token = crypto.randomBytes(24).toString("hex");
-    user = await prisma.user.update({
-      where: { id: user.id },
-      data: { magicToken: token },
-    });
-  }
-
-  // Disparo de Magic Link vía Supabase Auth con el dominio de producción
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://gastoshogar-jade.vercel.app";
-  const redirectUrl = `${siteUrl.replace(/\/$/, "")}/auth/callback`;
-
-  let emailSent = false;
-  try {
-    const cookieStore = await cookies();
-    const supabase = createSupabaseServerClient(cookieStore);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
-    });
-    if (!error) {
-      emailSent = true;
-    } else {
-      console.warn("Supabase signInWithOtp warning:", error.message);
+    let emailSent = false;
+    try {
+      const cookieStore = await cookies();
+      const supabase = createSupabaseServerClient(cookieStore);
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          emailRedirectTo: redirectUrl,
+        },
+      });
+      if (!error) {
+        emailSent = true;
+      } else {
+        console.warn("Supabase signInWithOtp warning:", error.message);
+      }
+    } catch (err) {
+      console.warn("Supabase OTP optional dispatch notice:", err);
     }
-  } catch (err) {
-    console.warn("Supabase OTP optional dispatch notice:", err);
-  }
 
-  return {
-    success: true,
-    emailSent,
-    email: normalizedEmail,
-  };
+    return {
+      success: true,
+      emailSent,
+      email: normalizedEmail,
+    };
+  } catch (err: unknown) {
+    console.error("Error en requestMagicLinkAction:", err);
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al solicitar el enlace de acceso.",
+    };
+  }
 }
 
-export async function loginWithMagicTokenAction(token: string) {
-  if (!token) throw new Error("Token de acceso requerido");
+export async function loginWithMagicTokenAction(token: string): Promise<{
+  success: boolean;
+  error?: string;
+  user?: any;
+}> {
+  try {
+    const cleanToken = (token || "").trim();
+    if (!cleanToken) {
+      return { success: false, error: "Token de acceso requerido" };
+    }
 
-  const user = await prisma.user.findUnique({
-    where: { magicToken: token },
-  });
+    const user = await prisma.user.findUnique({
+      where: { magicToken: cleanToken },
+    });
 
-  if (!user) {
-    throw new Error("Link de acceso inválido o expirado");
+    if (!user) {
+      return { success: false, error: "Link o token de acceso inválido o expirado" };
+    }
+
+    const cookieStore = await cookies();
+    cookieStore.set("auth_user_id", user.id, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365, // 1 año
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    revalidatePath("/");
+    return { success: true, user };
+  } catch (err: unknown) {
+    console.error("Error en loginWithMagicTokenAction:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error al iniciar sesión.",
+    };
   }
-
-  const cookieStore = await cookies();
-  cookieStore.set("auth_user_id", user.id, {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365, // 1 año
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  });
-
-  revalidatePath("/");
-  return { success: true, user };
 }
 
 /**
  * Permite autenticar en Safari / iOS PWA ingresando:
- * 1) El código OTP numérico de 6-8 dígitos de Supabase ({{ .Token }} en el mail),
- * 2) El enlace completo copiado del correo (extrae token_hash / code / token sin abrir otro navegador), o
- * 3) El magicToken personal del usuario.
+ * 1) El código OTP numérico de 6 dígitos de Supabase ({{ .Token }} en el mail),
+ * 2) El enlace completo copiado del correo (resuelve token pkce o token_hash de forma segura en servidor), o
+ * 3) El magicToken personal del usuario o link de acceso directo.
  */
-export async function verifyEmailOtpAction(inputEmail: string, rawInput: string) {
-  const normalizedEmail = inputEmail.trim().toLowerCase();
-  const trimmed = rawInput.trim();
+export async function verifyEmailOtpAction(
+  inputEmail: string,
+  rawInput: string
+): Promise<{
+  success: boolean;
+  error?: string;
+  user?: any;
+}> {
+  try {
+    const normalizedEmail = (inputEmail || "").trim().toLowerCase();
+    const trimmed = (rawInput || "").trim();
 
-  if (!trimmed) {
-    throw new Error("Ingresá el código o pegá el enlace del correo.");
-  }
-
-  const cookieStore = await cookies();
-  const supabase = createSupabaseServerClient(cookieStore);
-
-  let extractedToken = trimmed;
-  let extractedTokenHash: string | null = null;
-  let extractedCode: string | null = null;
-  let extractedType: "email" | "magiclink" | "signup" = "email";
-
-  // Si el usuario copió y pegó el enlace completo del mail de Supabase o de la app
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    try {
-      const parsedUrl = new URL(trimmed);
-      const urlToken = parsedUrl.searchParams.get("token");
-      const urlTokenHash = parsedUrl.searchParams.get("token_hash");
-      const urlCode = parsedUrl.searchParams.get("code");
-      const urlType = parsedUrl.searchParams.get("type");
-
-      if (urlType === "magiclink" || urlType === "email" || urlType === "signup") {
-        extractedType = urlType;
-      }
-
-      if (urlTokenHash) {
-        extractedTokenHash = urlTokenHash;
-      } else if (urlToken && parsedUrl.pathname.includes("/verify")) {
-        // Los links nativos de Supabase (/auth/v1/verify?token=...&type=magiclink) usan token_hash en el param `token`
-        extractedTokenHash = urlToken;
-      } else if (urlToken) {
-        extractedToken = urlToken;
-      } else if (urlCode) {
-        extractedCode = urlCode;
-      }
-    } catch {
-      // Continuar con el string original si no es una URL válida
+    if (!trimmed) {
+      return {
+        success: false,
+        error: "Ingresá el código numérico de 6 dígitos o pegá el enlace del correo.",
+      };
     }
-  }
 
-  // 1. Verificar si coincide con el magicToken directo de la base de datos
-  const directUser = await prisma.user.findUnique({
-    where: { magicToken: extractedToken },
-  });
-  if (directUser) {
-    cookieStore.set("auth_user_id", directUser.id, {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
+
+    let extractedToken = trimmed;
+    let extractedTokenHash: string | null = null;
+    let extractedCode: string | null = null;
+    let extractedType: EmailOtpType = "email";
+    let isSupabaseVerifyUrl = false;
+
+    // A) Si el usuario copió y pegó un enlace completo
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      try {
+        const parsedUrl = new URL(trimmed);
+        const urlToken = parsedUrl.searchParams.get("token");
+        const urlTokenHash = parsedUrl.searchParams.get("token_hash");
+        const urlCode = parsedUrl.searchParams.get("code");
+        const urlType = parsedUrl.searchParams.get("type") as EmailOtpType | null;
+
+        if (urlType) {
+          extractedType = urlType;
+        }
+
+        if (urlTokenHash) {
+          extractedTokenHash = urlTokenHash;
+        } else if (urlToken) {
+          extractedToken = urlToken;
+        } else if (urlCode) {
+          extractedCode = urlCode;
+        }
+
+        if (parsedUrl.pathname.includes("/verify")) {
+          isSupabaseVerifyUrl = true;
+        }
+      } catch {
+        // Continuar si no fue una URL parseable
+      }
+    }
+
+    // 1. Verificar si coincide con el magicToken directo de la base de datos
+    const directUser = await prisma.user.findFirst({
+      where: { magicToken: extractedToken },
+    });
+    if (directUser) {
+      cookieStore.set("auth_user_id", directUser.id, {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
+      revalidatePath("/");
+      return { success: true, user: directUser };
+    }
+
+    let verifiedEmail: string | null = null;
+
+    // 2. Si pegó una URL de verificación nativa de Supabase (/auth/v1/verify?token=pkce_...)
+    // Consultamos server-side a Supabase para seguir el redirect y detectar si expiró o nos da el code
+    if (isSupabaseVerifyUrl && trimmed.startsWith("http")) {
+      try {
+        const verifyRes = await fetch(trimmed, { redirect: "manual" });
+        const redirectLoc = verifyRes.headers.get("location");
+        if (redirectLoc) {
+          const locUrl = new URL(redirectLoc);
+          const errorCode = locUrl.searchParams.get("error_code") || locUrl.searchParams.get("error");
+          const errorDesc = locUrl.searchParams.get("error_description");
+
+          if (errorCode === "otp_expired" || errorDesc?.toLowerCase().includes("expired")) {
+            return {
+              success: false,
+              error: "Este enlace de correo ya fue utilizado o ha expirado. Solicitá uno nuevo o ingresá el código de 6 dígitos.",
+            };
+          }
+
+          if (errorCode || errorDesc) {
+            return {
+              success: false,
+              error: errorDesc ? decodeURIComponent(errorDesc.replace(/\+/g, " ")) : "El enlace de correo no es válido.",
+            };
+          }
+
+          const authCode = locUrl.searchParams.get("code");
+          if (authCode) {
+            extractedCode = authCode;
+          }
+        }
+      } catch (fetchErr) {
+        console.warn("Aviso al consultar URL de verify Supabase:", fetchErr);
+      }
+    }
+
+    // 3. Si pegó una URL con ?code=... o la obtuvimos de Supabase
+    if (extractedCode) {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(extractedCode);
+      if (!error && data.user?.email) {
+        verifiedEmail = data.user.email.toLowerCase().trim();
+      }
+    }
+
+    // 4. Si pegó un enlace de Supabase con token_hash clásico (no pkce)
+    if (!verifiedEmail && extractedTokenHash && !extractedTokenHash.startsWith("pkce_")) {
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: extractedTokenHash,
+        type: extractedType,
+      });
+      if (!error && data.user?.email) {
+        verifiedEmail = data.user.email.toLowerCase().trim();
+      }
+    }
+
+    // 5. Si ingresó un código OTP (numérico de 6 dígitos) o texto
+    if (!verifiedEmail) {
+      const cleanOtp = extractedToken.replace(/\s+/g, "");
+      // Si el email no fue provisto, probar contra los integrantes del hogar autorizados
+      const candidateEmails = normalizedEmail ? [normalizedEmail] : AUTHORIZED_EMAILS;
+
+      for (const candEmail of candidateEmails) {
+        // Intento 1: type = "email"
+        const firstTry = await supabase.auth.verifyOtp({
+          email: candEmail,
+          token: cleanOtp,
+          type: "email",
+        });
+
+        if (!firstTry.error && firstTry.data.user?.email) {
+          verifiedEmail = firstTry.data.user.email.toLowerCase().trim();
+          break;
+        }
+
+        // Intento 2: type = "magiclink"
+        const secondTry = await supabase.auth.verifyOtp({
+          email: candEmail,
+          token: cleanOtp,
+          type: "magiclink",
+        });
+        if (!secondTry.error && secondTry.data.user?.email) {
+          verifiedEmail = secondTry.data.user.email.toLowerCase().trim();
+          break;
+        }
+      }
+    }
+
+    if (!verifiedEmail) {
+      return {
+        success: false,
+        error: "Código o enlace inválido o expirado. Verificá que sea el código de 6 dígitos del último mail recibido.",
+      };
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: verifiedEmail, mode: "insensitive" } },
+    });
+
+    if (!user) {
+      return {
+        success: false,
+        error: "El correo autenticado no pertenece a un integrante del hogar.",
+      };
+    }
+
+    cookieStore.set("auth_user_id", user.id, {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
     });
+
     revalidatePath("/");
-    return { success: true, user: directUser };
+    return { success: true, user };
+  } catch (err: unknown) {
+    console.error("Error en verifyEmailOtpAction:", err);
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error inesperado al validar el acceso.",
+    };
   }
-
-  let verifiedEmail: string | null = null;
-
-  // 2. Si pegó una URL con ?code=...
-  if (extractedCode) {
-    const { data, error } = await supabase.auth.exchangeCodeForSession(extractedCode);
-    if (!error && data.user?.email) {
-      verifiedEmail = data.user.email.toLowerCase().trim();
-    }
-  }
-
-  // 3. Si pegó el enlace de verificación de Supabase (/auth/v1/verify?token=...)
-  if (!verifiedEmail && extractedTokenHash) {
-    const { data, error } = await supabase.auth.verifyOtp({
-      token_hash: extractedTokenHash,
-      type: extractedType,
-    });
-    if (!error && data.user?.email) {
-      verifiedEmail = data.user.email.toLowerCase().trim();
-    }
-  }
-
-  // 4. Si ingresó el código OTP de 6 dígitos enviado por Supabase al mail
-  if (!verifiedEmail && normalizedEmail) {
-    const cleanOtp = extractedToken.replace(/\s+/g, "");
-    const firstTry = await supabase.auth.verifyOtp({
-      email: normalizedEmail,
-      token: cleanOtp,
-      type: "email",
-    });
-
-    if (!firstTry.error && firstTry.data.user?.email) {
-      verifiedEmail = firstTry.data.user.email.toLowerCase().trim();
-    } else {
-      const secondTry = await supabase.auth.verifyOtp({
-        email: normalizedEmail,
-        token: cleanOtp,
-        type: "magiclink",
-      });
-      if (!secondTry.error && secondTry.data.user?.email) {
-        verifiedEmail = secondTry.data.user.email.toLowerCase().trim();
-      }
-    }
-  }
-
-  if (!verifiedEmail) {
-    throw new Error(
-      "Código o token inválido o expirado. Verificá que sea el del último correo recibido."
-    );
-  }
-
-  const user = await prisma.user.findFirst({
-    where: { email: { equals: verifiedEmail } },
-  });
-
-  if (!user) {
-    throw new Error("Usuario no encontrado para este correo.");
-  }
-
-  cookieStore.set("auth_user_id", user.id, {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  });
-
-  revalidatePath("/");
-  return { success: true, user };
 }
 
 export async function logoutAction() {

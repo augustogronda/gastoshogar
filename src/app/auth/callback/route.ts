@@ -9,6 +9,14 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = (searchParams.get("type") as EmailOtpType | null) || "email";
+  const errorCode = searchParams.get("error_code") || searchParams.get("error");
+  const errorDescription = searchParams.get("error_description");
+
+  // Si Supabase ya redirigió con error (ej: otp_expired)
+  if (errorCode || errorDescription) {
+    const errParam = errorCode === "otp_expired" ? "otp_expired" : (errorDescription || errorCode || "auth_error");
+    return NextResponse.redirect(`${origin}/?error=${encodeURIComponent(errParam)}`);
+  }
 
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
@@ -19,6 +27,8 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error && data.user?.email) {
       verifiedEmail = data.user.email.toLowerCase().trim();
+    } else if (error) {
+      console.warn("Supabase exchangeCodeForSession error en /auth/callback:", error.message);
     }
   }
 
@@ -35,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   if (verifiedEmail) {
     const user = await prisma.user.findFirst({
-      where: { email: { equals: verifiedEmail } },
+      where: { email: { equals: verifiedEmail, mode: "insensitive" } },
     });
 
     if (user) {
@@ -51,6 +61,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Si no hay código o hubo error, volver al inicio
-  return NextResponse.redirect(`${origin}/`);
+  // Si no se pudo validar la sesión por PKCE cross-context (Safari / PWA), volver informando
+  return NextResponse.redirect(`${origin}/?error=pkce_context_missing`);
 }
