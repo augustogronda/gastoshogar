@@ -1,7 +1,7 @@
 {
-  "version": "1.18.3",
-  "build": 2026102118,
-  "releasedAt": "2026-10-22T02:42:30Z",
-  "title": "Mover Gastos entre Hogar/Personal y Fix de Eliminación",
-  "description": "Eliminación instantánea en gastos personales, reemplazo del botón redundante de duplicar por Mover a Personal / Mover a Hogar y sincronización inmediata entre pestañas."
+  "version": "1.18.4",
+  "build": 2026102201,
+  "releasedAt": "2026-10-22T15:14:00Z",
+  "title": "PIN Passcode Apple y Hápticos Táctiles Nativos en iOS PWA",
+  "description": "Acceso instantáneo con PIN de 4 dígitos estilo Apple sin correos ni dependencias de SMTP, y soporte nativo de Taptic Engine para Safari y PWA en iOS."
 }
