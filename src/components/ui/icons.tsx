@@ -61,6 +61,8 @@ import {
   ChevronUp,
   RefreshCw,
   Clock,
+  Tablet,
+  Monitor,
 } from "lucide-react";
 
 export const CATEGORY_ICON_OPTIONS = [
@@ -293,4 +295,6 @@ export {
   ChevronUp,
   RefreshCw,
   Clock,
+  Tablet,
+  Monitor,
 };

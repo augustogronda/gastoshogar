@@ -32,6 +32,7 @@ export const metadata: Metadata = {
 };
 
 import { AppUpdateChecker } from "@/components/AppUpdateChecker";
+import { DeviceProvider } from "@/lib/use-device";
 
 export default function RootLayout({
   children,
@@ -57,8 +58,10 @@ export default function RootLayout({
         className="min-h-full bg-[#07090e] text-zinc-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white"
         suppressHydrationWarning
       >
-        <AppUpdateChecker />
-        {children}
+        <DeviceProvider>
+          <AppUpdateChecker />
+          {children}
+        </DeviceProvider>
       </body>
     </html>
   );

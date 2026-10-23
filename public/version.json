@@ -1,7 +1,7 @@
 {
-  "version": "1.19.4",
-  "build": 2026102211,
-  "releasedAt": "2026-10-22T20:31:00Z",
-  "title": "Confirmación directa de gastos por revisar",
-  "description": "Confirmación inmediata en 1 toque de gastos por revisar desde la tarjeta sin entrar al detalle, y cierre automático al confirmar dentro del modal."
+  "version": "1.20.0",
+  "build": 2026102301,
+  "releasedAt": "2026-10-23T03:25:00Z",
+  "title": "Versiones dedicadas para iPad y Escritorio PC con detección automática",
+  "description": "Detección inteligente de dispositivo (Móvil, iPad, Escritorio PC) con layouts adaptativos optimizados, sidebar de escritorio y barra superior para iPad."
 }

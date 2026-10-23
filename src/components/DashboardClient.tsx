@@ -50,6 +50,11 @@ import { CategoryManagerModal } from "./CategoryManagerModal";
 import { PersonalInvestmentsView } from "./PersonalInvestmentsView";
 import { MonthPickerModal } from "./MonthPickerModal";
 import { appConfig } from "@/config/appConfig";
+import { useDevice } from "@/lib/use-device";
+import { DesktopDashboard } from "./desktop/DesktopDashboard";
+import { IPadDashboard } from "./ipad/IPadDashboard";
+import { DeviceModeSelector } from "./DeviceModeSelector";
+import { HogarExpenseRow } from "./HogarExpenseRow";
 import {
   getDashboardData,
   addExpenseAction,
@@ -148,97 +153,6 @@ const SHORT_MONTHS = [
   "ene", "feb", "mar", "abr", "may", "jun",
   "jul", "ago", "sep", "oct", "nov", "dic"
 ];
-
-interface HogarExpenseRowProps {
-  exp: any;
-  users: any[];
-  deletingId: string | null;
-  onOpenDetail: (exp: any) => void;
-  onLongPress: (exp: any) => void;
-  showToast: (msg: string, type?: "success" | "error" | "info") => void;
-}
-
-function HogarExpenseRow({
-  exp,
-  users,
-  deletingId,
-  onOpenDetail,
-  onLongPress,
-  showToast,
-}: HogarExpenseRowProps) {
-  const isPendingSync = exp.id.startsWith("temp-");
-  const dateObj = new Date(exp.date);
-  const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
-  const isAugusto = exp.paidBy?.name?.toLowerCase().includes("augusto");
-
-  const longPressHandlers = useLongPress({
-    onLongPress: () => {
-      if (isPendingSync) return;
-      triggerHaptic(15);
-      onLongPress(exp);
-    },
-    onClick: () => {
-      if (isPendingSync) {
-        showToast("Sincronizando gasto con la base de datos...", "info");
-        return;
-      }
-      triggerHaptic(8);
-      onOpenDetail(exp);
-    },
-  });
-
-  return (
-    <div
-      {...longPressHandlers}
-      className={`super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.98] transition-all duration-300 cursor-pointer group select-none ${
-        deletingId === exp.id
-          ? "opacity-0 -translate-x-6 scale-95 pointer-events-none"
-          : "opacity-100"
-      }`}
-      style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
-    >
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
-          <CategoryIcon name={exp.category.name} className="w-5 h-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <span className="text-[15px] font-semibold text-white block group-hover:text-blue-300 transition-colors truncate tracking-[-0.015em]">
-            {exp.title}
-          </span>
-          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-300 font-medium min-w-0">
-            <span className="shrink-0">{dateStr}</span>
-            <span className="shrink-0">•</span>
-            <span
-              className={`font-bold px-2 py-0.5 rounded-full text-[10px] border shrink-0 ${
-                isAugusto
-                  ? "bg-blue-500/20 text-blue-200 border-blue-400/30"
-                  : "bg-rose-500/20 text-rose-200 border-rose-400/30"
-              }`}
-            >
-              Pagó {exp.paidBy.name}
-            </span>
-            <span className="shrink-0 text-zinc-500">•</span>
-            <span className="text-zinc-400 truncate">
-              {exp.category.name}
-            </span>
-            {isPendingSync && (
-              <span className="text-[10px] text-amber-300 font-medium animate-pulse flex items-center gap-1 ml-1 shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-ping" />
-                Sincronizando...
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="text-right shrink-0 ml-3">
-        <span className="text-base font-extrabold text-white font-mono tabular-nums tracking-tight">
-          ${Math.round(exp.amount).toLocaleString("es-AR")}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 type ActiveTab = "hogar" | "analisis" | "cuotas" | "fci";
 
@@ -364,6 +278,40 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     description: string;
   }>({ isOpen: false, type: "deleteExpense", title: "", description: "" });
   const { toast, showToast } = useToast();
+  const { device } = useDevice();
+
+  const handleOpenDetail = (targetExp: any) => {
+    setSelectedExpense({
+      id: targetExp.id,
+      title: targetExp.title,
+      amount: targetExp.amount,
+      date: targetExp.date,
+      categoryId: targetExp.category.id,
+      category: targetExp.category,
+      paidById: targetExp.paidBy.id,
+      paidBy: targetExp.paidBy,
+      isFromPoolFund: targetExp.isFromPoolFund,
+      notes: targetExp.notes,
+      installmentNumber: targetExp.installmentNumber,
+      totalInstallments: targetExp.totalInstallments,
+      isPersonal: false,
+    });
+    setIsDetailModalOpen(true);
+  };
+
+  const handleLongPress = (targetExp: any) => {
+    setContextMenuExpense({
+      id: targetExp.id,
+      title: targetExp.title,
+      amount: targetExp.amount,
+      date: targetExp.date,
+      category: targetExp.category,
+      paidBy: targetExp.paidBy,
+      isPersonal: false,
+      notes: targetExp.notes,
+    });
+    setIsContextMenuOpen(true);
+  };
 
   // Pull-to-Refresh con "Pull Brusco + Mantener con Rueda de Tiempo"
   const [pullDistance, setPullDistance] = useState(0);
@@ -1127,17 +1075,82 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     return { filteredHogarExpenses: filtered, filteredSubtotal: subtotal, normalizedHogarQuery: q };
   }, [period.expenses, hogarFilter, hogarSearchQuery]);
 
+  const dashboardSharedProps = {
+    currentUser,
+    users,
+    household,
+    period,
+    poolSummary,
+    categories,
+    currentYear,
+    currentMonth,
+    monthLabel,
+    isClosed,
+    isChangingMonth,
+    spaceMode,
+    setSpaceMode,
+    activeTab,
+    setActiveTab,
+    personalTab,
+    setPersonalTab,
+    handlePrevMonth,
+    handleNextMonth,
+    setIsMonthPickerOpen,
+    setIsUserMenuOpen,
+    isUserMenuOpen,
+    setIsSalaryModalOpen,
+    setIsCloseModalOpen,
+    setIsExpenseModalOpen,
+    setIsCategoryModalOpen,
+    setIsFCIModalOpen,
+    handleLogout,
+    handleReopenMonth,
+    isProcessingClose,
+    hogarPct,
+    burnRateColor,
+    hogarSearchQuery,
+    setHogarSearchQuery,
+    hogarFilter,
+    setHogarFilter,
+    hogarCategoriesWithCount,
+    filteredHogarExpenses,
+    filteredSubtotal,
+    normalizedHogarQuery,
+    deletingId,
+    onOpenDetail: handleOpenDetail,
+    onLongPress: handleLongPress,
+    showToast,
+    personalData,
+    recurringExpenses,
+    sharedInvestments,
+    sharedInvestmentsSummary,
+    sharedInvestmentsTab,
+    setSharedInvestmentsTab,
+    pendingPersonalReviewCount,
+    personalMenuAction,
+    setPersonalMenuAction,
+    handleSyncPersonalExpenses,
+    userA,
+    userB,
+  };
+
   return (
     <div className="min-h-screen bg-[#07090e] text-zinc-100 flex flex-col justify-between selection:bg-blue-600/30 relative">
-      {/* Indicador Pull-to-Refresh Flotante con Rueda de Tiempo (Estilo iOS Dynamic Island) */}
-      <div
-        className="fixed top-0 left-0 right-0 z-50 pointer-events-none flex justify-center will-change-transform"
-        style={{
-          transform: `translate3d(0, ${pullDistance > 0 ? Math.min(pullDistance * 0.65 + 10, 74) : -56}px, 0)`,
-          opacity: pullDistance > 8 || isRefreshing ? 1 : 0,
-          transition: isPulling ? "none" : "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease",
-        }}
-      >
+      {device === "desktop" ? (
+        <DesktopDashboard {...dashboardSharedProps} />
+      ) : device === "ipad" ? (
+        <IPadDashboard {...dashboardSharedProps} />
+      ) : (
+        <>
+          {/* Indicador Pull-to-Refresh Flotante con Rueda de Tiempo (Estilo iOS Dynamic Island) */}
+          <div
+            className="fixed top-0 left-0 right-0 z-50 pointer-events-none flex justify-center will-change-transform"
+            style={{
+              transform: `translate3d(0, ${pullDistance > 0 ? Math.min(pullDistance * 0.65 + 10, 74) : -56}px, 0)`,
+              opacity: pullDistance > 8 || isRefreshing ? 1 : 0,
+              transition: isPulling ? "none" : "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease",
+            }}
+          >
         <div
           className={`flex items-center gap-2.5 px-4 py-2 rounded-full border shadow-2xl backdrop-blur-xl text-xs font-semibold transition-colors duration-200 ${
             pullDistance >= PULL_THRESHOLD || isRefreshing
@@ -1348,6 +1361,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                         </button>
                       </div>
                     )}
+                  </div>
+
+                  <div className="border-t border-white/[0.08] pt-1.5 px-1 space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider block px-1.5">
+                      Vista y Dispositivo
+                    </span>
+                    <DeviceModeSelector compact className="w-full" />
                   </div>
 
                   <div className="border-t border-white/[0.08] pt-1.5 space-y-1">
@@ -2286,6 +2306,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           </div>
         )}
       </nav>
+      </>
+    )}
 
       {/* Modales */}
       <QuickExpenseModal
@@ -2540,8 +2562,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         onSelectMonth={switchMonth}
       />
 
-      {/* Botón de Acción Rápida Flotante (+) en Hogar Compartido */}
-      {spaceMode === "hogar" && (activeTab === "hogar" || activeTab === "analisis") && (
+      {/* Botón de Acción Rápida Flotante (+) en Hogar Compartido (Solo en Móvil) */}
+      {device === "mobile" && spaceMode === "hogar" && (activeTab === "hogar" || activeTab === "analisis") && (
         <div
           className="fixed left-0 right-0 z-40 pointer-events-none"
           style={{ bottom: "calc(68px + max(8px, env(safe-area-inset-bottom, 0px)))" }}

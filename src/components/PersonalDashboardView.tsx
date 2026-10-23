@@ -1378,7 +1378,7 @@ export function PersonalDashboardView({
           className="fixed left-0 right-0 z-40 pointer-events-none"
           style={{ bottom: "calc(68px + max(8px, env(safe-area-inset-bottom, 0px)))" }}
         >
-          <div className="w-full max-w-md mx-auto px-4 flex justify-end">
+          <div className="w-full max-w-md md:max-w-4xl lg:max-w-6xl mx-auto px-4 flex justify-end">
             <button
               type="button"
               onClick={() => {
