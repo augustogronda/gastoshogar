@@ -3042,7 +3042,8 @@ export async function importStatementExpensesAction(payload: {
     let importedCount = 0;
 
     for (const item of payload.items) {
-      if (!item.title || item.amount <= 0) continue;
+      if (!item.title) continue;
+      if (item.amount === 0 && (!item.amountUsd || item.amountUsd === 0)) continue;
 
       // Resolver categoría
       const matchedCat = household.categories.find(
@@ -3054,6 +3055,9 @@ export async function importStatementExpensesAction(payload: {
       const expMonth = dateObj.getMonth() + 1 || payload.month;
 
       let finalNotes = item.notes?.trim() || null;
+      if (item.amountUsd && item.amountUsd > 0) {
+        finalNotes = finalNotes ? `${finalNotes} • U$S ${item.amountUsd.toFixed(2)}` : `U$S ${item.amountUsd.toFixed(2)}`;
+      }
       if (item.scope === "personal" && (item.markForReview || payload.cardName)) {
         finalNotes = addReviewFlag(finalNotes, payload.cardName);
       }

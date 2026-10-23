@@ -544,7 +544,17 @@ export function ImportStatementModal({
                               Cuota {item.installmentNumber}/{item.totalInstallments}
                             </span>
                           )}
-                          {item.isTaxOrFee && (
+                          {item.isCancelled && (
+                            <span className="shrink-0 px-1.5 py-0.2 text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded">
+                              Anulado / Reembolsado
+                            </span>
+                          )}
+                          {!item.isCancelled && item.amount < 0 && (
+                            <span className="shrink-0 px-1.5 py-0.2 text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded">
+                              Devolución
+                            </span>
+                          )}
+                          {item.isTaxOrFee && !item.isCancelled && (
                             <span className="shrink-0 px-1.5 py-0.2 text-[9px] font-medium bg-white/10 text-white/60 rounded">
                               Impuesto
                             </span>
@@ -585,9 +595,19 @@ export function ImportStatementModal({
                         </div>
 
                         <div className="text-right font-mono font-bold text-white shrink-0 min-w-[75px] sm:min-w-[95px]">
-                          {item.amount > 0 && <div className="text-xs sm:text-sm">${Math.round(item.amount).toLocaleString("es-AR")}</div>}
-                          {item.amountUsd && item.amountUsd > 0 && (
-                            <div className="text-emerald-400 text-[11px]">U$S {item.amountUsd.toFixed(2)}</div>
+                          {item.amount !== 0 && (
+                            <div className={`text-xs sm:text-sm ${item.amount < 0 ? "text-emerald-400" : ""}`}>
+                              {item.amount < 0
+                                ? `-$${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}`
+                                : `$${Math.round(item.amount).toLocaleString("es-AR")}`}
+                            </div>
+                          )}
+                          {item.amountUsd && item.amountUsd !== 0 && (
+                            <div className={`text-[11px] ${item.amountUsd < 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                              {item.amountUsd < 0
+                                ? `-U$S ${Math.abs(item.amountUsd).toFixed(2)}`
+                                : `U$S ${item.amountUsd.toFixed(2)}`}
+                            </div>
                           )}
                         </div>
                       </div>

@@ -15,6 +15,8 @@ export interface ParsedExpenseItem {
   markForReview: boolean;
   selected: boolean;
   isTaxOrFee?: boolean;
+  isCancelled?: boolean;
+  isRefund?: boolean;
   notes?: string;
 }
 
@@ -242,91 +244,95 @@ export function parseStatementText(text: string): ParsedStatementResult {
   const lines = text.split("\n");
   let lastSeenDate: string = result.closingDate || new Date().toISOString().split("T")[0];
   let inMovementsSection = false;
+  let inTaxesSection = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
     const lineLower = line.toLowerCase();
 
-    // Detección de parada para no leer términos y condiciones
+    // Start triggers
     if (
+      lineLower.includes("movimientos de") ||
+      lineLower.includes("visa crédito terminada") ||
+      lineLower.includes("visa credito terminada") ||
+      lineLower.includes("detalle del consumo") ||
+      lineLower.includes("consumos luis") ||
+      lineLower.includes("consumos ")
+    ) {
+      inMovementsSection = true;
+      continue;
+    }
+
+    if (lineLower.includes("impuestos, intereses y percepciones")) {
+      inTaxesSection = true;
+      continue;
+    }
+
+    // Stop words / Summary rows: NUNCA deben sumarse ni parsearse como consumos
+    const isStopWord =
+      lineLower.includes("total a pagar") ||
+      lineLower.includes("mínimo a pagar") ||
+      lineLower.includes("minimo a pagar") ||
+      lineLower.includes("pago mínimo") ||
+      lineLower.includes("pago minimo") ||
       lineLower.includes("plan v:") ||
       lineLower.includes("términos y condiciones") ||
       lineLower.includes("terminos y condiciones") ||
-      lineLower.includes("tna:tasa nominal anual") ||
-      lineLower.includes("sujeto al límite disponible") ||
-      lineLower.includes("costo financiero total") ||
-      lineLower.includes("debitaremos de su cta") ||
-      lineLower.includes("las nuevas comisiones vigentes")
-    ) {
-      // Fin de la sección de movimientos
-      if (inMovementsSection && result.items.length > 0) {
-        break;
-      }
-    }
-
-    // En Santander: los consumos reales empiezan en "Movimientos de Luis August..."
-    if (lineLower.includes("movimientos de") || lineLower.includes("visa crédito terminada en") || lineLower.includes("visa credito terminada en")) {
-      inMovementsSection = true;
-      continue;
-    }
-
-    // En Galicia: "detalle del consumo"
-    if (lineLower.includes("detalle del consumo")) {
-      inMovementsSection = true;
-      continue;
-    }
-
-    // En BBVA: "consumos "
-    if (lineLower.includes("consumos luis augusto") || lineLower.includes("consumos ")) {
-      inMovementsSection = true;
-      continue;
-    }
-
-    // En Mercado Pago: "movimientos"
-    if (lineLower.includes("movimientos") && !lineLower.includes("de luis")) {
-      inMovementsSection = true;
-      continue;
-    }
-
-    // Si aún no entramos a movimientos y no es un texto pegado directo, ignorar
-    if (!inMovementsSection && result.detectedBank !== "Otro") {
-      continue;
-    }
-
-    // Saltar líneas de pagos anteriores o totales intermedios
-    if (
       lineLower.includes("saldo anterior") ||
       lineLower.includes("su pago en") ||
       lineLower.includes("anulacion de pago") ||
       lineLower.includes("subtotal de") ||
+      lineLower.includes("total consumido") ||
+      lineLower.includes("total de consumos") ||
       lineLower.includes("total consumos de") ||
-      lineLower.includes("total a pagar") ||
-      lineLower.includes("pago anterior y devoluciones")
-    ) {
+      lineLower.includes("copia fiel") ||
+      lineLower.includes("tarjetas incluidas") ||
+      lineLower.includes("cuotas a vencer") ||
+      lineLower.includes("saldo del resumen anterior") ||
+      lineLower.includes("tna:tasa") ||
+      lineLower.includes("límites") ||
+      lineLower.includes("limites") ||
+      lineLower.includes("tasas") ||
+      lineLower.includes("debitaremos de su cta");
+
+    if (isStopWord) {
+      if (
+        inMovementsSection &&
+        (lineLower.includes("total a pagar") ||
+          lineLower.includes("mínimo a pagar") ||
+          lineLower.includes("minimo a pagar") ||
+          lineLower.includes("plan v:"))
+      ) {
+        inMovementsSection = false;
+        inTaxesSection = false;
+      }
       continue;
     }
 
-    // --- CASO 1: Formato Santander / Galicia ---
-    // Ej: "09/03/26 Gmra - samsung.com 8 de 9 002679 29.999,88"
+    if (!inMovementsSection && !inTaxesSection && result.detectedBank !== "Otro") {
+      continue;
+    }
+
+    // --- CASO 1: Formato Santander / Galicia (Movimiento estándar con Comprobante) ---
+    // Ej: "09/03/26 Gmra - samsung.com 8 de 9 002679 $ 29.999,88"
     // Ej: "22-09-26 * WWW.JETSMART.COM 000782 196.744,38"
-    // Ej: "17/09/26 Payu*ar*uber 004865 $ 12.721,00"
-    // Ej: "Google *youtubep p1ov3x9s 478208 U$S 6,88" (sin fecha)
-    const santanderRegex = /^(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})?\s+(.*?)(?:\s+(\d{1,2})\s+de\s+(\d{1,2}))?\s+(\d{6})\s+([-\$]?\s*[\d\.,]+(?:\s*(?:pesos|d[oó]lares))?)/i;
+    // Ej: "27/09/26 Deportick 004321 -$ 378.000,00" (Anulación con signo negativo)
+    // Ej: "Google *youtubep p1ov3x9s 478208 U$S 6,88" (Sin fecha, hereda la del bloque)
+    const santanderRegex = /^(?:(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})\s+)?(.*?)(?:\s+(\d{1,2})\s+de\s+(\d{1,2}))?\s+(\d{6})\s+(-?\s*(?:\$|u\$s)?\s*[\d\.,]+)/i;
     const matchSantander = line.match(santanderRegex);
 
     if (matchSantander) {
       const rawDate = matchSantander[1];
+      if (rawDate) {
+        lastSeenDate = normalizeDate(rawDate);
+      }
       const titleRaw = matchSantander[2].trim();
       const cuotaActual = matchSantander[3] ? parseInt(matchSantander[3], 10) : undefined;
       const cuotasTotal = matchSantander[4] ? parseInt(matchSantander[4], 10) : undefined;
       const rawAmount = matchSantander[6];
 
-      if (rawDate) {
-        lastSeenDate = normalizeDate(rawDate);
-      }
-
-      const isUsd = lineLower.includes("u$s") || lineLower.includes("dólares") || lineLower.includes("dolares");
+      const isUsd = lineLower.includes("u$s") || rawAmount.toLowerCase().includes("u$s") || lineLower.includes("dólares");
       const amountVal = parseArgentineAmount(rawAmount);
 
       if (titleRaw && Math.abs(amountVal) > 0) {
@@ -343,8 +349,9 @@ export function parseStatementText(text: string): ParsedStatementResult {
           category: autoCategorize(titleRaw),
           scope: "personal",
           markForReview: true,
-          selected: amountVal > 0 && !isTax,
+          selected: true,
           isTaxOrFee: isTax,
+          isRefund: amountVal < 0,
           notes: cuotaActual && cuotasTotal ? `Cuota ${cuotaActual}/${cuotasTotal}` : undefined,
         });
         continue;
@@ -385,12 +392,54 @@ export function parseStatementText(text: string): ParsedStatementResult {
         scope: "personal",
         markForReview: true,
         selected: true,
+        isRefund: pesosAmount < 0 || (usdAmount !== undefined && usdAmount < 0),
         notes: cuotaActual && cuotasTotal ? `Cuota ${cuotaActual}/${cuotasTotal}` : undefined,
       });
       continue;
     }
 
-    // --- CASO 3: Formato Mercado Pago ---
+    // --- CASO 3: Línea de Impuestos/Percepciones (Sin comprobante de 6 dígitos) ---
+    // Ej: "15/10/26 Impuesto de sellos $ $ 2.741,97"
+    // Ej: "Db.rg 5617 30% ( 21499,73 ) $ 6.449,91"
+    const taxMatch = line.match(/^(?:(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})\s+)?(.*?)\s+(-?\s*(?:\$|u\$s)?\s*[\d\.,]+)$/i);
+    if (
+      taxMatch &&
+      (inTaxesSection ||
+        lineLower.includes("impuesto") ||
+        lineLower.includes("sellos") ||
+        lineLower.includes("iva rg") ||
+        lineLower.includes("db.rg") ||
+        lineLower.includes("percep"))
+    ) {
+      const rawDate = taxMatch[1];
+      if (rawDate) {
+        lastSeenDate = normalizeDate(rawDate);
+      }
+      const titleRaw = taxMatch[2].trim();
+      const rawAmount = taxMatch[3];
+      const isUsd = lineLower.includes("u$s") || rawAmount.toLowerCase().includes("u$s");
+      const amountVal = parseArgentineAmount(rawAmount);
+
+      if (titleRaw && Math.abs(amountVal) > 0 && !titleRaw.toLowerCase().includes("total") && !titleRaw.toLowerCase().includes("mínimo") && !titleRaw.toLowerCase().includes("minimo")) {
+        result.items.push({
+          id: `item-${result.items.length + 1}`,
+          date: lastSeenDate,
+          rawDate: rawDate || lastSeenDate,
+          title: cleanMerchantTitle(titleRaw),
+          amount: isUsd ? 0 : amountVal,
+          amountUsd: isUsd ? amountVal : undefined,
+          category: "Tarjetas",
+          scope: "personal",
+          markForReview: true,
+          selected: true,
+          isTaxOrFee: true,
+          isRefund: amountVal < 0,
+        });
+        continue;
+      }
+    }
+
+    // --- CASO 4: Formato Mercado Pago u Otros genéricos ---
     const mpDateMatch = line.match(/^(\d{1,2}\s+de\s+[A-Za-z]+)/i);
     if (mpDateMatch) {
       lastSeenDate = normalizeDate(mpDateMatch[1]);
@@ -398,7 +447,7 @@ export function parseStatementText(text: string): ParsedStatementResult {
     }
 
     const mpConsumoMatch = line.match(/^(.*?)\s*[-–]?\s*\$\s*([\d\.,]+)/i);
-    if (mpConsumoMatch) {
+    if (mpConsumoMatch && result.detectedBank === "Mercado Pago") {
       const titleRaw = mpConsumoMatch[1].trim();
       const amountVal = parseArgentineAmount(mpConsumoMatch[2]);
 
@@ -413,7 +462,13 @@ export function parseStatementText(text: string): ParsedStatementResult {
         }
       }
 
-      if (titleRaw && amountVal > 0 && !titleRaw.toLowerCase().includes("total")) {
+      if (
+        titleRaw &&
+        amountVal > 0 &&
+        !titleRaw.toLowerCase().includes("total") &&
+        !titleRaw.toLowerCase().includes("mínimo") &&
+        !titleRaw.toLowerCase().includes("minimo")
+      ) {
         result.items.push({
           id: `item-${result.items.length + 1}`,
           date: lastSeenDate,
@@ -429,6 +484,34 @@ export function parseStatementText(text: string): ParsedStatementResult {
           notes: cuotaActual && cuotasTotal ? `Cuota ${cuotaActual}/${cuotasTotal}` : undefined,
         });
         continue;
+      }
+    }
+  }
+
+  // 6. Detector Inteligente de Cancelaciones y Anulaciones (Netting de Reembolsos)
+  // Si hay un consumo de +X y una anulación de -X con nombre coincidente, se marcan como anulados
+  // y se deseleccionan por defecto para que NO inflen el total del período.
+  for (let i = 0; i < result.items.length; i++) {
+    const item = result.items[i];
+    if (item.amount < 0 || (item.amountUsd && item.amountUsd < 0)) {
+      const isUsdRefund = (item.amountUsd && item.amountUsd < 0);
+      const refundVal = isUsdRefund ? item.amountUsd! : item.amount;
+      
+      const matchIdx = result.items.findIndex((other, idx) => {
+        if (idx === i || other.isCancelled) return false;
+        const otherVal = isUsdRefund ? (other.amountUsd || 0) : other.amount;
+        if (Math.abs(otherVal + refundVal) > 0.05) return false;
+        
+        const t1 = item.title.toLowerCase();
+        const t2 = other.title.toLowerCase();
+        return t1.includes(t2) || t2.includes(t1);
+      });
+
+      if (matchIdx !== -1) {
+        result.items[i].isCancelled = true;
+        result.items[i].selected = false;
+        result.items[matchIdx].isCancelled = true;
+        result.items[matchIdx].selected = false;
       }
     }
   }
