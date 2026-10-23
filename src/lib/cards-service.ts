@@ -88,7 +88,11 @@ const CARDS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutos
 export function invalidateCardsCache(userId?: string) {
   if (userId) {
     verifiedCardsUsers.delete(userId);
-    cardsDataCache.delete(userId);
+    for (const key of Array.from(cardsDataCache.keys())) {
+      if (key.startsWith(userId)) {
+        cardsDataCache.delete(key);
+      }
+    }
   } else {
     verifiedCardsUsers.clear();
     cardsDataCache.clear();
@@ -178,11 +182,16 @@ export function computeApplicableCardInstallments(
 export async function getCardsForUserAndMonth(
   userId: string,
   userName: string,
-  _year?: number,
-  _month?: number
+  year?: number,
+  month?: number
 ) {
+  const now = new Date();
+  const targetYear = year || now.getFullYear();
+  const targetMonth = month || now.getMonth() + 1;
+  const cacheKey = `${userId}-${targetYear}-${targetMonth}`;
+
   const nowMs = Date.now();
-  const cached = cardsDataCache.get(userId);
+  const cached = cardsDataCache.get(cacheKey);
   if (cached && nowMs - cached.timestamp < CARDS_CACHE_TTL_MS) {
     return cached.data;
   }
@@ -190,11 +199,7 @@ export async function getCardsForUserAndMonth(
   // Asegurar que existan las tarjetas por defecto (incluyendo Mercado Pago)
   await ensureDefaultCardsForUser(userId, userName);
 
-  const now = new Date();
-  const defaultYear = now.getFullYear();
-  const defaultMonth = now.getMonth() + 1;
-
-  // Traer tarjetas con su último resumen activo (independiente del mes seleccionado arriba) y sus cuotas asociadas
+  // Traer tarjetas con hasta 12 resúmenes y sus cuotas asociadas
   const cards = await prisma.personalCreditCard.findMany({
     where: { userId },
     include: {
@@ -203,7 +208,7 @@ export async function getCardsForUserAndMonth(
           { year: "desc" },
           { month: "desc" },
         ],
-        take: 2,
+        take: 12,
       },
       recurringExpenses: {
         where: { isActive: true },
@@ -216,20 +221,39 @@ export async function getCardsForUserAndMonth(
 
   const cardsWithMonthData = await Promise.all(
     cards.map(async (c) => {
-      // El resumen activo de la tarjeta es siempre el más reciente (periods[0])
-      let activePeriod = c.periods[0];
+      // 1. Buscar si hay un período para el mes exacto que tenga saldo cargado (> 0)
+      let activePeriod = c.periods.find(
+        (p) => p.year === targetYear && p.month === targetMonth && (p.statementAmount > 0 || p.statementAmountUsd > 0)
+      );
+
+      // 2. Si este mes no tiene saldo, buscar si hay algún período impago con saldo cargado (> 0)
+      if (!activePeriod) {
+        activePeriod = c.periods.find(
+          (p) => !p.isPaid && (p.statementAmount > 0 || p.statementAmountUsd > 0)
+        );
+      }
+
+      // 3. Si no hay ningún período con saldo, tomar el del mes exacto consultado
+      if (!activePeriod) {
+        activePeriod = c.periods.find((p) => p.year === targetYear && p.month === targetMonth);
+      }
+
+      // 4. Si aún no hay, tomar el más reciente
+      if (!activePeriod) {
+        activePeriod = c.periods[0];
+      }
 
       if (!activePeriod) {
         const closingDay = c.defaultClosingDay || 20;
         const dueDay = c.defaultDueDay || 5;
         const dueMonthOffset = dueDay < closingDay ? 1 : 0;
 
-        const maxCloseDays = new Date(defaultYear, defaultMonth, 0).getDate();
+        const maxCloseDays = new Date(targetYear, targetMonth, 0).getDate();
         const validCloseDay = Math.min(closingDay, maxCloseDays);
-        const closingDate = new Date(Date.UTC(defaultYear, defaultMonth - 1, validCloseDay, 12, 0, 0));
+        const closingDate = new Date(Date.UTC(targetYear, targetMonth - 1, validCloseDay, 12, 0, 0));
 
-        const targetDueMonthIndex = (defaultMonth - 1) + dueMonthOffset;
-        const targetDueYear = defaultYear + Math.floor(targetDueMonthIndex / 12);
+        const targetDueMonthIndex = (targetMonth - 1) + dueMonthOffset;
+        const targetDueYear = targetYear + Math.floor(targetDueMonthIndex / 12);
         const targetDueMonth = ((targetDueMonthIndex % 12) + 12) % 12;
         const maxDueDays = new Date(targetDueYear, targetDueMonth + 1, 0).getDate();
         const validDueDay = Math.min(dueDay, maxDueDays);
@@ -237,15 +261,15 @@ export async function getCardsForUserAndMonth(
 
         const { items: instItems, totalAmount: instTotal } = computeApplicableCardInstallments(
           c.recurringExpenses || [],
-          defaultYear,
-          defaultMonth
+          targetYear,
+          targetMonth
         );
 
         activePeriod = await prisma.cardMonthlyPeriod.create({
           data: {
             cardId: c.id,
-            year: defaultYear,
-            month: defaultMonth,
+            year: targetYear,
+            month: targetMonth,
             closingDate,
             dueDate,
             statementAmount: instTotal,
@@ -321,6 +345,6 @@ export async function getCardsForUserAndMonth(
     },
   };
 
-  cardsDataCache.set(userId, { data: result, timestamp: Date.now() });
+  cardsDataCache.set(cacheKey, { data: result, timestamp: Date.now() });
   return result;
 }

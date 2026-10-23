@@ -1,7 +1,7 @@
 {
-  "version": "1.24.0",
-  "build": 2026102313,
-  "releasedAt": "2026-10-23T20:13:00Z",
-  "title": "Selección múltiple de gastos con operaciones por lote en Personal y Hogar",
-  "description": "Modo de selección múltiple con checkboxes nativos estilo Apple, contador y subtotal en tiempo real, barra de acciones flotante para Copiar, Mover o Eliminar en lote tanto en gastos del Hogar como en Personales con confirmación segura."
+  "version": "1.24.1",
+  "build": 2026102314,
+  "releasedAt": "2026-10-23T20:24:00Z",
+  "title": "Corrección de conciliación en tarjetas importadas y resolución de timeout en /api/mcp",
+  "description": "Se corrigió la selección del ciclo activo de tarjetas para priorizar siempre el resumen con saldo importado del mes actual sobre períodos futuros vacíos. Se eliminó la creación errónea de ciclos futuros que ocultaban el resumen importado y se añadieron heartbeats y cierre de señal abort en el endpoint SSE /api/mcp."
 }

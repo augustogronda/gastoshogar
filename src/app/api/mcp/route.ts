@@ -3,6 +3,7 @@ import { handleMcpRpcRequest } from "@/lib/mcp-server";
 import { validateGemAuth } from "@/lib/gem-service";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -41,11 +42,32 @@ export async function GET(req: Request) {
     const sessionId = url.searchParams.get("sessionId") || crypto.randomUUID();
     const messageEndpoint = `${baseUrl}/api/mcp?sessionId=${sessionId}${keyParam}`;
 
+    let timer: NodeJS.Timeout | null = null;
     const stream = new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder();
         // Evento 'endpoint' según especificación MCP SSE transport
         controller.enqueue(encoder.encode(`event: endpoint\ndata: ${messageEndpoint}\n\n`));
+
+        // Heartbeat para mantener viva la conexión sin que Vercel la considere colgada
+        timer = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(`: ping\n\n`));
+          } catch {
+            if (timer) clearInterval(timer);
+          }
+        }, 15000);
+
+        // Si el cliente cierra la conexión o cancela la petición, cerrar el stream limpiamente
+        req.signal.addEventListener("abort", () => {
+          if (timer) clearInterval(timer);
+          try {
+            controller.close();
+          } catch {}
+        });
+      },
+      cancel() {
+        if (timer) clearInterval(timer);
       },
     });
 

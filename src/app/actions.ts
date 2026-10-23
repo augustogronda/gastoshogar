@@ -2858,6 +2858,7 @@ export async function updateCardStatementAction(data: {
     }).catch((err) => console.warn("No se pudo actualizar gasto vinculado:", err));
   }
 
+  invalidateCardsCache(existing.card.userId);
   revalidatePath("/");
   return updated;
 }
@@ -2952,6 +2953,7 @@ export async function toggleCardPaidAction(data: {
     });
   }
 
+  invalidateCardsCache(period.card.userId);
   revalidatePath("/");
   return { success: true };
 }
@@ -3074,6 +3076,7 @@ export async function advanceCardToNextSummaryAction(data: {
     },
   });
 
+  invalidateCardsCache(card.userId);
   revalidatePath("/");
   return {
     success: true,
@@ -3296,15 +3299,8 @@ export async function importStatementExpensesAction(payload: {
 
     // Actualizar resumen de tarjeta si se solicitó
     if (payload.cardId && payload.updateCardSummary) {
-      let stmtYear = payload.year;
-      let stmtMonth = payload.month;
-      if (payload.closingDate) {
-        const cDate = new Date(payload.closingDate);
-        if (!isNaN(cDate.getTime())) {
-          stmtYear = cDate.getUTCFullYear();
-          stmtMonth = cDate.getUTCMonth() + 1;
-        }
-      }
+      const stmtYear = payload.year;
+      const stmtMonth = payload.month;
 
       await prisma.cardMonthlyPeriod.upsert({
         where: { cardId_year_month: { cardId: payload.cardId, year: stmtYear, month: stmtMonth } },
@@ -3325,41 +3321,20 @@ export async function importStatementExpensesAction(payload: {
         },
       });
 
-      // Si el resumen informa Próximo Cierre o Próximo Vencimiento, inicializar el ciclo siguiente
-      if (payload.nextClosingDate || payload.nextDueDate) {
-        let nextYear = stmtMonth === 12 ? stmtYear + 1 : stmtYear;
-        let nextMonth = stmtMonth === 12 ? 1 : stmtMonth + 1;
+      // Actualizar días base de cierre y vencimiento por defecto en la tarjeta
+      const nextCloseDay = payload.nextClosingDate
+        ? new Date(payload.nextClosingDate).getUTCDate()
+        : payload.closingDate
+        ? new Date(payload.closingDate).getUTCDate()
+        : undefined;
 
-        if (payload.nextClosingDate) {
-          const nDate = new Date(payload.nextClosingDate);
-          if (!isNaN(nDate.getTime())) {
-            nextYear = nDate.getUTCFullYear();
-            nextMonth = nDate.getUTCMonth() + 1;
-          }
-        }
+      const nextDueDay = payload.nextDueDate
+        ? new Date(payload.nextDueDate).getUTCDate()
+        : payload.dueDate
+        ? new Date(payload.dueDate).getUTCDate()
+        : undefined;
 
-        await prisma.cardMonthlyPeriod.upsert({
-          where: { cardId_year_month: { cardId: payload.cardId, year: nextYear, month: nextMonth } },
-          update: {
-            ...(payload.nextClosingDate ? { closingDate: new Date(payload.nextClosingDate) } : {}),
-            ...(payload.nextDueDate ? { dueDate: new Date(payload.nextDueDate) } : {}),
-          },
-          create: {
-            cardId: payload.cardId,
-            year: nextYear,
-            month: nextMonth,
-            closingDate: payload.nextClosingDate ? new Date(payload.nextClosingDate) : null,
-            dueDate: payload.nextDueDate ? new Date(payload.nextDueDate) : null,
-            statementAmount: 0,
-            statementAmountUsd: 0,
-            isPaid: false,
-          },
-        });
-
-        // Actualizar días base por defecto en la tarjeta
-        const nextCloseDay = payload.nextClosingDate ? new Date(payload.nextClosingDate).getUTCDate() : undefined;
-        const nextDueDay = payload.nextDueDate ? new Date(payload.nextDueDate).getUTCDate() : undefined;
-
+      if (nextCloseDay || nextDueDay) {
         await prisma.personalCreditCard.update({
           where: { id: payload.cardId },
           data: {
@@ -3369,7 +3344,22 @@ export async function importStatementExpensesAction(payload: {
         });
       }
 
-      invalidateCardsCache();
+      // Eliminar períodos futuros vacíos con saldo 0 creados por error previo para que no oculten el resumen importado
+      await prisma.cardMonthlyPeriod.deleteMany({
+        where: {
+          cardId: payload.cardId,
+          statementAmount: 0,
+          statementAmountUsd: 0,
+          isPaid: false,
+          linkedExpenseId: null,
+          OR: [
+            { year: { gt: stmtYear } },
+            { year: stmtYear, month: { gt: stmtMonth } },
+          ],
+        },
+      });
+
+      invalidateCardsCache(targetUser.id);
     }
 
     revalidatePath("/");
