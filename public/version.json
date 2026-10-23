@@ -1,7 +1,7 @@
 {
-  "version": "1.23.1",
-  "build": 2026102306,
-  "releasedAt": "2026-10-23T15:25:00Z",
-  "title": "Fix DOMMatrix en Vercel, banner superior de acceso directo y barra de confirmación fija",
-  "description": "Reemplazo de parser por unpdf 100% compatible con entornos serverless de Vercel. Banner superior destacado al tope de tarjetas y modal optimizado con viewport fijo y barra de confirmación siempre a la vista."
+  "version": "1.23.2",
+  "build": 2026102307,
+  "releasedAt": "2026-10-23T15:46:00Z",
+  "title": "Fix viewport y renderizado con portal en modal de importación de resumen",
+  "description": "Se montó el modal de importación con createPortal en document.body para evitar distorsiones de posicionamiento en PC causadas por contenedores padres con transform CSS, permitiendo visualización centrada perfecta en cualquier nivel de zoom."
 }

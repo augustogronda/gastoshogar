@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Check, CreditCard, Calendar, AlertCircle } from "./ui/icons";
 import { Upload, FileText, CheckSquare, Square, ArrowRight, RefreshCw } from "lucide-react";
 import { parsePdfStatementAction, parseTextStatementAction, importStatementExpensesAction } from "@/app/actions";
@@ -30,6 +31,7 @@ export function ImportStatementModal({
   preselectedCardId,
   onSuccess,
 }: ImportStatementModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<"file" | "text">("file");
   const [step, setStep] = useState<"upload" | "preview">("upload");
   const [rawText, setRawText] = useState("");
@@ -45,6 +47,10 @@ export function ImportStatementModal({
   const [updateCardSummary, setUpdateCardSummary] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Bloquear scroll de la página cuando el modal está abierto
   useEffect(() => {
@@ -75,7 +81,7 @@ export function ImportStatementModal({
     }
   }, [isOpen, preselectedCardId, cards, users]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -261,31 +267,31 @@ export function ImportStatementModal({
     .filter((i) => i.selected)
     .reduce((s, i) => s + (i.amountUsd || 0), 0);
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="relative w-full max-w-2xl h-[92vh] sm:h-[86vh] flex flex-col bg-[#141824] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
+  const modalContent = (
+    <div className="fixed inset-0 z-[999999] flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="relative w-full max-w-4xl h-[92vh] max-h-[820px] flex flex-col bg-[#141824] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
         
         {/* Encabezado fijo */}
-        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-white/[0.02]">
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/[0.02]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <CreditCard className="w-4 h-4 text-white" />
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <CreditCard className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white tracking-tight">Importar Resumen de Tarjeta</h2>
-              <p className="text-[11px] text-white/50">Procesamiento automático local sin IA (0 tokens)</p>
+              <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">Importar Resumen de Tarjeta</h2>
+              <p className="text-xs text-white/50">Procesamiento automático local sin IA (0 tokens)</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Contenido principal con scroll interior */}
-        <div className="flex-1 min-h-0 flex flex-col p-4 sm:p-5 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col p-4 sm:p-6 overflow-hidden">
           {errorMsg && (
             <div className="shrink-0 mb-3 flex items-start gap-2.5 p-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-300 text-xs leading-relaxed">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-rose-400" />
@@ -294,16 +300,16 @@ export function ImportStatementModal({
           )}
 
           {step === "upload" ? (
-            <div className="flex-1 overflow-y-auto space-y-4">
+            <div className="flex-1 overflow-y-auto space-y-4 flex flex-col justify-center max-w-xl mx-auto w-full">
               {/* Selector de pestañas */}
-              <div className="flex p-1 bg-white/[0.04] border border-white/5 rounded-2xl">
+              <div className="flex p-1 bg-white/[0.04] border border-white/5 rounded-2xl shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setTab("file");
                     setErrorMsg(null);
                   }}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     tab === "file"
                       ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
                       : "text-white/60 hover:text-white hover:bg-white/[0.02]"
@@ -318,7 +324,7 @@ export function ImportStatementModal({
                     setTab("text");
                     setErrorMsg(null);
                   }}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     tab === "text"
                       ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
                       : "text-white/60 hover:text-white hover:bg-white/[0.02]"
@@ -332,7 +338,7 @@ export function ImportStatementModal({
               {tab === "file" ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="group relative flex flex-col items-center justify-center p-8 sm:p-12 border-2 border-dashed border-white/15 hover:border-blue-500/50 rounded-3xl bg-white/[0.02] hover:bg-blue-500/[0.03] transition-all cursor-pointer"
+                  className="group relative flex flex-col items-center justify-center p-10 sm:p-16 border-2 border-dashed border-white/15 hover:border-blue-500/50 rounded-3xl bg-white/[0.02] hover:bg-blue-500/[0.03] transition-all cursor-pointer text-center"
                 >
                   <input
                     type="file"
@@ -341,18 +347,18 @@ export function ImportStatementModal({
                     accept=".pdf,application/pdf"
                     className="hidden"
                   />
-                  <div className="w-14 h-14 rounded-2xl bg-white/[0.05] group-hover:bg-blue-500/20 flex items-center justify-center mb-3 transition-colors">
+                  <div className="w-16 h-16 rounded-3xl bg-white/[0.05] group-hover:bg-blue-500/20 flex items-center justify-center mb-4 transition-colors shadow-inner">
                     {isParsing ? (
-                      <RefreshCw className="w-6 h-6 text-blue-400 animate-spin" />
+                      <RefreshCw className="w-7 h-7 text-blue-400 animate-spin" />
                     ) : (
-                      <Upload className="w-6 h-6 text-white/60 group-hover:text-blue-400 transition-colors" />
+                      <Upload className="w-7 h-7 text-white/60 group-hover:text-blue-400 transition-colors" />
                     )}
                   </div>
-                  <p className="text-sm font-semibold text-white mb-1">
-                    {isParsing ? "Analizando archivo PDF..." : "Hacé clic o arrastrá tu resumen PDF"}
+                  <p className="text-base font-bold text-white mb-1.5">
+                    {isParsing ? "Analizando archivo PDF..." : "Hacé clic o arrastrá tu resumen PDF acá"}
                   </p>
-                  <p className="text-xs text-white/40 text-center max-w-sm">
-                    Compatible con resúmenes descargados de Santander, BBVA y Galicia.
+                  <p className="text-xs text-white/40 max-w-sm leading-relaxed">
+                    Extrae automáticamente compras, cuotas (ej: 2/9) y totales de Santander, BBVA y Galicia.
                   </p>
                 </div>
               ) : (
@@ -361,16 +367,16 @@ export function ImportStatementModal({
                     <textarea
                       value={rawText}
                       onChange={(e) => setRawText(e.target.value)}
-                      rows={8}
+                      rows={10}
                       placeholder="Pegá acá el texto copiado de tu resumen bancario o de Mercado Pago (ej: 'MERPAGO*CUELLO - $ 12.500 Cuota 1 de 3')..."
-                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-xs text-white placeholder-white/30 font-mono focus:outline-none focus:border-blue-500/50 transition-colors resize-none"
+                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl text-xs text-white placeholder-white/30 font-mono focus:outline-none focus:border-blue-500/50 transition-colors resize-none leading-relaxed"
                     />
                   </div>
                   <button
                     type="button"
                     onClick={handleParseText}
                     disabled={isParsing || !rawText.trim()}
-                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
+                    className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
                   >
                     {isParsing ? (
                       <>
@@ -389,38 +395,38 @@ export function ImportStatementModal({
             </div>
           ) : (
             /* PASO 2: PREVIEW */
-            <div className="flex-1 min-h-0 flex flex-col space-y-3 overflow-hidden">
-              {/* Card de Configuración compacta */}
-              <div className="shrink-0 p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-white/50">Detectado:</span>
-                    <span className="px-2 py-0.5 text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-full">
+            <div className="flex-1 min-h-0 flex flex-col space-y-4 overflow-hidden">
+              {/* Card de Configuración y Resumen del Período */}
+              <div className="shrink-0 p-4 bg-white/[0.03] border border-white/10 rounded-2xl space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-xs text-white/50">Banco detectado:</span>
+                    <span className="px-3 py-0.5 text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-full">
                       {parsedData?.detectedBank} {parsedData?.detectedBrand}
                     </span>
                     {parsedData?.cardLastDigits && (
-                      <span className="text-[11px] text-white/40">•••• {parsedData.cardLastDigits}</span>
+                      <span className="text-xs text-white/40 font-mono">•••• {parsedData.cardLastDigits}</span>
                     )}
                   </div>
                   <button
                     type="button"
                     onClick={() => setStep("upload")}
-                    className="text-[11px] text-white/50 hover:text-white flex items-center gap-1 transition-colors"
+                    className="text-xs text-white/50 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <RefreshCw className="w-3 h-3" />
+                    <RefreshCw className="w-3.5 h-3.5" />
                     Cambiar archivo
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-medium text-white/50 mb-0.5">
-                      Titular
+                    <label className="block text-xs font-medium text-white/60 mb-1">
+                      Titular del gasto
                     </label>
                     <select
                       value={selectedUserId}
                       onChange={(e) => setSelectedUserId(e.target.value)}
-                      className="w-full py-1.5 px-2.5 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500/50"
+                      className="w-full py-2 px-3 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
                     >
                       {users.map((u) => (
                         <option key={u.id} value={u.id} className="bg-slate-900 text-white">
@@ -431,13 +437,13 @@ export function ImportStatementModal({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-medium text-white/50 mb-0.5">
+                    <label className="block text-xs font-medium text-white/60 mb-1">
                       Asignar a tarjeta
                     </label>
                     <select
                       value={selectedCardId}
                       onChange={(e) => setSelectedCardId(e.target.value)}
-                      className="w-full py-1.5 px-2.5 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500/50"
+                      className="w-full py-2 px-3 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
                     >
                       <option value="" className="bg-slate-900 text-white">
                         (Ninguna / Gasto manual)
@@ -454,25 +460,25 @@ export function ImportStatementModal({
                 </div>
 
                 {parsedData && (parsedData.statementAmount > 0 || parsedData.dueDate) && (
-                  <label className="flex items-start gap-2 pt-1 text-[11px] text-white/80 cursor-pointer select-none">
+                  <label className="flex items-start gap-2.5 pt-1.5 text-xs text-white/80 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={updateCardSummary}
                       onChange={(e) => setUpdateCardSummary(e.target.checked)}
                       className="mt-0.5 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-0"
                     />
-                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-white/60 font-mono">
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-white/70 font-mono">
                       <span>Actualizar tarjeta:</span>
                       {parsedData.statementAmount > 0 && (
                         <span className="text-white font-bold">
-                          ${Math.round(parsedData.statementAmount).toLocaleString("es-AR")}
+                          Total ${Math.round(parsedData.statementAmount).toLocaleString("es-AR")}
                         </span>
                       )}
                       {parsedData.statementAmountUsd > 0 && (
-                        <span className="text-emerald-400">U$S {parsedData.statementAmountUsd.toFixed(2)}</span>
+                        <span className="text-emerald-400 font-bold">U$S {parsedData.statementAmountUsd.toFixed(2)}</span>
                       )}
-                      {parsedData.dueDate && <span>Vence: {parsedData.dueDate}</span>}
-                      {parsedData.closingDate && <span>Cierre: {parsedData.closingDate}</span>}
+                      {parsedData.dueDate && <span>• Vence: {parsedData.dueDate}</span>}
+                      {parsedData.closingDate && <span>• Cierre: {parsedData.closingDate}</span>}
                     </div>
                   </label>
                 )}
@@ -484,37 +490,37 @@ export function ImportStatementModal({
                   <button
                     type="button"
                     onClick={() => toggleAll(selectedCount !== items.length)}
-                    className="flex items-center gap-1.5 font-medium hover:text-white transition-colors"
+                    className="flex items-center gap-1.5 font-semibold hover:text-white transition-colors cursor-pointer"
                   >
                     {selectedCount === items.length ? (
-                      <CheckSquare className="w-3.5 h-3.5 text-blue-400" />
+                      <CheckSquare className="w-4 h-4 text-blue-400" />
                     ) : (
-                      <Square className="w-3.5 h-3.5" />
+                      <Square className="w-4 h-4" />
                     )}
                     <span>
                       {selectedCount === items.length ? "Deseleccionar todos" : "Seleccionar todos"}
                     </span>
                   </button>
-                  <span className="text-[11px] text-white/40 font-mono">
-                    {selectedCount} seleccionados de {items.length}
+                  <span className="text-xs text-white/50 font-mono font-medium">
+                    {selectedCount} seleccionados de {items.length} consumos
                   </span>
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1">
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
                   {items.map((item) => (
                     <div
                       key={item.id}
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl border transition-all ${
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-2xl border transition-all ${
                         item.selected
                           ? "bg-white/[0.04] border-white/15"
-                          : "bg-white/[0.01] border-white/5 opacity-50"
+                          : "bg-white/[0.01] border-white/5 opacity-40"
                       }`}
                     >
-                      <div className="flex items-start gap-2.5 min-w-0">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
                         <button
                           type="button"
                           onClick={() => toggleItem(item.id)}
-                          className="mt-0.5 text-white/40 hover:text-white transition-colors shrink-0"
+                          className="mt-0.5 text-white/40 hover:text-white transition-colors shrink-0 cursor-pointer"
                         >
                           {item.selected ? (
                             <CheckSquare className="w-4 h-4 text-blue-400" />
@@ -522,29 +528,29 @@ export function ImportStatementModal({
                             <Square className="w-4 h-4" />
                           )}
                         </button>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-white tracking-tight truncate">
+                            <span className="text-xs sm:text-sm font-semibold text-white tracking-tight truncate">
                               {item.title}
                             </span>
                             {item.installmentNumber && item.totalInstallments && (
-                              <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded">
+                              <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md">
                                 Cuota {item.installmentNumber}/{item.totalInstallments}
                               </span>
                             )}
                             {item.isTaxOrFee && (
-                              <span className="px-1.5 py-0.2 text-[9px] font-medium bg-white/10 text-white/60 rounded">
-                                Impuesto
+                              <span className="px-2 py-0.5 text-[10px] font-medium bg-white/10 text-white/60 rounded">
+                                Impuesto / Sellos
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-[10px] text-white/40 mt-0.5 flex-wrap">
+                          <div className="flex items-center gap-2 text-xs text-white/40 mt-1 flex-wrap">
                             <span className="font-mono">{item.date}</span>
                             <span>•</span>
                             <select
                               value={item.category}
                               onChange={(e) => updateItemCategory(item.id, e.target.value)}
-                              className="bg-transparent border-0 p-0 text-[10px] text-blue-300 hover:text-blue-200 cursor-pointer focus:ring-0"
+                              className="bg-transparent border-0 p-0 text-xs text-blue-300 hover:text-blue-200 cursor-pointer focus:ring-0 font-medium"
                             >
                               {categories.map((cat) => (
                                 <option key={cat.id} value={cat.name} className="bg-slate-900 text-white">
@@ -556,7 +562,7 @@ export function ImportStatementModal({
                             <button
                               type="button"
                               onClick={() => updateItemScope(item.id, item.scope === "personal" ? "hogar" : "personal")}
-                              className={`text-[9px] px-1.5 py-0.2 rounded font-medium ${
+                              className={`text-[10px] px-2 py-0.5 rounded-md font-semibold cursor-pointer transition ${
                                 item.scope === "hogar"
                                   ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                                   : "bg-purple-500/20 text-purple-300 border border-purple-500/30"
@@ -568,10 +574,10 @@ export function ImportStatementModal({
                         </div>
                       </div>
 
-                      <div className="text-right mt-1.5 sm:mt-0 font-mono text-xs font-bold text-white pl-6 sm:pl-0 shrink-0">
+                      <div className="text-right mt-2 sm:mt-0 font-mono text-sm font-bold text-white pl-7 sm:pl-4 shrink-0">
                         {item.amount > 0 && <div>${Math.round(item.amount).toLocaleString("es-AR")}</div>}
                         {item.amountUsd && item.amountUsd > 0 && (
-                          <div className="text-emerald-400 text-[10px]">U$S {item.amountUsd.toFixed(2)}</div>
+                          <div className="text-emerald-400 text-xs">U$S {item.amountUsd.toFixed(2)}</div>
                         )}
                       </div>
                     </div>
@@ -584,26 +590,26 @@ export function ImportStatementModal({
 
         {/* Barra de confirmación inferior SIEMPRE fija */}
         {step === "preview" && (
-          <div className="shrink-0 flex items-center justify-between px-5 py-3 border-t border-white/10 bg-[#101420]">
+          <div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-white/10 bg-[#0F131D]">
             <div>
-              <div className="text-[11px] text-white/50 font-medium">
-                {selectedCount} de {items.length} consumos
+              <div className="text-xs text-white/50 font-medium">
+                {selectedCount} de {items.length} consumos seleccionados
               </div>
-              <div className="text-sm font-bold text-white font-mono">
+              <div className="text-base sm:text-lg font-bold text-white font-mono">
                 ${Math.round(selectedTotalPesos).toLocaleString("es-AR")}
                 {selectedTotalUsd > 0 && (
-                  <span className="text-emerald-400 font-normal text-xs ml-1.5">
+                  <span className="text-emerald-400 font-normal text-xs sm:text-sm ml-2">
                     (+ U$S {selectedTotalUsd.toFixed(2)})
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-2 rounded-xl text-xs font-medium text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
@@ -611,16 +617,16 @@ export function ImportStatementModal({
                 type="button"
                 onClick={handleImport}
                 disabled={isImporting || selectedCount === 0}
-                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-500/25 transition-all cursor-pointer"
               >
                 {isImporting ? (
                   <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <RefreshCw className="w-4 h-4 animate-spin" />
                     Importando...
                   </>
                 ) : (
                   <>
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="w-4 h-4" />
                     Confirmar e Importar
                   </>
                 )}
@@ -632,4 +638,6 @@ export function ImportStatementModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
