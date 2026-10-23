@@ -337,13 +337,13 @@ export function CreditCardVisual({
               <span className="text-[10px] text-white/70 block font-medium">
                 Resumen Actual:
               </span>
-              <div className="flex items-baseline gap-1.5">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="text-xl font-black font-mono tracking-tight tabular-nums text-white">
                   ${Math.round(statementAmount).toLocaleString("es-AR")}
                 </span>
                 {statementAmountUsd && statementAmountUsd > 0 ? (
-                  <span className="text-[11px] font-mono font-bold text-emerald-300">
-                    +u$s {statementAmountUsd.toLocaleString("es-AR")}
+                  <span className="text-xs font-mono font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/35 px-2 py-0.5 rounded-lg inline-flex items-center">
+                    + U$S {statementAmountUsd.toFixed(2)}
                   </span>
                 ) : null}
               </div>

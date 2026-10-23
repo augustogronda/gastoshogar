@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Wallet,
   Plus,
@@ -46,6 +47,7 @@ import {
   reopenPersonalMonthAction,
   duplicatePersonalToSharedExpenseAction,
   markPersonalExpenseAsReviewedAction,
+  markAllPersonalExpensesAsReviewedAction,
 } from "@/app/actions";
 import {
   hasReviewFlag,
@@ -369,10 +371,12 @@ export function PersonalDashboardView({
   onSyncPersonalExpenses,
 }: PersonalDashboardViewProps) {
   const personalTab = activeTab;
+  const router = useRouter();
   const { toast, showToast } = useToast();
   const [personalCategoryFilter, setPersonalCategoryFilter] = useState<string>("ALL");
   const [personalSearchQuery, setPersonalSearchQuery] = useState<string>("");
   const [onlyPendingReview, setOnlyPendingReview] = useState(false);
+  const [isBatchConfirming, setIsBatchConfirming] = useState(false);
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
@@ -532,6 +536,37 @@ export function PersonalDashboardView({
       showToast(err instanceof Error ? err.message : "Error al confirmar gasto", "error");
     } finally {
       setActioningId(null);
+    }
+  };
+
+  const handleConfirmAllReviewed = async () => {
+    if (isBatchConfirming || pendingReviewCount === 0) return;
+    triggerHaptic(15);
+    setIsBatchConfirming(true);
+
+    const prevExpenses = [...localExpenses];
+    const updated = localExpenses.map((e) =>
+      hasReviewFlag(e.notes) ? { ...e, notes: removeReviewFlag(e.notes) || null } : e
+    );
+
+    setLocalExpenses(updated);
+    onSyncPersonalExpenses?.(updated);
+    showToast(`✓ ${pendingReviewCount} gastos confirmados como personales`);
+
+    try {
+      await markAllPersonalExpensesAsReviewedAction({
+        userId: currentUser.id,
+        year: currentYear,
+        month: currentMonth,
+      });
+      router.refresh();
+    } catch (err: unknown) {
+      console.error(err);
+      setLocalExpenses(prevExpenses);
+      onSyncPersonalExpenses?.(prevExpenses);
+      showToast(err instanceof Error ? err.message : "Error al confirmar gastos", "error");
+    } finally {
+      setIsBatchConfirming(false);
     }
   };
 
@@ -1005,7 +1040,7 @@ export function PersonalDashboardView({
 
                 {/* Banner de aviso cuando hay gastos de tarjeta pendientes de revisar */}
                 {pendingReviewCount > 0 && (
-                  <div className="card-review-pending rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs animate-fade-in">
+                  <div className="card-review-pending rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-inner">
                         <AlertCircle className="w-4.5 h-4.5" />
@@ -1019,17 +1054,29 @@ export function PersonalDashboardView({
                         </span>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setOnlyPendingReview(!onlyPendingReview)}
-                      className={`px-3 py-1.5 rounded-xl font-bold text-[11px] shrink-0 border transition-all duration-200 active:scale-95 ${
-                        onlyPendingReview
-                          ? "bg-zinc-900/90 hover:bg-zinc-800 text-amber-200 border-amber-400/35"
-                          : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 border-amber-300/60 shadow-sm shadow-amber-950/60"
-                      }`}
-                    >
-                      {onlyPendingReview ? "Ver todos" : `Filtrar (${pendingReviewCount})`}
-                    </button>
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleConfirmAllReviewed}
+                        disabled={isBatchConfirming}
+                        className="px-3.5 py-1.5 rounded-xl font-bold text-[11px] bg-emerald-500/25 hover:bg-emerald-500/40 text-emerald-100 border border-emerald-400/50 shadow-md shadow-emerald-950/40 flex items-center gap-1.5 transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-50"
+                      >
+                        <Check className="w-3.5 h-3.5 text-emerald-300 stroke-[3]" />
+                        <span>Confirmar todos ({pendingReviewCount})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setOnlyPendingReview(!onlyPendingReview)}
+                        className={`px-3 py-1.5 rounded-xl font-bold text-[11px] shrink-0 border transition-all duration-200 active:scale-95 cursor-pointer ${
+                          onlyPendingReview
+                            ? "bg-zinc-900/90 hover:bg-zinc-800 text-amber-200 border-amber-400/35"
+                            : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 border-amber-300/60 shadow-sm shadow-amber-950/60"
+                        }`}
+                      >
+                        {onlyPendingReview ? "Ver todos" : "Filtrar"}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

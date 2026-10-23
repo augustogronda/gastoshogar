@@ -1963,6 +1963,46 @@ export async function markPersonalExpenseAsReviewedAction(personalExpenseId: str
   return { success: true, expense: updated };
 }
 
+export async function markAllPersonalExpensesAsReviewedAction(payload: {
+  userId: string;
+  year: number;
+  month: number;
+}) {
+  try {
+    const expenses = await prisma.personalExpense.findMany({
+      where: {
+        userId: payload.userId,
+        year: payload.year,
+        month: payload.month,
+      },
+    });
+
+    const toUpdate = expenses.filter((e) => hasReviewFlag(e.notes));
+
+    await Promise.all(
+      toUpdate.map((e) =>
+        prisma.personalExpense.update({
+          where: { id: e.id },
+          data: {
+            notes: removeReviewFlag(e.notes) || null,
+          },
+        })
+      )
+    );
+
+    invalidateCardsCache();
+    revalidatePath("/");
+
+    return { success: true, updatedCount: toUpdate.length };
+  } catch (err: unknown) {
+    console.error("Error al confirmar lote de gastos como personales:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 export async function togglePersonalExpenseReviewAction(personalExpenseId: string) {
   const existing = await prisma.personalExpense.findUnique({
     where: { id: personalExpenseId },

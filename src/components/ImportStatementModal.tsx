@@ -17,7 +17,15 @@ interface ImportStatementModalProps {
   currentYear: number;
   currentMonth: number;
   preselectedCardId?: string;
-  onSuccess?: () => void;
+  onSuccess?: (summary?: {
+    cardId?: string;
+    statementAmount?: number;
+    statementAmountUsd?: number;
+    closingDate?: string;
+    dueDate?: string;
+    nextClosingDate?: string;
+    nextDueDate?: string;
+  }) => void;
 }
 
 export function ImportStatementModal({
@@ -253,7 +261,17 @@ export function ImportStatementModal({
       }
 
       triggerHaptic("success");
-      if (onSuccess) onSuccess();
+      if (onSuccess) {
+        onSuccess({
+          cardId: selectedCardId || undefined,
+          statementAmount: parsedData?.statementAmount,
+          statementAmountUsd: parsedData?.statementAmountUsd,
+          closingDate: parsedData?.closingDate || undefined,
+          dueDate: parsedData?.dueDate || undefined,
+          nextClosingDate: parsedData?.nextClosingDate || undefined,
+          nextDueDate: parsedData?.nextDueDate || undefined,
+        });
+      }
       onClose();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Error al importar consumos.");

@@ -1,7 +1,7 @@
 {
-  "version": "1.23.6",
-  "build": 2026102311,
-  "releasedAt": "2026-10-23T17:49:00Z",
-  "title": "Extracción y sincronización automática de Próximo Cierre y Próximo Vencimiento",
-  "description": "El importador ahora lee 'Próximo cierre' y 'Próximo vencimiento' informados por el banco en el resumen (Santander, Galicia, BBVA). Al importar, sincroniza el ciclo actual y crea/alinea automáticamente el período del mes siguiente y los días base de la tarjeta."
+  "version": "1.23.7",
+  "build": 2026102312,
+  "releasedAt": "2026-10-23T17:57:00Z",
+  "title": "Confirmación masiva de gastos por revisar y actualización optimista de tarjetas en ARS y USD",
+  "description": "Se agregó el botón 'Confirmar todos' en la barra de gastos por revisar para aprobarlos en lote como personales en 1 clic. La tarjeta en 'Tarjetas' ahora actualiza al instante sus montos en pesos y dólares con insignia destacada, sin necesidad de recargar."
 }

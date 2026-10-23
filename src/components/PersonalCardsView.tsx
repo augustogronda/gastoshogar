@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { CreditCard, Check, Sparkles, Calendar, Plus, ArrowRight, X, Repeat } from "./ui/icons";
 import { Upload } from "lucide-react";
 import { CreditCardVisual } from "./CreditCardVisual";
@@ -78,6 +79,7 @@ export function PersonalCardsView({
   onOpenNewRecurring,
   cardsData,
 }: PersonalCardsViewProps) {
+  const router = useRouter();
   const [localCards, setLocalCards] = useState(cardsData?.cards || []);
   const [selectedCardForEdit, setSelectedCardForEdit] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -599,8 +601,18 @@ export function PersonalCardsView({
         }
         currentYear={year}
         currentMonth={month}
-        onSuccess={() => {
-          showToast("✓ Consumos importados con éxito");
+        onSuccess={(updated) => {
+          if (updated?.cardId) {
+            handleOptimisticSave(updated.cardId, {
+              statementAmount: updated.statementAmount || 0,
+              statementAmountUsd: updated.statementAmountUsd || 0,
+              closingDate: updated.closingDate || null,
+              dueDate: updated.dueDate || null,
+              notes: null,
+            });
+          }
+          showToast("✓ Consumos importados y tarjeta actualizada");
+          router.refresh();
         }}
       />
     </div>
