@@ -1,7 +1,7 @@
 {
-  "version": "1.23.5",
-  "build": 2026102310,
-  "releasedAt": "2026-10-23T16:14:00Z",
-  "title": "Fix reset de estado en modal de importación por renderizado reactivo del padre",
-  "description": "Se corrigió el problema por el cual el modal volvía automáticamente a la pantalla de subir PDF tras unos segundos: se estabilizó la dependencia de tarjetas en PersonalCardsView y se guardó la referencia previa de apertura para que el modal solo reinicie estado en la transición inicial de cerrado a abierto."
+  "version": "1.23.6",
+  "build": 2026102311,
+  "releasedAt": "2026-10-23T17:49:00Z",
+  "title": "Extracción y sincronización automática de Próximo Cierre y Próximo Vencimiento",
+  "description": "El importador ahora lee 'Próximo cierre' y 'Próximo vencimiento' informados por el banco en el resumen (Santander, Galicia, BBVA). Al importar, sincroniza el ciclo actual y crea/alinea automáticamente el período del mes siguiente y los días base de la tarjeta."
 }

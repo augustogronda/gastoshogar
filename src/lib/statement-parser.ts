@@ -29,6 +29,8 @@ export interface ParsedStatementResult {
   statementAmountUsd: number;
   closingDate: string | null; // YYYY-MM-DD
   dueDate: string | null;     // YYYY-MM-DD
+  nextClosingDate?: string | null; // YYYY-MM-DD
+  nextDueDate?: string | null;     // YYYY-MM-DD
   items: ParsedExpenseItem[];
 }
 
@@ -142,6 +144,8 @@ export function parseStatementText(text: string): ParsedStatementResult {
     statementAmountUsd: 0,
     closingDate: null,
     dueDate: null,
+    nextClosingDate: null,
+    nextDueDate: null,
     items: [],
   };
 
@@ -195,11 +199,13 @@ export function parseStatementText(text: string): ParsedStatementResult {
       result.statementAmount = parseArgentineAmount(galiciaTotalMatch[1]);
       if (galiciaTotalMatch[2]) result.statementAmountUsd = parseArgentineAmount(galiciaTotalMatch[2]);
     }
-    // Galicia ciclo: 20-Ago-26 01-Sep-26 24-Sep-26 05-Oct-26
-    const galiciaCycle = text.match(/(\d{2}-[A-Za-z]{3}-\d{2})\s+(\d{2}-[A-Za-z]{3}-\d{2})\s+(\d{2}-[A-Za-z]{3}-\d{2})\s+(\d{2}-[A-Za-z]{3}-\d{2})/i);
+    // Galicia ciclo: 20-Ago-26 01-Sep-26 24-Sep-26 05-Oct-26 22-Oct-26 02-Nov-26
+    const galiciaCycle = text.match(/(\d{2}-[A-Za-z]{3}-\d{2})\s+(\d{2}-[A-Za-z]{3}-\d{2})\s+(\d{2}-[A-Za-z]{3}-\d{2})\s+(\d{2}-[A-Za-z]{3}-\d{2})(?:\s+(\d{2}-[A-Za-z]{3}-\d{2})\s+(\d{2}-[A-Za-z]{3}-\d{2}))?/i);
     if (galiciaCycle) {
       result.closingDate = normalizeDate(galiciaCycle[3]);
       result.dueDate = normalizeDate(galiciaCycle[4]);
+      if (galiciaCycle[5]) result.nextClosingDate = normalizeDate(galiciaCycle[5]);
+      if (galiciaCycle[6]) result.nextDueDate = normalizeDate(galiciaCycle[6]);
     }
   } else if (result.detectedBank === "BBVA") {
     // BBVA: CIERRE ACTUAL 01-Oct-26 VENCIMIENTO ACTUAL 09-Oct-26 SALDO ACTUAL $ 722.375,80 SALDO ACTUAL U$S 13,20
@@ -214,6 +220,12 @@ export function parseStatementText(text: string): ParsedStatementResult {
 
     const cierreBbva = text.match(/CIERRE ACTUAL[\s\S]*?(\d{2}-[A-Za-z]{3}-\d{2})/i);
     if (cierreBbva) result.closingDate = normalizeDate(cierreBbva[1]);
+
+    const proxCierreBbva = text.match(/PR[OÓ]XIMO\s*CIERRE[\s\S]*?(\d{2}-[A-Za-z]{3}-\d{2})/i);
+    if (proxCierreBbva) result.nextClosingDate = normalizeDate(proxCierreBbva[1]);
+
+    const proxVtoBbva = text.match(/PR[OÓ]XIMO\s*VENCIMIENTO[\s\S]*?(\d{2}-[A-Za-z]{3}-\d{2})/i);
+    if (proxVtoBbva) result.nextDueDate = normalizeDate(proxVtoBbva[1]);
   } else {
     // Santander u otro
     const totalPesosMatch = 
@@ -233,11 +245,17 @@ export function parseStatementText(text: string): ParsedStatementResult {
       result.statementAmountUsd = parseArgentineAmount(totalUsdMatch[1]);
     }
 
-    const vtoSantander = text.match(/Vencimiento\s*actual\s*(\d{2}\/\d{2}\/\d{2})/i);
+    const vtoSantander = text.match(/Vencimiento\s*actual\s*(\d{2}[\/\-]\d{2}[\/\-]\d{2,4}|\d{2}-[A-Za-z]{3}-\d{2,4})/i);
     if (vtoSantander) result.dueDate = normalizeDate(vtoSantander[1]);
 
-    const cierreSantander = text.match(/Cierre\s*actual\s*(\d{2}\/\d{2}\/\d{2})/i);
+    const cierreSantander = text.match(/Cierre\s*actual\s*(\d{2}[\/\-]\d{2}[\/\-]\d{2,4}|\d{2}-[A-Za-z]{3}-\d{2,4})/i);
     if (cierreSantander) result.closingDate = normalizeDate(cierreSantander[1]);
+
+    const proxCierreSantander = text.match(/Pr[oó]ximo\s*cierre\s*(\d{2}[\/\-]\d{2}[\/\-]\d{2,4}|\d{2}-[A-Za-z]{3}-\d{2,4})/i);
+    if (proxCierreSantander) result.nextClosingDate = normalizeDate(proxCierreSantander[1]);
+
+    const proxVtoSantander = text.match(/Pr[oó]ximo\s*vencimiento\s*(\d{2}[\/\-]\d{2}[\/\-]\d{2,4}|\d{2}-[A-Za-z]{3}-\d{2,4})/i);
+    if (proxVtoSantander) result.nextDueDate = normalizeDate(proxVtoSantander[1]);
   }
 
   // 5. Parseo de consumos línea por línea

@@ -232,6 +232,8 @@ export function ImportStatementModal({
         statementAmountUsd: parsedData?.statementAmountUsd,
         dueDate: parsedData?.dueDate || undefined,
         closingDate: parsedData?.closingDate || undefined,
+        nextClosingDate: parsedData?.nextClosingDate || undefined,
+        nextDueDate: parsedData?.nextDueDate || undefined,
         items: selectedItems.map((i) => ({
           title: i.title,
           amount: i.amount,
@@ -477,6 +479,12 @@ export function ImportStatementModal({
                       )}
                       {parsedData.dueDate && <span>• Vence: {parsedData.dueDate}</span>}
                       {parsedData.closingDate && <span>• Cierre: {parsedData.closingDate}</span>}
+                      {parsedData.nextClosingDate && (
+                        <span className="text-purple-300 font-semibold">• Próx. Cierre: {parsedData.nextClosingDate}</span>
+                      )}
+                      {parsedData.nextDueDate && (
+                        <span className="text-purple-300 font-semibold">• Próx. Vto: {parsedData.nextDueDate}</span>
+                      )}
                     </div>
                   </label>
                 )}

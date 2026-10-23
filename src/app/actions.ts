@@ -3019,6 +3019,8 @@ export async function importStatementExpensesAction(payload: {
   statementAmountUsd?: number;
   dueDate?: string;
   closingDate?: string;
+  nextClosingDate?: string;
+  nextDueDate?: string;
   items: Array<{
     title: string;
     amount: number;
@@ -3113,8 +3115,18 @@ export async function importStatementExpensesAction(payload: {
 
     // Actualizar resumen de tarjeta si se solicitó
     if (payload.cardId && payload.updateCardSummary) {
+      let stmtYear = payload.year;
+      let stmtMonth = payload.month;
+      if (payload.closingDate) {
+        const cDate = new Date(payload.closingDate);
+        if (!isNaN(cDate.getTime())) {
+          stmtYear = cDate.getUTCFullYear();
+          stmtMonth = cDate.getUTCMonth() + 1;
+        }
+      }
+
       await prisma.cardMonthlyPeriod.upsert({
-        where: { cardId_year_month: { cardId: payload.cardId, year: payload.year, month: payload.month } },
+        where: { cardId_year_month: { cardId: payload.cardId, year: stmtYear, month: stmtMonth } },
         update: {
           ...(typeof payload.statementAmount === "number" && payload.statementAmount > 0 ? { statementAmount: payload.statementAmount } : {}),
           ...(typeof payload.statementAmountUsd === "number" && payload.statementAmountUsd > 0 ? { statementAmountUsd: payload.statementAmountUsd } : {}),
@@ -3123,14 +3135,59 @@ export async function importStatementExpensesAction(payload: {
         },
         create: {
           cardId: payload.cardId,
-          year: payload.year,
-          month: payload.month,
+          year: stmtYear,
+          month: stmtMonth,
           statementAmount: payload.statementAmount || 0,
           statementAmountUsd: payload.statementAmountUsd || 0,
           dueDate: payload.dueDate ? new Date(payload.dueDate) : null,
           closingDate: payload.closingDate ? new Date(payload.closingDate) : null,
         },
       });
+
+      // Si el resumen informa Próximo Cierre o Próximo Vencimiento, inicializar el ciclo siguiente
+      if (payload.nextClosingDate || payload.nextDueDate) {
+        let nextYear = stmtMonth === 12 ? stmtYear + 1 : stmtYear;
+        let nextMonth = stmtMonth === 12 ? 1 : stmtMonth + 1;
+
+        if (payload.nextClosingDate) {
+          const nDate = new Date(payload.nextClosingDate);
+          if (!isNaN(nDate.getTime())) {
+            nextYear = nDate.getUTCFullYear();
+            nextMonth = nDate.getUTCMonth() + 1;
+          }
+        }
+
+        await prisma.cardMonthlyPeriod.upsert({
+          where: { cardId_year_month: { cardId: payload.cardId, year: nextYear, month: nextMonth } },
+          update: {
+            ...(payload.nextClosingDate ? { closingDate: new Date(payload.nextClosingDate) } : {}),
+            ...(payload.nextDueDate ? { dueDate: new Date(payload.nextDueDate) } : {}),
+          },
+          create: {
+            cardId: payload.cardId,
+            year: nextYear,
+            month: nextMonth,
+            closingDate: payload.nextClosingDate ? new Date(payload.nextClosingDate) : null,
+            dueDate: payload.nextDueDate ? new Date(payload.nextDueDate) : null,
+            statementAmount: 0,
+            statementAmountUsd: 0,
+            isPaid: false,
+          },
+        });
+
+        // Actualizar días base por defecto en la tarjeta
+        const nextCloseDay = payload.nextClosingDate ? new Date(payload.nextClosingDate).getUTCDate() : undefined;
+        const nextDueDay = payload.nextDueDate ? new Date(payload.nextDueDate).getUTCDate() : undefined;
+
+        await prisma.personalCreditCard.update({
+          where: { id: payload.cardId },
+          data: {
+            ...(nextCloseDay ? { defaultClosingDay: nextCloseDay } : {}),
+            ...(nextDueDay ? { defaultDueDay: nextDueDay } : {}),
+          },
+        });
+      }
+
       invalidateCardsCache();
     }
 
