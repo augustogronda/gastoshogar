@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { CreditCard, X, Check, Calendar, AlertCircle } from "./ui/icons";
 import { updateCardStatementAction } from "@/app/actions";
 import { triggerHaptic } from "@/lib/haptics";
@@ -52,6 +53,11 @@ export function CardStatementModal({
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (cardData) {
@@ -80,7 +86,7 @@ export function CardStatementModal({
     }
   }, [cardData, isOpen]);
 
-  if (!isOpen || !cardData) return null;
+  if (!isOpen || !cardData || !mounted) return null;
 
   // Verificar si el vencimiento seleccionado cae en el mes siguiente
   const isDueInFollowingMonth = (() => {
@@ -142,9 +148,21 @@ export function CardStatementModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-md super-card rounded-3xl p-5 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar">
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+      style={{ minHeight: "100vh", minWidth: "100vw" }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          triggerHaptic(6);
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="w-full max-w-md super-card rounded-3xl p-5 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar border border-white/[0.12]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Cabecera */}
         <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
           <div className="flex items-center gap-2.5">
@@ -292,4 +310,6 @@ export function CardStatementModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
