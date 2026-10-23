@@ -2026,6 +2026,147 @@ export async function togglePersonalExpenseReviewAction(personalExpenseId: strin
   return { success: true, needsReview: !currentlyMarked, expense: updated };
 }
 
+export async function batchDeleteExpensesAction(data: {
+  expenseIds: string[];
+  isPersonal: boolean;
+}) {
+  if (!data.expenseIds || data.expenseIds.length === 0) {
+    return { success: true, count: 0 };
+  }
+
+  const ids = Array.from(new Set(data.expenseIds));
+
+  try {
+    if (data.isPersonal) {
+      // Desvincular resúmenes de tarjetas si están vinculados
+      await prisma.cardMonthlyPeriod.updateMany({
+        where: { linkedExpenseId: { in: ids } },
+        data: { linkedExpenseId: null, isPaid: false, paidAt: null },
+      });
+
+      const personalExpenses = await prisma.personalExpense.findMany({
+        where: { id: { in: ids } },
+        select: { categoryId: true },
+      });
+
+      const deleted = await prisma.personalExpense.deleteMany({
+        where: { id: { in: ids } },
+      });
+
+      const catIds = Array.from(
+        new Set(personalExpenses.map((p) => p.categoryId).filter(Boolean))
+      ) as string[];
+      await Promise.all(catIds.map((catId) => touchCategory(catId)));
+
+      revalidatePath("/");
+      return { success: true, count: deleted.count };
+    } else {
+      // Shared / Hogar
+      const sharedExpenses = await prisma.expense.findMany({
+        where: { id: { in: ids } },
+        select: { categoryId: true },
+      });
+
+      const deleted = await prisma.expense.deleteMany({
+        where: { id: { in: ids } },
+      });
+
+      const catIds = Array.from(
+        new Set(sharedExpenses.map((s) => s.categoryId).filter(Boolean))
+      ) as string[];
+      await Promise.all(catIds.map((catId) => touchCategory(catId)));
+
+      revalidatePath("/");
+      return { success: true, count: deleted.count };
+    }
+  } catch (err) {
+    console.error("Error en batchDeleteExpensesAction:", err);
+    throw err;
+  }
+}
+
+export async function batchCopyExpensesAction(data: {
+  expenseIds: string[];
+  fromScope: "hogar" | "personal";
+  targetUserId?: string;
+  paidById?: string;
+}) {
+  if (!data.expenseIds || data.expenseIds.length === 0) {
+    return { success: true, count: 0 };
+  }
+  const ids = Array.from(new Set(data.expenseIds));
+  let count = 0;
+
+  try {
+    if (data.fromScope === "personal") {
+      for (const id of ids) {
+        await duplicatePersonalToSharedExpenseAction({
+          personalExpenseId: id,
+          paidById: data.paidById,
+          markAsReviewed: false,
+          move: false,
+        });
+        count++;
+      }
+    } else {
+      for (const id of ids) {
+        await duplicateSharedToPersonalExpenseAction({
+          expenseId: id,
+          targetUserId: data.targetUserId,
+          move: false,
+        });
+        count++;
+      }
+    }
+    revalidatePath("/");
+    return { success: true, count };
+  } catch (err) {
+    console.error("Error en batchCopyExpensesAction:", err);
+    throw err;
+  }
+}
+
+export async function batchMoveExpensesAction(data: {
+  expenseIds: string[];
+  fromScope: "hogar" | "personal";
+  targetUserId?: string;
+  paidById?: string;
+}) {
+  if (!data.expenseIds || data.expenseIds.length === 0) {
+    return { success: true, count: 0 };
+  }
+  const ids = Array.from(new Set(data.expenseIds));
+  let count = 0;
+
+  try {
+    if (data.fromScope === "personal") {
+      for (const id of ids) {
+        await duplicatePersonalToSharedExpenseAction({
+          personalExpenseId: id,
+          paidById: data.paidById,
+          markAsReviewed: true,
+          move: true,
+        });
+        count++;
+      }
+    } else {
+      for (const id of ids) {
+        await duplicateSharedToPersonalExpenseAction({
+          expenseId: id,
+          targetUserId: data.targetUserId,
+          move: true,
+        });
+        count++;
+      }
+    }
+    revalidatePath("/");
+    return { success: true, count };
+  } catch (err) {
+    console.error("Error en batchMoveExpensesAction:", err);
+    throw err;
+  }
+}
+
 export async function createPersonalRecurringExpenseAction(data: {
   userId: string;
   title: string;

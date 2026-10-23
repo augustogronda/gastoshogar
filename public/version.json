@@ -1,7 +1,7 @@
 {
-  "version": "1.23.7",
-  "build": 2026102312,
-  "releasedAt": "2026-10-23T17:57:00Z",
-  "title": "Confirmación masiva de gastos por revisar y actualización optimista de tarjetas en ARS y USD",
-  "description": "Se agregó el botón 'Confirmar todos' en la barra de gastos por revisar para aprobarlos en lote como personales en 1 clic. La tarjeta en 'Tarjetas' ahora actualiza al instante sus montos en pesos y dólares con insignia destacada, sin necesidad de recargar."
+  "version": "1.24.0",
+  "build": 2026102313,
+  "releasedAt": "2026-10-23T20:13:00Z",
+  "title": "Selección múltiple de gastos con operaciones por lote en Personal y Hogar",
+  "description": "Modo de selección múltiple con checkboxes nativos estilo Apple, contador y subtotal en tiempo real, barra de acciones flotante para Copiar, Mover o Eliminar en lote tanto en gastos del Hogar como en Personales con confirmación segura."
 }

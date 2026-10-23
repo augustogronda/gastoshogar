@@ -24,6 +24,9 @@ import {
   AlertCircle,
   Users,
   ChevronRight,
+  Copy,
+  CheckSquare,
+  ArrowLeftRight,
 } from "./ui/icons";
 import { ConfirmDialog, ToastBanner, useToast } from "./ui/ConfirmDialog";
 import { PersonalIncomeModal } from "./PersonalIncomeModal";
@@ -48,6 +51,9 @@ import {
   duplicatePersonalToSharedExpenseAction,
   markPersonalExpenseAsReviewedAction,
   markAllPersonalExpensesAsReviewedAction,
+  batchDeleteExpensesAction,
+  batchCopyExpensesAction,
+  batchMoveExpensesAction,
 } from "@/app/actions";
 import {
   hasReviewFlag,
@@ -143,6 +149,9 @@ interface PersonalExpenseRowProps {
   showToast: (msg: string, type?: "success" | "error" | "info") => void;
   handleQuickDuplicateToShared: (id: string) => void;
   handleQuickMarkReviewed: (id: string) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 function PersonalExpenseRow({
@@ -154,6 +163,9 @@ function PersonalExpenseRow({
   showToast,
   handleQuickDuplicateToShared,
   handleQuickMarkReviewed,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelect,
 }: PersonalExpenseRowProps) {
   const [confirmAction, setConfirmAction] = useState<"duplicate" | "reviewed" | null>(null);
   const confirmTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -203,24 +215,46 @@ function PersonalExpenseRow({
     },
   });
 
+  const handleRowClick = () => {
+    if (isSelectionMode) {
+      triggerHaptic(8);
+      onToggleSelect?.(exp.id);
+    }
+  };
+
+  const handlers = isSelectionMode ? { onClick: handleRowClick } : longPressHandlers;
+
   return (
     <div
-      {...longPressHandlers}
+      {...handlers}
       style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
-      className={`rounded-2xl p-3.5 transition-all duration-300 cursor-pointer group select-none ${
+      className={`rounded-2xl p-3.5 transition-all duration-200 cursor-pointer group select-none ${
         deletingId === exp.id
           ? "opacity-0 -translate-x-6 scale-95 pointer-events-none"
           : actioningId === exp.id
             ? "opacity-60 scale-[0.99] pointer-events-none"
             : "opacity-100 hover:-translate-y-[1px]"
       } ${
-        isReview
-          ? "card-review-pending"
-          : "super-card-subtle hover:bg-white/[0.05] hover:border-white/[0.14]"
+        isSelectionMode && isSelected
+          ? "ring-2 ring-indigo-500/70 bg-indigo-500/[0.12] border-indigo-500/40"
+          : isReview
+            ? "card-review-pending"
+            : "super-card-subtle hover:bg-white/[0.05] hover:border-white/[0.14]"
       }`}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
+          {isSelectionMode && (
+            <div
+              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200 ${
+                isSelected
+                  ? "bg-indigo-600 border-indigo-400 text-white shadow-md shadow-indigo-500/40 scale-105"
+                  : "border-white/30 bg-white/[0.04] hover:border-white/50"
+              }`}
+            >
+              {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+            </div>
+          )}
           <div
             className={`w-10 h-10 rounded-xl border flex items-center justify-center shadow-sm shrink-0 transition-transform duration-200 group-hover:scale-105 ${
               isReview
@@ -293,7 +327,7 @@ function PersonalExpenseRow({
       </div>
 
       {/* Barra inferior de acciones rápidas cuando el gasto está marcado para revisar con confirmación elegante */}
-      {isReview && !isPendingSync && (
+      {isReview && !isPendingSync && !isSelectionMode && (
         <div
           className="mt-3 pt-2.5 border-t border-amber-500/20 flex items-center gap-2"
           onClick={(e) => e.stopPropagation()}
@@ -394,6 +428,12 @@ export function PersonalDashboardView({
     id?: string;
     title?: string;
   } | null>(null);
+
+  // Modo Selección Múltiple (Personal)
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([]);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState(false);
 
   const {
     personalRate = 0.40,
@@ -794,6 +834,102 @@ export function PersonalDashboardView({
     [filteredPersonalExpenses]
   );
 
+  const selectedPersonalSubtotal = useMemo(() => {
+    return localExpenses
+      .filter((e) => selectedExpenseIds.includes(e.id))
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [localExpenses, selectedExpenseIds]);
+
+  const handleToggleSelectExpense = (id: string) => {
+    setSelectedExpenseIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllExpenses = () => {
+    triggerHaptic(10);
+    const visibleIds = filteredPersonalExpenses.map((e) => e.id);
+    const areAllSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedExpenseIds.includes(id));
+    if (areAllSelected) {
+      setSelectedExpenseIds([]);
+    } else {
+      setSelectedExpenseIds(visibleIds);
+    }
+  };
+
+  const handleBatchCopyPersonalToHogar = async () => {
+    if (selectedExpenseIds.length === 0 || isBatchProcessing) return;
+    setIsBatchProcessing(true);
+    triggerHaptic(15);
+    try {
+      const res = await batchCopyExpensesAction({
+        expenseIds: selectedExpenseIds,
+        fromScope: "personal",
+      });
+      triggerHaptic(20);
+      showToast(`¡${res.count} gasto(s) copiado(s) al Hogar!`, "success");
+      setIsSelectionMode(false);
+      setSelectedExpenseIds([]);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al copiar los gastos seleccionados", "error");
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const handleBatchMovePersonalToHogar = async () => {
+    if (selectedExpenseIds.length === 0 || isBatchProcessing) return;
+    setIsBatchProcessing(true);
+    triggerHaptic(15);
+    const idsToMove = [...selectedExpenseIds];
+    try {
+      setLocalExpenses((prev) => prev.filter((e) => !idsToMove.includes(e.id)));
+      const res = await batchMoveExpensesAction({
+        expenseIds: idsToMove,
+        fromScope: "personal",
+      });
+      triggerHaptic(20);
+      showToast(`¡${res.count} gasto(s) movido(s) al Hogar!`, "success");
+      setIsSelectionMode(false);
+      setSelectedExpenseIds([]);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al mover los gastos seleccionados", "error");
+      if (serverExpenses) setLocalExpenses(serverExpenses);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const handleBatchDeletePersonal = async () => {
+    if (selectedExpenseIds.length === 0 || isBatchProcessing) return;
+    setIsBatchProcessing(true);
+    triggerHaptic(15);
+    const idsToDelete = [...selectedExpenseIds];
+    try {
+      setLocalExpenses((prev) => prev.filter((e) => !idsToDelete.includes(e.id)));
+      const res = await batchDeleteExpensesAction({
+        expenseIds: idsToDelete,
+        isPersonal: true,
+      });
+      triggerHaptic(20);
+      showToast(`¡${res.count} gasto(s) eliminado(s)!`, "success");
+      setIsSelectionMode(false);
+      setSelectedExpenseIds([]);
+      setIsBatchDeleteModalOpen(false);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al eliminar los gastos seleccionados", "error");
+      if (serverExpenses) setLocalExpenses(serverExpenses);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
   return (
     <>
       <ToastBanner toast={toast} />
@@ -917,15 +1053,56 @@ export function PersonalDashboardView({
                   {localExpenses.length}
                 </span>
               </div>
-              <button
-                onClick={() => setIsCategoryModalOpen(true)}
-                className="text-xs font-semibold text-indigo-300/90 hover:text-indigo-200 active:scale-95 flex items-center gap-1 transition"
-                title="Gestionar categorías"
-              >
-                <Tag className="w-3.5 h-3.5 text-indigo-400/80" />
-                <span>Categorías</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {localExpenses.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic(8);
+                      const next = !isSelectionMode;
+                      setIsSelectionMode(next);
+                      if (!next) setSelectedExpenseIds([]);
+                    }}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-xl transition flex items-center gap-1 active:scale-95 cursor-pointer ${
+                      isSelectionMode
+                        ? "bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/40"
+                        : "text-zinc-400 hover:text-white bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08]"
+                    }`}
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    <span>{isSelectionMode ? "Listo" : "Seleccionar"}</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsCategoryModalOpen(true)}
+                  className="text-xs font-semibold text-indigo-300/90 hover:text-indigo-200 active:scale-95 flex items-center gap-1 transition cursor-pointer"
+                  title="Gestionar categorías"
+                >
+                  <Tag className="w-3.5 h-3.5 text-indigo-400/80" />
+                  <span>Categorías</span>
+                </button>
+              </div>
             </div>
+
+            {/* Barra de control de Selección Múltiple */}
+            {isSelectionMode && (
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-xs animate-fade-in shadow-inner">
+                <span className="text-zinc-200 font-medium">
+                  <strong className="text-white font-mono">{selectedExpenseIds.length}</strong> de{" "}
+                  {filteredPersonalExpenses.length} seleccionado{selectedExpenseIds.length === 1 ? "" : "s"}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSelectAllExpenses}
+                  className="text-xs font-bold text-indigo-300 hover:text-indigo-200 underline transition cursor-pointer"
+                >
+                  {selectedExpenseIds.length === filteredPersonalExpenses.length &&
+                  filteredPersonalExpenses.length > 0
+                    ? "Deseleccionar todos"
+                    : "Seleccionar todos"}
+                </button>
+              </div>
+            )}
 
             {/* Buscador instantáneo UISearchTextField + Chips de Categoría */}
             {localExpenses.length > 0 && (
@@ -1118,6 +1295,9 @@ export function PersonalDashboardView({
                     exp={exp}
                     deletingId={deletingId}
                     actioningId={actioningId}
+                    isSelectionMode={isSelectionMode}
+                    isSelected={selectedExpenseIds.includes(exp.id)}
+                    onToggleSelect={handleToggleSelectExpense}
                     onOpenDetail={(targetExp) => {
                       setSelectedPersonalExpense({
                         id: targetExp.id,
@@ -1659,6 +1839,80 @@ export function PersonalDashboardView({
         onClose={() => setIsCategoryModalOpen(false)}
         categories={categories}
       />
+
+      {/* Diálogo de Confirmación para Eliminación en Lote (Personal) */}
+      <ConfirmDialog
+        isOpen={isBatchDeleteModalOpen}
+        title={`¿Eliminar ${selectedExpenseIds.length} gasto${selectedExpenseIds.length > 1 ? "s" : ""}?`}
+        description={`Esta acción eliminará de forma permanente los ${selectedExpenseIds.length} gastos seleccionados de tu espacio personal.`}
+        confirmLabel={`Eliminar (${selectedExpenseIds.length})`}
+        cancelLabel="Cancelar"
+        variant="danger"
+        isLoading={isBatchProcessing}
+        onConfirm={handleBatchDeletePersonal}
+        onCancel={() => setIsBatchDeleteModalOpen(false)}
+      />
+
+      {/* Barra de Acciones Flotante por Lote (Personal -> Hogar / Eliminar) */}
+      {isSelectionMode && personalTab === "gastos" && (
+        <div className="fixed bottom-20 inset-x-3 max-w-lg mx-auto sm:bottom-6 z-50 animate-slide-up">
+          <div className="rounded-2xl p-3 border border-white/[0.15] shadow-2xl bg-zinc-950/92 backdrop-blur-xl flex flex-col gap-2">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold text-zinc-300">
+                <strong className="text-white font-mono">{selectedExpenseIds.length}</strong> seleccionado{selectedExpenseIds.length === 1 ? "" : "s"}
+                {selectedPersonalSubtotal > 0 && (
+                  <span className="text-indigo-300 font-mono font-bold ml-1.5">
+                    • ${Math.round(selectedPersonalSubtotal).toLocaleString("es-AR")}
+                  </span>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(8);
+                  setIsSelectionMode(false);
+                  setSelectedExpenseIds([]);
+                }}
+                className="text-[11px] font-semibold text-zinc-400 hover:text-white px-2 py-0.5 rounded-lg hover:bg-white/[0.08] transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={handleBatchCopyPersonalToHogar}
+                disabled={selectedExpenseIds.length === 0 || isBatchProcessing}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-200 border border-blue-500/30 text-xs font-semibold active:scale-95 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5 text-blue-400" />
+                <span className="truncate">Copiar a Hogar</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleBatchMovePersonalToHogar}
+                disabled={selectedExpenseIds.length === 0 || isBatchProcessing}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-200 border border-indigo-500/40 text-xs font-semibold active:scale-95 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-300" />
+                <span className="truncate">Mover a Hogar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(12);
+                  setIsBatchDeleteModalOpen(true);
+                }}
+                disabled={selectedExpenseIds.length === 0 || isBatchProcessing}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold active:scale-95 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span className="truncate">Eliminar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

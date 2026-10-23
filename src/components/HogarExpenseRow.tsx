@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CategoryIcon, Edit3, Copy } from "./ui/icons";
+import { CategoryIcon, Edit3, Copy, Check } from "./ui/icons";
 import { useLongPress } from "@/lib/use-long-press";
 import { triggerHaptic } from "@/lib/haptics";
 
@@ -30,6 +30,9 @@ export interface HogarExpenseRowProps {
   onOpenDetail: (exp: HogarExpenseItem) => void;
   onLongPress: (exp: HogarExpenseItem) => void;
   showToast: (msg: string, type?: "success" | "error" | "info") => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export function HogarExpenseRow({
@@ -38,6 +41,9 @@ export function HogarExpenseRow({
   onOpenDetail,
   onLongPress,
   showToast,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelect,
 }: HogarExpenseRowProps) {
   const isPendingSync = exp.id.startsWith("temp-");
   const dateObj = new Date(exp.date);
@@ -60,17 +66,41 @@ export function HogarExpenseRow({
     },
   });
 
+  const handleRowClick = () => {
+    if (isSelectionMode) {
+      triggerHaptic(8);
+      onToggleSelect?.(exp.id);
+    }
+  };
+
+  const handlers = isSelectionMode ? { onClick: handleRowClick } : longPressHandlers;
+
   return (
     <div
-      {...longPressHandlers}
-      className={`super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.98] transition-all duration-300 cursor-pointer group select-none ${
+      {...handlers}
+      className={`super-card-subtle rounded-2xl p-3.5 flex items-center justify-between hover:bg-white/[0.05] active:scale-[0.99] transition-all duration-200 cursor-pointer group select-none ${
         deletingId === exp.id
           ? "opacity-0 -translate-x-6 scale-95 pointer-events-none"
           : "opacity-100"
+      } ${
+        isSelectionMode && isSelected
+          ? "ring-2 ring-blue-500/70 bg-blue-500/[0.09] border-blue-500/40"
+          : ""
       }`}
       style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
+        {isSelectionMode && (
+          <div
+            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200 ${
+              isSelected
+                ? "bg-blue-600 border-blue-400 text-white shadow-md shadow-blue-500/40 scale-105"
+                : "border-white/30 bg-white/[0.04] hover:border-white/50"
+            }`}
+          >
+            {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+          </div>
+        )}
         <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
           <CategoryIcon name={exp.category.name} className="w-5 h-5" />
         </div>
@@ -106,32 +136,34 @@ export function HogarExpenseRow({
 
       <div className="flex items-center gap-2.5 shrink-0 ml-3">
         {/* Atajos directos para mouse en PC / Escritorio al hacer hover */}
-        <div className="hidden lg:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              triggerHaptic(8);
-              onOpenDetail(exp);
-            }}
-            className="p-1.5 rounded-lg hover:bg-white/[0.1] text-zinc-400 hover:text-white transition"
-            title="Editar gasto"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              triggerHaptic(12);
-              onLongPress(exp);
-            }}
-            className="p-1.5 rounded-lg hover:bg-white/[0.1] text-zinc-400 hover:text-white transition"
-            title="Duplicar o eliminar gasto"
-          >
-            <Copy className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        {!isSelectionMode && (
+          <div className="hidden lg:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerHaptic(8);
+                onOpenDetail(exp);
+              }}
+              className="p-1.5 rounded-lg hover:bg-white/[0.1] text-zinc-400 hover:text-white transition"
+              title="Editar gasto"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerHaptic(12);
+                onLongPress(exp);
+              }}
+              className="p-1.5 rounded-lg hover:bg-white/[0.1] text-zinc-400 hover:text-white transition"
+              title="Duplicar o eliminar gasto"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         <div className="text-right">
           <span className="text-base font-extrabold text-white font-mono tabular-nums tracking-tight">

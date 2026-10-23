@@ -30,6 +30,8 @@ import {
   RefreshCw,
   Repeat,
   Search,
+  CheckSquare,
+  ArrowLeftRight,
 } from "./ui/icons";
 import { forceCheckAppUpdate } from "./AppUpdateChecker";
 import currentAppVersion from "../../public/version.json";
@@ -63,6 +65,9 @@ import {
   reopenMonthAction,
   logoutAction,
   duplicateSharedToPersonalExpenseAction,
+  batchDeleteExpensesAction,
+  batchCopyExpensesAction,
+  batchMoveExpensesAction,
 } from "@/app/actions";
 import { hasReviewFlag } from "@/lib/expense-review";
 
@@ -282,6 +287,12 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     title: string;
     description: string;
   }>({ isOpen: false, type: "deleteExpense", title: "", description: "" });
+
+  // Selección Múltiple (Hogar)
+  const [isHogarSelectionMode, setIsHogarSelectionMode] = useState(false);
+  const [selectedHogarExpenseIds, setSelectedHogarExpenseIds] = useState<string[]>([]);
+  const [isHogarBatchProcessing, setIsHogarBatchProcessing] = useState(false);
+  const [isHogarBatchDeleteModalOpen, setIsHogarBatchDeleteModalOpen] = useState(false);
   const { toast, showToast } = useToast();
   const { device } = useDevice();
 
@@ -1094,6 +1105,100 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     return { filteredHogarExpenses: filtered, filteredSubtotal: subtotal, normalizedHogarQuery: q };
   }, [period.expenses, hogarFilter, hogarSearchQuery]);
 
+  const selectedHogarSubtotal = useMemo(() => {
+    return period.expenses
+      .filter((e) => selectedHogarExpenseIds.includes(e.id))
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [period.expenses, selectedHogarExpenseIds]);
+
+  const handleToggleSelectHogarExpense = (id: string) => {
+    setSelectedHogarExpenseIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllHogarExpenses = () => {
+    triggerHaptic(10);
+    const visibleIds = filteredHogarExpenses.map((e) => e.id);
+    const areAllSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedHogarExpenseIds.includes(id));
+    if (areAllSelected) {
+      setSelectedHogarExpenseIds([]);
+    } else {
+      setSelectedHogarExpenseIds(visibleIds);
+    }
+  };
+
+  const handleHogarBatchCopy = async () => {
+    if (selectedHogarExpenseIds.length === 0 || isHogarBatchProcessing) return;
+    setIsHogarBatchProcessing(true);
+    triggerHaptic(15);
+    try {
+      const res = await batchCopyExpensesAction({
+        expenseIds: selectedHogarExpenseIds,
+        fromScope: "hogar",
+        targetUserId: currentUser?.id,
+      });
+      triggerHaptic(20);
+      showToast(`¡${res.count} gasto(s) copiado(s) a tu espacio Personal!`, "success");
+      setIsHogarSelectionMode(false);
+      setSelectedHogarExpenseIds([]);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al copiar los gastos a Personal", "error");
+    } finally {
+      setIsHogarBatchProcessing(false);
+    }
+  };
+
+  const handleHogarBatchMove = async () => {
+    if (selectedHogarExpenseIds.length === 0 || isHogarBatchProcessing) return;
+    setIsHogarBatchProcessing(true);
+    triggerHaptic(15);
+    const idsToMove = [...selectedHogarExpenseIds];
+    try {
+      const res = await batchMoveExpensesAction({
+        expenseIds: idsToMove,
+        fromScope: "hogar",
+        targetUserId: currentUser?.id,
+      });
+      triggerHaptic(20);
+      showToast(`¡${res.count} gasto(s) movido(s) a tu espacio Personal!`, "success");
+      setIsHogarSelectionMode(false);
+      setSelectedHogarExpenseIds([]);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al mover los gastos a Personal", "error");
+    } finally {
+      setIsHogarBatchProcessing(false);
+    }
+  };
+
+  const handleHogarBatchDelete = async () => {
+    if (selectedHogarExpenseIds.length === 0 || isHogarBatchProcessing) return;
+    setIsHogarBatchProcessing(true);
+    triggerHaptic(15);
+    const idsToDelete = [...selectedHogarExpenseIds];
+    try {
+      const res = await batchDeleteExpensesAction({
+        expenseIds: idsToDelete,
+        isPersonal: false,
+      });
+      triggerHaptic(20);
+      showToast(`¡${res.count} gasto(s) eliminado(s)!`, "success");
+      setIsHogarSelectionMode(false);
+      setSelectedHogarExpenseIds([]);
+      setIsHogarBatchDeleteModalOpen(false);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      showToast("Error al eliminar los gastos del hogar", "error");
+    } finally {
+      setIsHogarBatchProcessing(false);
+    }
+  };
+
   const dashboardSharedProps = {
     currentUser,
     users,
@@ -1151,6 +1256,19 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     handleSyncPersonalExpenses,
     userA,
     userB,
+    isHogarSelectionMode,
+    setIsHogarSelectionMode,
+    selectedHogarExpenseIds,
+    setSelectedHogarExpenseIds,
+    selectedHogarSubtotal,
+    onToggleSelectHogarExpense: handleToggleSelectHogarExpense,
+    onSelectAllHogarExpenses: handleSelectAllHogarExpenses,
+    handleHogarBatchCopy,
+    handleHogarBatchMove,
+    handleHogarBatchDelete,
+    isHogarBatchProcessing,
+    isHogarBatchDeleteModalOpen,
+    setIsHogarBatchDeleteModalOpen,
   };
 
   return (
@@ -1647,10 +1765,29 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                         {period.expenses.length}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      {period.expenses.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerHaptic(8);
+                            const next = !isHogarSelectionMode;
+                            setIsHogarSelectionMode(next);
+                            if (!next) setSelectedHogarExpenseIds([]);
+                          }}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-xl transition flex items-center gap-1 active:scale-95 cursor-pointer ${
+                            isHogarSelectionMode
+                              ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/40"
+                              : "text-zinc-400 hover:text-white bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08]"
+                          }`}
+                        >
+                          <CheckSquare className="w-3.5 h-3.5" />
+                          <span>{isHogarSelectionMode ? "Listo" : "Seleccionar"}</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => setIsCategoryModalOpen(true)}
-                        className="text-xs font-semibold text-blue-300/90 hover:text-blue-200 active:scale-95 flex items-center gap-1 transition"
+                        className="text-xs font-semibold text-blue-300/90 hover:text-blue-200 active:scale-95 flex items-center gap-1 transition cursor-pointer"
                         title="Gestionar categorías"
                       >
                         <Tag className="w-3.5 h-3.5 text-blue-400/80" />
@@ -1658,6 +1795,26 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                       </button>
                     </div>
                   </div>
+
+                  {/* Barra de control de Selección Múltiple (Hogar) */}
+                  {isHogarSelectionMode && (
+                    <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-xs animate-fade-in shadow-inner">
+                      <span className="text-zinc-200 font-medium">
+                        <strong className="text-white font-mono">{selectedHogarExpenseIds.length}</strong> de{" "}
+                        {filteredHogarExpenses.length} seleccionado{selectedHogarExpenseIds.length === 1 ? "" : "s"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleSelectAllHogarExpenses}
+                        className="text-xs font-bold text-blue-300 hover:text-blue-200 underline transition cursor-pointer"
+                      >
+                        {selectedHogarExpenseIds.length === filteredHogarExpenses.length &&
+                        filteredHogarExpenses.length > 0
+                          ? "Deseleccionar todos"
+                          : "Seleccionar todos"}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Buscador en Tiempo Real UISearchTextField + Chips por Pagador y Categoría */}
                   {period.expenses.length > 0 && (
@@ -1808,6 +1965,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                               exp={exp}
                               users={users}
                               deletingId={deletingId}
+                              isSelectionMode={isHogarSelectionMode}
+                              isSelected={selectedHogarExpenseIds.includes(exp.id)}
+                              onToggleSelect={handleToggleSelectHogarExpense}
                               onOpenDetail={(targetExp) => {
                                 setSelectedExpense({
                                   id: targetExp.id,
@@ -2583,7 +2743,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       />
 
       {/* Botón de Acción Rápida Flotante (+) en Hogar Compartido (Solo en Móvil) */}
-      {device === "mobile" && spaceMode === "hogar" && (activeTab === "hogar" || activeTab === "analisis") && (
+      {device === "mobile" && spaceMode === "hogar" && !isHogarSelectionMode && (activeTab === "hogar" || activeTab === "analisis") && (
         <div
           className="fixed left-0 right-0 z-40 pointer-events-none"
           style={{ bottom: "calc(68px + max(8px, env(safe-area-inset-bottom, 0px)))" }}
@@ -2616,6 +2776,80 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         onConfirm={executeHogarConfirmAction}
         onCancel={() => setConfirmHogarState((prev) => ({ ...prev, isOpen: false }))}
       />
+
+      {/* Diálogo de Confirmación para Eliminación en Lote (Hogar) */}
+      <ConfirmDialog
+        isOpen={isHogarBatchDeleteModalOpen}
+        title={`¿Eliminar ${selectedHogarExpenseIds.length} gasto${selectedHogarExpenseIds.length > 1 ? "s" : ""}?`}
+        description={`Esta acción eliminará de forma permanente los ${selectedHogarExpenseIds.length} gastos seleccionados del Hogar.`}
+        confirmLabel={`Eliminar (${selectedHogarExpenseIds.length})`}
+        cancelLabel="Cancelar"
+        variant="danger"
+        isLoading={isHogarBatchProcessing}
+        onConfirm={handleHogarBatchDelete}
+        onCancel={() => setIsHogarBatchDeleteModalOpen(false)}
+      />
+
+      {/* Barra de Acciones Flotante por Lote (Hogar -> Personal / Eliminar) */}
+      {isHogarSelectionMode && spaceMode === "hogar" && activeTab === "hogar" && (
+        <div className="fixed bottom-20 inset-x-3 max-w-lg mx-auto sm:bottom-6 z-50 animate-slide-up">
+          <div className="rounded-2xl p-3 border border-white/[0.15] shadow-2xl bg-zinc-950/92 backdrop-blur-xl flex flex-col gap-2">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold text-zinc-300">
+                <strong className="text-white font-mono">{selectedHogarExpenseIds.length}</strong> seleccionado{selectedHogarExpenseIds.length === 1 ? "" : "s"}
+                {selectedHogarSubtotal > 0 && (
+                  <span className="text-blue-300 font-mono font-bold ml-1.5">
+                    • ${Math.round(selectedHogarSubtotal).toLocaleString("es-AR")}
+                  </span>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(8);
+                  setIsHogarSelectionMode(false);
+                  setSelectedHogarExpenseIds([]);
+                }}
+                className="text-[11px] font-semibold text-zinc-400 hover:text-white px-2 py-0.5 rounded-lg hover:bg-white/[0.08] transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={handleHogarBatchCopy}
+                disabled={selectedHogarExpenseIds.length === 0 || isHogarBatchProcessing}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-200 border border-purple-500/30 text-xs font-semibold active:scale-95 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5 text-purple-400" />
+                <span className="truncate">Copiar a Personal</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleHogarBatchMove}
+                disabled={selectedHogarExpenseIds.length === 0 || isHogarBatchProcessing}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-blue-600/25 hover:bg-blue-600/40 text-blue-200 border border-blue-500/40 text-xs font-semibold active:scale-95 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5 text-blue-300" />
+                <span className="truncate">Mover a Personal</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(12);
+                  setIsHogarBatchDeleteModalOpen(true);
+                }}
+                disabled={selectedHogarExpenseIds.length === 0 || isHogarBatchProcessing}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold active:scale-95 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span className="truncate">Eliminar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notificación Flotante Toast */}
       <ToastBanner toast={toast} />

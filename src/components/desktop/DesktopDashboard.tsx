@@ -28,6 +28,7 @@ import {
   Repeat,
   Search,
   Monitor,
+  CheckSquare,
 } from "../ui/icons";
 import { HogarExpenseRow } from "../HogarExpenseRow";
 import { DeviceModeSelector } from "../DeviceModeSelector";
@@ -97,6 +98,13 @@ export interface DesktopDashboardProps {
   handleSyncPersonalExpenses: any;
   userA: any;
   userB: any;
+  isHogarSelectionMode?: boolean;
+  setIsHogarSelectionMode?: (mode: boolean) => void;
+  selectedHogarExpenseIds?: string[];
+  setSelectedHogarExpenseIds?: React.Dispatch<React.SetStateAction<string[]>>;
+  selectedHogarSubtotal?: number;
+  onToggleSelectHogarExpense?: (id: string) => void;
+  onSelectAllHogarExpenses?: () => void;
 }
 
 export function DesktopDashboard({
@@ -155,6 +163,12 @@ export function DesktopDashboard({
   handleSyncPersonalExpenses,
   userA,
   userB,
+  isHogarSelectionMode = false,
+  setIsHogarSelectionMode,
+  selectedHogarExpenseIds = [],
+  setSelectedHogarExpenseIds,
+  onToggleSelectHogarExpense,
+  onSelectAllHogarExpenses,
 }: DesktopDashboardProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
@@ -941,15 +955,54 @@ export function DesktopDashboard({
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
+                          {period.expenses.length > 0 && setIsHogarSelectionMode && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                triggerHaptic(8);
+                                const next = !isHogarSelectionMode;
+                                setIsHogarSelectionMode(next);
+                                if (!next) setSelectedHogarExpenseIds?.([]);
+                              }}
+                              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 active:scale-95 cursor-pointer ${
+                                isHogarSelectionMode
+                                  ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/40"
+                                  : "text-zinc-400 hover:text-white bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08]"
+                              }`}
+                            >
+                              <CheckSquare className="w-3.5 h-3.5" />
+                              <span>{isHogarSelectionMode ? "Listo" : "Seleccionar"}</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => setIsCategoryModalOpen(true)}
-                            className="text-xs font-semibold text-blue-300 hover:text-blue-200 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition"
+                            className="text-xs font-semibold text-blue-300 hover:text-blue-200 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition cursor-pointer"
                           >
                             <Tag className="w-3.5 h-3.5 text-blue-400" />
                             <span>Categorías</span>
                           </button>
                         </div>
                       </div>
+
+                      {/* Barra de control de Selección Múltiple (Desktop) */}
+                      {isHogarSelectionMode && (
+                        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-xs animate-fade-in shadow-inner">
+                          <span className="text-zinc-200 font-medium">
+                            <strong className="text-white font-mono">{selectedHogarExpenseIds.length}</strong> de{" "}
+                            {filteredHogarExpenses.length} seleccionado{selectedHogarExpenseIds.length === 1 ? "" : "s"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={onSelectAllHogarExpenses}
+                            className="text-xs font-bold text-blue-300 hover:text-blue-200 underline transition cursor-pointer"
+                          >
+                            {selectedHogarExpenseIds.length === filteredHogarExpenses.length &&
+                            filteredHogarExpenses.length > 0
+                              ? "Deseleccionar todos"
+                              : "Seleccionar todos"}
+                          </button>
+                        </div>
+                      )}
 
                       {/* Buscador de Gastos en PC */}
                       <div className="relative">
@@ -1060,6 +1113,9 @@ export function DesktopDashboard({
                               exp={exp}
                               users={users}
                               deletingId={deletingId}
+                              isSelectionMode={isHogarSelectionMode}
+                              isSelected={selectedHogarExpenseIds.includes(exp.id)}
+                              onToggleSelect={onToggleSelectHogarExpense}
                               onOpenDetail={onOpenDetail}
                               onLongPress={onLongPress}
                               showToast={showToast}
