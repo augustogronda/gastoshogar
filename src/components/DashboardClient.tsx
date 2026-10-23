@@ -606,6 +606,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     try {
       localStorage.removeItem("gastoshogar_cached_dashboard_v2");
       localStorage.removeItem("gastoshogar_months_cache");
+      localStorage.removeItem("gastoshogar_device_token");
       dataCacheRef.current.clear();
     } catch (e) {}
     await logoutAction();

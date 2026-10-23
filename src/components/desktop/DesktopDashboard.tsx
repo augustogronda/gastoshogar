@@ -156,8 +156,40 @@ export function DesktopDashboard({
   userA,
   userB,
 }: DesktopDashboardProps) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Atajos de teclado ergonómicos para PC (N para nuevo gasto, Flechas para cambiar mes)
+  // Leer estado de la barra lateral
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem("gastoshogar_desktop_sidebar_collapsed");
+      if (saved === "true") setIsSidebarCollapsed(true);
+    } catch {}
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("gastoshogar_desktop_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Cálculo de ratio de aportes entre integrantes
+  const totalCommitted = (userA?.committedAmount || 0) + (userB?.committedAmount || 0) || 1;
+  const pctA = Math.round(((userA?.committedAmount || 0) / totalCommitted) * 100);
+  const pctB = 100 - pctA;
+
+  // Diagnóstico temporal del mes en curso
+  const now = new Date();
+  const isCurrentMonthView = now.getFullYear() === currentYear && (now.getMonth() + 1) === currentMonth;
+  const currentDay = now.getDate();
+  const daysInCurrentMonth = new Date(currentYear, currentMonth, 0).getDate();
+  const monthElapsedPct = Math.round((currentDay / daysInCurrentMonth) * 100);
+
+  // Atajos de teclado ergonómicos para PC (N para nuevo gasto, / o Ctrl+K para buscar, Alt+Flechas para mes)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Evitar disparar si el usuario está escribiendo en un input o textarea
@@ -168,6 +200,9 @@ export function DesktopDashboard({
           target.tagName === "TEXTAREA" ||
           target.isContentEditable)
       ) {
+        if (e.key === "Escape") {
+          target.blur();
+        }
         return;
       }
 
@@ -175,6 +210,9 @@ export function DesktopDashboard({
         e.preventDefault();
         triggerHaptic(12);
         setIsExpenseModalOpen(true);
+      } else if (e.key === "/" || ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K"))) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
       } else if (e.key === "ArrowLeft" && e.altKey) {
         e.preventDefault();
         handlePrevMonth();
@@ -193,11 +231,15 @@ export function DesktopDashboard({
       {/* ========================================================= */}
       {/* BARRA LATERAL FIJA PARA ESCRITORIO PC (Sidebar macOS/Web)  */}
       {/* ========================================================= */}
-      <aside className="w-72 shrink-0 h-screen sticky top-0 bg-zinc-950/80 border-r border-white/[0.08] backdrop-blur-2xl flex flex-col justify-between p-5 z-20 overflow-y-auto no-scrollbar">
-        {/* Cabecera Sidebar: Logo, Versión y Usuario */}
+      <aside
+        className={`${
+          isSidebarCollapsed ? "w-20" : "w-72"
+        } shrink-0 h-screen sticky top-0 bg-zinc-950/80 border-r border-white/[0.08] backdrop-blur-2xl flex flex-col justify-between p-4 z-20 overflow-y-auto no-scrollbar transition-all duration-300`}
+      >
+        {/* Cabecera Sidebar: Logo, Versión y Botón Colapsar */}
         <div className="space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/[0.12] shadow-md shadow-indigo-500/20 shrink-0">
                 <img
                   src="/apple-touch-icon.png"
@@ -205,19 +247,31 @@ export function DesktopDashboard({
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div>
-                <span className="text-sm font-bold text-white tracking-tight block leading-tight">
-                  Finanzas Hogar
-                </span>
-                <span className="text-[10px] text-zinc-400 font-medium flex items-center gap-1">
-                  <Monitor className="w-3 h-3 text-blue-400 inline" />
-                  Versión Escritorio PC
-                </span>
-              </div>
+              {!isSidebarCollapsed && (
+                <div className="min-w-0">
+                  <span className="text-sm font-bold text-white tracking-tight block leading-tight truncate">
+                    Finanzas Hogar
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-medium flex items-center gap-1">
+                    <Monitor className="w-3 h-3 text-blue-400 inline shrink-0" />
+                    Escritorio PC
+                  </span>
+                </div>
+              )}
             </div>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 font-mono font-bold border border-blue-500/20">
-              v{currentAppVersion.version}
-            </span>
+
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="p-1.5 rounded-lg hover:bg-white/[0.08] text-zinc-400 hover:text-white transition shrink-0"
+              title={isSidebarCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
+            >
+              {isSidebarCollapsed ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <ChevronLeft className="w-4 h-4" />
+              )}
+            </button>
           </div>
 
           {/* Tarjeta de Usuario Conectado */}
@@ -225,7 +279,10 @@ export function DesktopDashboard({
             <button
               type="button"
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] transition text-left group"
+              className={`w-full flex items-center ${
+                isSidebarCollapsed ? "justify-center p-2" : "justify-between p-2.5"
+              } rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] transition text-left group`}
+              title={isSidebarCollapsed ? currentUser.name : undefined}
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div
@@ -234,16 +291,20 @@ export function DesktopDashboard({
                 >
                   {currentUser.name.charAt(0)}
                 </div>
-                <div className="min-w-0">
-                  <span className="text-xs font-bold text-white block truncate group-hover:text-blue-300 transition-colors">
-                    {currentUser.name}
-                  </span>
-                  <span className="text-[10px] text-zinc-400 block truncate font-mono">
-                    {currentUser.email || "Usuario conectado"}
-                  </span>
-                </div>
+                {!isSidebarCollapsed && (
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-white block truncate group-hover:text-blue-300 transition-colors">
+                      {currentUser.name}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 block truncate font-mono">
+                      {currentUser.email || "Usuario conectado"}
+                    </span>
+                  </div>
+                )}
               </div>
-              <ChevronDown className="w-4 h-4 text-zinc-500 group-hover:text-zinc-200 transition-colors shrink-0" />
+              {!isSidebarCollapsed && (
+                <ChevronDown className="w-4 h-4 text-zinc-500 group-hover:text-zinc-200 transition-colors shrink-0" />
+              )}
             </button>
 
             {/* Menú Flotante de Usuario */}
@@ -253,7 +314,7 @@ export function DesktopDashboard({
                   className="fixed inset-0 z-40"
                   onClick={() => setIsUserMenuOpen(false)}
                 />
-                <div className="absolute left-0 top-full mt-2 w-full apple-glass-sheet border border-white/[0.14] rounded-2xl p-2.5 shadow-2xl z-50 animate-fade-in space-y-1.5">
+                <div className="absolute left-0 top-full mt-2 w-64 apple-glass-sheet border border-white/[0.14] rounded-2xl p-2.5 shadow-2xl z-50 animate-fade-in space-y-1.5">
                   <div className="px-2 py-1 text-left">
                     <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider block">
                       Cuenta activa
@@ -291,164 +352,213 @@ export function DesktopDashboard({
           </div>
 
           {/* Navegador de Mes para Escritorio */}
-          <div className="p-3 rounded-2xl super-card-subtle space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-blue-400" />
-                Período
-              </span>
-              {isClosed ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 flex items-center gap-1">
-                  <Lock className="w-2.5 h-2.5" />
-                  Cerrado
+          {!isSidebarCollapsed ? (
+            <div className="p-3 rounded-2xl super-card-subtle space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                  Período
                 </span>
-              ) : (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-                  Abierto
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between bg-zinc-900/90 border border-white/[0.08] px-2 py-1.5 rounded-xl shadow-inner">
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                disabled={isChangingMonth}
-                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.08] text-zinc-400 hover:text-white transition disabled:opacity-30"
-                title="Mes anterior (Alt + Flecha Izquierda)"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsMonthPickerOpen(true)}
-                className="text-xs font-bold text-white px-2 py-1 rounded-lg hover:bg-white/[0.08] tracking-tight flex items-center gap-1.5 transition group"
-                title="Abrir selector de mes"
-              >
-                {isChangingMonth ? (
-                  <span className="flex items-center gap-1.5 text-blue-400 font-medium">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    <span>{monthLabel}</span>
+                {isClosed ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" />
+                    Cerrado
                   </span>
                 ) : (
-                  <>
-                    <span>{monthLabel} {currentYear}</span>
-                    <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-200 transition-colors" />
-                  </>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                    Abierto
+                  </span>
                 )}
-              </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                disabled={isChangingMonth}
-                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.08] text-zinc-400 hover:text-white transition disabled:opacity-30"
-                title="Mes siguiente (Alt + Flecha Derecha)"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              <div className="flex items-center justify-between bg-zinc-900/90 border border-white/[0.08] px-2 py-1.5 rounded-xl shadow-inner">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  disabled={isChangingMonth}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.08] text-zinc-400 hover:text-white transition disabled:opacity-30"
+                  title="Mes anterior (Alt + Flecha Izquierda)"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMonthPickerOpen(true)}
+                  className="text-xs font-bold text-white px-2 py-1 rounded-lg hover:bg-white/[0.08] tracking-tight flex items-center gap-1.5 transition group"
+                  title="Abrir selector de mes"
+                >
+                  {isChangingMonth ? (
+                    <span className="flex items-center gap-1.5 text-blue-400 font-medium">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      <span>{monthLabel}</span>
+                    </span>
+                  ) : (
+                    <>
+                      <span>{monthLabel} {currentYear}</span>
+                      <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-200 transition-colors" />
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  disabled={isChangingMonth}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.08] text-zinc-400 hover:text-white transition disabled:opacity-30"
+                  title="Mes siguiente (Alt + Flecha Derecha)"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsMonthPickerOpen(true)}
+              className="w-full py-2.5 flex items-center justify-center rounded-xl super-card-subtle text-zinc-300 hover:text-white"
+              title={`${monthLabel} ${currentYear}`}
+            >
+              <Calendar className="w-4 h-4 text-blue-400" />
+            </button>
+          )}
 
           {/* Conmutador de Espacio: Hogar vs Personal */}
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-1">
-              Espacio de Finanzas
-            </span>
-            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl apple-segmented-track">
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic(10);
-                  setSpaceMode("hogar");
-                }}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-semibold transition ${
-                  spaceMode === "hogar"
-                    ? "apple-segment-active-hogar"
-                    : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
-                }`}
-              >
-                <Home className="w-3.5 h-3.5" />
-                <span>Hogar</span>
-              </button>
+          {!isSidebarCollapsed ? (
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-1">
+                Espacio de Finanzas
+              </span>
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl apple-segmented-track">
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic(10);
+                    setSpaceMode("hogar");
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-semibold transition ${
+                    spaceMode === "hogar"
+                      ? "apple-segment-active-hogar"
+                      : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <Home className="w-3.5 h-3.5" />
+                  <span>Hogar</span>
+                </button>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic(10);
+                    setSpaceMode("personal");
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-semibold transition ${
+                    spaceMode === "personal"
+                      ? "apple-segment-active-personal"
+                      : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Personal</span>
+                  {pendingPersonalReviewCount > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1 p-1 rounded-xl apple-segmented-track">
               <button
                 type="button"
-                onClick={() => {
-                  triggerHaptic(10);
-                  setSpaceMode("personal");
-                }}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-semibold transition ${
-                  spaceMode === "personal"
-                    ? "apple-segment-active-personal"
-                    : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
+                onClick={() => setSpaceMode("hogar")}
+                className={`p-2 rounded-lg flex justify-center transition ${
+                  spaceMode === "hogar" ? "apple-segment-active-hogar" : "text-zinc-400"
                 }`}
+                title="Hogar Compartido"
               >
-                <User className="w-3.5 h-3.5" />
-                <span>Personal</span>
-                {pendingPersonalReviewCount > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                )}
+                <Home className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpaceMode("personal")}
+                className={`p-2 rounded-lg flex justify-center transition ${
+                  spaceMode === "personal" ? "apple-segment-active-personal" : "text-zinc-400"
+                }`}
+                title="Espacio Personal"
+              >
+                <User className="w-4 h-4" />
               </button>
             </div>
-          </div>
+          )}
 
           {/* Menú de Navegación según Espacio */}
-          <nav className="space-y-1 pt-2">
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-1">
-              {spaceMode === "hogar" ? "Vistas de Hogar" : "Vistas Personales"}
-            </span>
+          <nav className="space-y-1 pt-1">
+            {!isSidebarCollapsed && (
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-1">
+                {spaceMode === "hogar" ? "Vistas de Hogar" : "Vistas Personales"}
+              </span>
+            )}
 
             {spaceMode === "hogar" ? (
               <div className="space-y-1">
                 <button
                   type="button"
                   onClick={() => setActiveTab("hogar")}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center ${
+                    isSidebarCollapsed ? "justify-center p-2.5" : "justify-between px-3 py-2.5"
+                  } rounded-xl text-xs font-semibold transition ${
                     activeTab === "hogar"
                       ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30"
                       : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                   }`}
+                  title={isSidebarCollapsed ? `Gastos (${period.expenses.length})` : undefined}
                 >
                   <span className="flex items-center gap-2.5">
                     <Wallet className="w-4 h-4" />
-                    <span>Gastos del Mes</span>
+                    {!isSidebarCollapsed && <span>Gastos del Mes</span>}
                   </span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/30 font-mono">
-                    {period.expenses.length}
-                  </span>
+                  {!isSidebarCollapsed && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/30 font-mono">
+                      {period.expenses.length}
+                    </span>
+                  )}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTab("analisis")}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center ${
+                    isSidebarCollapsed ? "justify-center p-2.5" : "justify-between px-3 py-2.5"
+                  } rounded-xl text-xs font-semibold transition ${
                     activeTab === "analisis"
                       ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30"
                       : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                   }`}
+                  title={isSidebarCollapsed ? "Análisis & Métricas" : undefined}
                 >
                   <span className="flex items-center gap-2.5">
                     <BarChart3 className="w-4 h-4" />
-                    <span>Análisis & Métricas</span>
+                    {!isSidebarCollapsed && <span>Análisis & Métricas</span>}
                   </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTab("cuotas")}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center ${
+                    isSidebarCollapsed ? "justify-center p-2.5" : "justify-between px-3 py-2.5"
+                  } rounded-xl text-xs font-semibold transition ${
                     activeTab === "cuotas"
                       ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30"
                       : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                   }`}
+                  title={isSidebarCollapsed ? "Gestor de Cuotas" : undefined}
                 >
                   <span className="flex items-center gap-2.5">
                     <Repeat className="w-4 h-4" />
-                    <span>Gestor de Cuotas</span>
+                    {!isSidebarCollapsed && <span>Gestor de Cuotas</span>}
                   </span>
-                  {recurringExpenses && recurringExpenses.length > 0 && (
+                  {!isSidebarCollapsed && recurringExpenses && recurringExpenses.length > 0 && (
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/30 font-mono">
                       {recurringExpenses.length}
                     </span>
@@ -458,15 +568,18 @@ export function DesktopDashboard({
                 <button
                   type="button"
                   onClick={() => setActiveTab("fci")}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center ${
+                    isSidebarCollapsed ? "justify-center p-2.5" : "justify-between px-3 py-2.5"
+                  } rounded-xl text-xs font-semibold transition ${
                     activeTab === "fci"
                       ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30"
                       : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                   }`}
+                  title={isSidebarCollapsed ? "Fondo Común FCI" : undefined}
                 >
                   <span className="flex items-center gap-2.5">
                     <PiggyBank className="w-4 h-4" />
-                    <span>Fondo Común FCI</span>
+                    {!isSidebarCollapsed && <span>Fondo Común FCI</span>}
                   </span>
                 </button>
               </div>
@@ -475,60 +588,72 @@ export function DesktopDashboard({
                 <button
                   type="button"
                   onClick={() => setPersonalTab("gastos")}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center ${
+                    isSidebarCollapsed ? "justify-center p-2.5" : "justify-between px-3 py-2.5"
+                  } rounded-xl text-xs font-semibold transition ${
                     personalTab === "gastos"
                       ? "apple-segment-active-personal"
                       : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                   }`}
+                  title={isSidebarCollapsed ? "Gastos Personales" : undefined}
                 >
                   <span className="flex items-center gap-2.5">
                     <Wallet className="w-4 h-4" />
-                    <span>Gastos Personales</span>
+                    {!isSidebarCollapsed && <span>Gastos Personales</span>}
                   </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setPersonalTab("analisis")}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center ${
+                    isSidebarCollapsed ? "justify-center p-2.5" : "justify-between px-3 py-2.5"
+                  } rounded-xl text-xs font-semibold transition ${
                     personalTab === "analisis"
                       ? "apple-segment-active-personal"
                       : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                   }`}
+                  title={isSidebarCollapsed ? "Análisis Personal" : undefined}
                 >
                   <span className="flex items-center gap-2.5">
                     <BarChart3 className="w-4 h-4" />
-                    <span>Análisis & Métricas</span>
+                    {!isSidebarCollapsed && <span>Análisis & Métricas</span>}
                   </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setPersonalTab("cuotas")}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center ${
+                    isSidebarCollapsed ? "justify-center p-2.5" : "justify-between px-3 py-2.5"
+                  } rounded-xl text-xs font-semibold transition ${
                     personalTab === "cuotas"
                       ? "apple-segment-active-personal"
                       : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                   }`}
+                  title={isSidebarCollapsed ? "Cuotas Personales" : undefined}
                 >
                   <span className="flex items-center gap-2.5">
                     <Repeat className="w-4 h-4" />
-                    <span>Cuotas Personales</span>
+                    {!isSidebarCollapsed && <span>Cuotas Personales</span>}
                   </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setPersonalTab("tarjetas")}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center ${
+                    isSidebarCollapsed ? "justify-center p-2.5" : "justify-between px-3 py-2.5"
+                  } rounded-xl text-xs font-semibold transition ${
                     personalTab === "tarjetas"
                       ? "apple-segment-active-personal"
                       : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                   }`}
+                  title={isSidebarCollapsed ? "Tarjetas de Crédito" : undefined}
                 >
                   <span className="flex items-center gap-2.5">
                     <CreditCard className="w-4 h-4" />
-                    <span>Tarjetas de Crédito</span>
+                    {!isSidebarCollapsed && <span>Tarjetas de Crédito</span>}
                   </span>
                   {pendingPersonalReviewCount > 0 && (
                     <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-400 text-zinc-950 font-extrabold">
@@ -540,15 +665,18 @@ export function DesktopDashboard({
                 <button
                   type="button"
                   onClick={() => setPersonalTab("inversiones")}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center ${
+                    isSidebarCollapsed ? "justify-center p-2.5" : "justify-between px-3 py-2.5"
+                  } rounded-xl text-xs font-semibold transition ${
                     personalTab === "inversiones"
                       ? "apple-segment-active-personal"
                       : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                   }`}
+                  title={isSidebarCollapsed ? "Inversiones & Cripto" : undefined}
                 >
                   <span className="flex items-center gap-2.5">
                     <TrendingUp className="w-4 h-4" />
-                    <span>Inversiones & Cripto</span>
+                    {!isSidebarCollapsed && <span>Inversiones & Cripto</span>}
                   </span>
                 </button>
               </div>
@@ -563,71 +691,78 @@ export function DesktopDashboard({
                 triggerHaptic(12);
                 setIsExpenseModalOpen(true);
               }}
-              className="w-full py-3 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition active:scale-95 group"
+              className={`w-full py-3 ${
+                isSidebarCollapsed ? "px-2" : "px-4"
+              } rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition active:scale-95 group`}
+              title="Nuevo Gasto (Atajo N)"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Nuevo Gasto</span>
-              <kbd className="hidden lg:inline-block ml-auto text-[10px] px-1.5 py-0.5 rounded bg-blue-700 text-blue-200 font-mono">
-                N
-              </kbd>
+              {!isSidebarCollapsed && <span>Nuevo Gasto</span>}
+              {!isSidebarCollapsed && (
+                <kbd className="hidden lg:inline-block ml-auto text-[10px] px-1.5 py-0.5 rounded bg-blue-700 text-blue-200 font-mono">
+                  N
+                </kbd>
+              )}
             </button>
           </div>
         </div>
 
         {/* Pie Sidebar: Ajustes de Mes y Selector de Dispositivo */}
         <div className="pt-4 border-t border-white/[0.08] space-y-3">
-          {spaceMode === "hogar" ? (
-            <div className="space-y-1.5">
-              <button
-                type="button"
-                onClick={() => setIsSalaryModalOpen(true)}
-                className="w-full px-3 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] rounded-xl flex items-center gap-2.5 transition"
-              >
-                <Settings className="w-3.5 h-3.5 text-blue-400" />
-                <span>Configurar Sueldos</span>
-              </button>
+          {!isSidebarCollapsed ? (
+            spaceMode === "hogar" ? (
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsSalaryModalOpen(true)}
+                  className="w-full px-3 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] rounded-xl flex items-center gap-2.5 transition"
+                >
+                  <Settings className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Configurar Sueldos</span>
+                </button>
 
-              <button
-                type="button"
-                disabled={isProcessingClose}
-                onClick={() => {
-                  if (isClosed) {
-                    handleReopenMonth();
-                  } else {
-                    setIsCloseModalOpen(true);
-                  }
-                }}
-                className={`w-full px-3 py-2 text-left text-xs font-medium rounded-xl flex items-center gap-2.5 transition ${
-                  isClosed
-                    ? "text-amber-300 hover:bg-amber-500/15"
-                    : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
-                }`}
-              >
-                {isClosed ? (
-                  <>
-                    <Unlock className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Reabrir Mes ({monthLabel})</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>Cerrar Mes ({monthLabel})</span>
-                  </>
-                )}
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <button
-                type="button"
-                onClick={() => setPersonalMenuAction({ type: "income", seq: Date.now() })}
-                className="w-full px-3 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] rounded-xl flex items-center gap-2.5 transition"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Editar Ingreso Personal</span>
-              </button>
-            </div>
-          )}
+                <button
+                  type="button"
+                  disabled={isProcessingClose}
+                  onClick={() => {
+                    if (isClosed) {
+                      handleReopenMonth();
+                    } else {
+                      setIsCloseModalOpen(true);
+                    }
+                  }}
+                  className={`w-full px-3 py-2 text-left text-xs font-medium rounded-xl flex items-center gap-2.5 transition ${
+                    isClosed
+                      ? "text-amber-300 hover:bg-amber-500/15"
+                      : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
+                  }`}
+                >
+                  {isClosed ? (
+                    <>
+                      <Unlock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Reabrir Mes ({monthLabel})</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-zinc-400" />
+                      <span>Cerrar Mes ({monthLabel})</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPersonalMenuAction({ type: "income", seq: Date.now() })}
+                  className="w-full px-3 py-2 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.05] rounded-xl flex items-center gap-2.5 transition"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Editar Ingreso Personal</span>
+                </button>
+              </div>
+            )
+          ) : null}
 
           {/* Selector de Dispositivo */}
           <div className="pt-2 border-t border-white/[0.06]">
@@ -803,13 +938,14 @@ export function DesktopDashboard({
                       <div className="relative">
                         <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         <input
+                          ref={searchInputRef}
                           type="text"
                           value={hogarSearchQuery}
                           onChange={(e) => setHogarSearchQuery(e.target.value)}
                           placeholder="Buscar por comercio, categoría o notas..."
-                          className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-zinc-900/90 border border-white/[0.08] focus:border-blue-400/50 text-sm text-white placeholder:text-zinc-500 focus:outline-none transition shadow-inner"
+                          className="w-full pl-10 pr-20 py-2.5 rounded-xl bg-zinc-900/90 border border-white/[0.08] focus:border-blue-400/50 text-sm text-white placeholder:text-zinc-500 focus:outline-none transition shadow-inner"
                         />
-                        {hogarSearchQuery && (
+                        {hogarSearchQuery ? (
                           <button
                             type="button"
                             onClick={() => setHogarSearchQuery("")}
@@ -817,6 +953,15 @@ export function DesktopDashboard({
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
+                        ) : (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+                            <kbd className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded border border-white/[0.1] font-mono">
+                              /
+                            </kbd>
+                            <kbd className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded border border-white/[0.1] font-mono">
+                              ⌘K
+                            </kbd>
+                          </div>
                         )}
                       </div>
 
@@ -974,8 +1119,26 @@ export function DesktopDashboard({
                         </div>
                       </div>
 
-                      {/* Progreso de la Tasa de Quemado */}
-                      <div className="space-y-1.5 pt-2 border-t border-white/[0.06]">
+                      {/* Barra de Proporción de Aportes Pareja */}
+                      <div className="space-y-1.5 pt-2">
+                        <div className="flex items-center justify-between text-[11px] font-mono">
+                          <span className="text-blue-300 font-semibold">{userA.name} ({pctA}%)</span>
+                          <span className="text-rose-300 font-semibold">{userB.name} ({pctB}%)</span>
+                        </div>
+                        <div className="w-full h-2 rounded-full overflow-hidden flex bg-zinc-800/80 border border-white/[0.08]">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                            style={{ width: `${pctA}%` }}
+                          />
+                          <div
+                            className="h-full bg-gradient-to-r from-rose-500 to-pink-500 transition-all duration-500"
+                            style={{ width: `${pctB}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Progreso de la Tasa de Quemado vs Tiempo del Mes */}
+                      <div className="space-y-2 pt-2 border-t border-white/[0.06]">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-zinc-400 font-medium">Consumo del Fondo Común</span>
                           <span className="font-mono font-bold text-white">
@@ -988,6 +1151,24 @@ export function DesktopDashboard({
                             style={{ width: `${Math.min(100, poolSummary.burnRatePct)}%` }}
                           />
                         </div>
+                        {isCurrentMonthView && (
+                          <div className="flex items-center justify-between text-[10px] text-zinc-400 font-medium pt-0.5">
+                            <span>Día {currentDay} de {daysInCurrentMonth} ({monthElapsedPct}% del mes)</span>
+                            <span className={
+                              poolSummary.burnRatePct > monthElapsedPct + 15
+                                ? "text-amber-400 font-semibold"
+                                : poolSummary.burnRatePct < monthElapsedPct - 10
+                                ? "text-emerald-400 font-semibold"
+                                : "text-blue-300 font-semibold"
+                            }>
+                              {poolSummary.burnRatePct > monthElapsedPct + 15
+                                ? "Gasto acelerado"
+                                : poolSummary.burnRatePct < monthElapsedPct - 10
+                                ? "Ritmo controlado"
+                                : "Ritmo alineado"}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

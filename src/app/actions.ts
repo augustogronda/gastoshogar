@@ -77,6 +77,17 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     };
   }
 
+  // Renovar cookie de sesión permanente en cada acceso activo (Long Session de 400 días)
+  const sessionLifetimeSeconds = 60 * 60 * 24 * 400; // 400 días
+  cookieStore.set("auth_user_id", loggedUserId, {
+    path: "/",
+    maxAge: sessionLifetimeSeconds,
+    expires: new Date(Date.now() + sessionLifetimeSeconds * 1000),
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+
   const household = await ensureDefaultHousehold();
 
   // Identificar usuario conectado (Augusto o Agus) antes de lanzar la ola paralela
@@ -1220,6 +1231,7 @@ export async function loginWithMagicTokenAction(token: string): Promise<{
   success: boolean;
   error?: string;
   user?: any;
+  deviceToken?: string | null;
 }> {
   try {
     const cleanToken = (token || "").trim();
@@ -1235,17 +1247,19 @@ export async function loginWithMagicTokenAction(token: string): Promise<{
       return { success: false, error: "Link o token de acceso inválido o expirado" };
     }
 
+    const sessionLifetimeSeconds = 60 * 60 * 24 * 400; // 400 días (límite máximo permitido en navegadores)
     const cookieStore = await cookies();
     cookieStore.set("auth_user_id", user.id, {
       path: "/",
-      maxAge: 60 * 60 * 24 * 365, // 1 año
+      maxAge: sessionLifetimeSeconds,
+      expires: new Date(Date.now() + sessionLifetimeSeconds * 1000),
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
     });
 
     revalidatePath("/");
-    return { success: true, user };
+    return { success: true, user, deviceToken: user.magicToken };
   } catch (err: unknown) {
     console.error("Error en loginWithMagicTokenAction:", err);
     return {
@@ -1520,6 +1534,7 @@ export async function loginWithPinAction(
   error?: string;
   needsSetup?: boolean;
   user?: any;
+  deviceToken?: string | null;
 }> {
   try {
     const normalizedEmail = (targetEmail || "").trim().toLowerCase();
@@ -1584,10 +1599,59 @@ export async function loginWithPinAction(
       }
     }
 
+    if (!user.magicToken) {
+      const token = crypto.randomBytes(24).toString("hex");
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { magicToken: token },
+      });
+    }
+
+    const sessionLifetimeSeconds = 60 * 60 * 24 * 400; // 400 días (límite máximo permitido en navegadores)
     const cookieStore = await cookies();
     cookieStore.set("auth_user_id", user.id, {
       path: "/",
-      maxAge: 60 * 60 * 24 * 365, // 1 año
+      maxAge: sessionLifetimeSeconds,
+      expires: new Date(Date.now() + sessionLifetimeSeconds * 1000),
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    revalidatePath("/");
+    return { success: true, user, deviceToken: user.magicToken };
+  } catch (err: unknown) {
+    console.error("Error en loginWithPinAction:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error al validar PIN.",
+    };
+  }
+}
+
+/**
+ * Restaura automáticamente la sesión si la cookie fue limpiada por el navegador pero el token de dispositivo sigue en localStorage
+ */
+export async function autoRestoreSessionAction(deviceToken: string): Promise<{
+  success: boolean;
+  user?: any;
+}> {
+  try {
+    const cleanToken = (deviceToken || "").trim();
+    if (!cleanToken) return { success: false };
+
+    const user = await prisma.user.findUnique({
+      where: { magicToken: cleanToken },
+    });
+
+    if (!user) return { success: false };
+
+    const sessionLifetimeSeconds = 60 * 60 * 24 * 400; // 400 días
+    const cookieStore = await cookies();
+    cookieStore.set("auth_user_id", user.id, {
+      path: "/",
+      maxAge: sessionLifetimeSeconds,
+      expires: new Date(Date.now() + sessionLifetimeSeconds * 1000),
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -1596,11 +1660,8 @@ export async function loginWithPinAction(
     revalidatePath("/");
     return { success: true, user };
   } catch (err: unknown) {
-    console.error("Error en loginWithPinAction:", err);
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Error al validar PIN.",
-    };
+    console.warn("No se pudo autorecuperar sesión:", err);
+    return { success: false };
   }
 }
 

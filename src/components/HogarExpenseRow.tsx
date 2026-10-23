@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CategoryIcon } from "./ui/icons";
+import { CategoryIcon, Edit3, Copy } from "./ui/icons";
 import { useLongPress } from "@/lib/use-long-press";
 import { triggerHaptic } from "@/lib/haptics";
 
@@ -104,10 +104,40 @@ export function HogarExpenseRow({
         </div>
       </div>
 
-      <div className="text-right shrink-0 ml-3">
-        <span className="text-base font-extrabold text-white font-mono tabular-nums tracking-tight">
-          ${Math.round(exp.amount).toLocaleString("es-AR")}
-        </span>
+      <div className="flex items-center gap-2.5 shrink-0 ml-3">
+        {/* Atajos directos para mouse en PC / Escritorio al hacer hover */}
+        <div className="hidden lg:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              triggerHaptic(8);
+              onOpenDetail(exp);
+            }}
+            className="p-1.5 rounded-lg hover:bg-white/[0.1] text-zinc-400 hover:text-white transition"
+            title="Editar gasto"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              triggerHaptic(12);
+              onLongPress(exp);
+            }}
+            className="p-1.5 rounded-lg hover:bg-white/[0.1] text-zinc-400 hover:text-white transition"
+            title="Duplicar o eliminar gasto"
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="text-right">
+          <span className="text-base font-extrabold text-white font-mono tabular-nums tracking-tight">
+            ${Math.round(exp.amount).toLocaleString("es-AR")}
+          </span>
+        </div>
       </div>
     </div>
   );

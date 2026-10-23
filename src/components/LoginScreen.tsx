@@ -16,6 +16,8 @@ import {
   verifyEmailOtpAction,
   loginWithPinAction,
   checkUserPinStatusAction,
+  autoRestoreSessionAction,
+  loginWithMagicTokenAction,
 } from "@/app/actions";
 import { triggerHaptic } from "@/lib/haptics";
 
@@ -60,6 +62,30 @@ export function LoginScreen() {
     email: string;
     emailSent?: boolean;
   } | null>(null);
+  const [isAutoRestoring, setIsAutoRestoring] = useState(false);
+
+  // Intentar autorecuperar sesión permanente guardada en el dispositivo
+  useEffect(() => {
+    const tryAutoRestore = async () => {
+      try {
+        const savedToken = localStorage.getItem("gastoshogar_device_token");
+        if (savedToken && typeof window !== "undefined" && !window.location.search.includes("error")) {
+          setIsAutoRestoring(true);
+          const res = await autoRestoreSessionAction(savedToken);
+          if (res.success) {
+            window.location.href = "/";
+            return;
+          } else {
+            localStorage.removeItem("gastoshogar_device_token");
+            setIsAutoRestoring(false);
+          }
+        }
+      } catch {
+        setIsAutoRestoring(false);
+      }
+    };
+    tryAutoRestore();
+  }, []);
 
   // Detectar si el usuario volvió de un enlace con error de Supabase
   useEffect(() => {
@@ -171,6 +197,13 @@ export function LoginScreen() {
     try {
       const res = await loginWithPinAction(targetEmail, pinToVerify, isNew);
       if (res.success) {
+        if ((res as any).deviceToken) {
+          try {
+            localStorage.setItem("gastoshogar_device_token", (res as any).deviceToken);
+          } catch {
+            // Ignore storage issues
+          }
+        }
         triggerHaptic(25);
         window.location.href = "/";
       } else if (res.needsSetup) {
@@ -244,6 +277,13 @@ export function LoginScreen() {
         setIsVerifying(false);
         return;
       }
+      if ((res as any).deviceToken) {
+        try {
+          localStorage.setItem("gastoshogar_device_token", (res as any).deviceToken);
+        } catch {
+          // Ignore
+        }
+      }
       window.location.href = "/";
     } catch (err: unknown) {
       setErrorMsg(
@@ -254,6 +294,26 @@ export function LoginScreen() {
   };
 
   const currentDisplayPin = isSettingPin && isConfirmingPin ? confirmPin : pin;
+
+  if (isAutoRestoring) {
+    return (
+      <div className="min-h-screen bg-[#07090e] text-zinc-100 flex flex-col items-center justify-center p-6 selection:bg-blue-600/30">
+        <div className="w-full max-w-sm flex flex-col items-center text-center animate-fade-in space-y-4">
+          <div className="w-20 h-20 rounded-[24px] overflow-hidden mb-2 shadow-2xl shadow-indigo-600/30 border border-white/15 ring-2 ring-indigo-500/20">
+            <img
+              src="/apple-touch-icon.png"
+              alt="Hogar"
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-zinc-900/90 border border-white/[0.1] text-xs font-semibold text-zinc-200 shadow-xl">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping shrink-0" />
+            <span>Restaurando tu sesión permanente...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#07090e] text-zinc-100 flex flex-col items-center justify-center p-6 selection:bg-blue-600/30">

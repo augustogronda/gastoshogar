@@ -155,6 +155,17 @@ export function IPadDashboard({
   userA,
   userB,
 }: IPadDashboardProps) {
+  // Cálculo de ratio de aportes entre integrantes
+  const totalCommitted = (userA?.committedAmount || 0) + (userB?.committedAmount || 0) || 1;
+  const pctA = Math.round(((userA?.committedAmount || 0) / totalCommitted) * 100);
+  const pctB = 100 - pctA;
+
+  // Diagnóstico temporal del mes en curso
+  const now = new Date();
+  const isCurrentMonthView = now.getFullYear() === currentYear && (now.getMonth() + 1) === currentMonth;
+  const currentDay = now.getDate();
+  const daysInCurrentMonth = new Date(currentYear, currentMonth, 0).getDate();
+  const monthElapsedPct = Math.round((currentDay / daysInCurrentMonth) * 100);
 
   return (
     <div className="min-h-screen bg-[#07090e] text-zinc-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white pb-20">
@@ -566,6 +577,25 @@ export function IPadDashboard({
                         style={{ width: `${Math.min(100, poolSummary.burnRatePct)}%` }}
                       />
                     </div>
+
+                    {isCurrentMonthView && (
+                      <div className="flex items-center justify-between text-[10px] text-zinc-400 font-medium pt-2 mt-2 border-t border-white/[0.06]">
+                        <span>Día {currentDay} de {daysInCurrentMonth} ({monthElapsedPct}% del mes)</span>
+                        <span className={
+                          poolSummary.burnRatePct > monthElapsedPct + 15
+                            ? "text-amber-400 font-semibold"
+                            : poolSummary.burnRatePct < monthElapsedPct - 10
+                            ? "text-emerald-400 font-semibold"
+                            : "text-blue-300 font-semibold"
+                        }>
+                          {poolSummary.burnRatePct > monthElapsedPct + 15
+                            ? "Gasto acelerado"
+                            : poolSummary.burnRatePct < monthElapsedPct - 10
+                            ? "Ritmo controlado"
+                            : "Ritmo alineado"}
+                        </span>
+                      </div>
+                    )}
                   </section>
 
                   {/* Aportes y Balances (Augusto & Karen) */}
@@ -608,6 +638,24 @@ export function IPadDashboard({
                         <span className="text-xs font-bold text-white font-mono">
                           ${Math.round(userB.committedAmount).toLocaleString("es-AR")}
                         </span>
+                      </div>
+                    </div>
+
+                    {/* Barra de Proporción de Aportes Pareja */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-blue-300 font-semibold">{userA.name} ({pctA}%)</span>
+                        <span className="text-rose-300 font-semibold">{userB.name} ({pctB}%)</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full overflow-hidden flex bg-zinc-800/80 border border-white/[0.08]">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                          style={{ width: `${pctA}%` }}
+                        />
+                        <div
+                          className="h-full bg-gradient-to-r from-rose-500 to-pink-500 transition-all duration-500"
+                          style={{ width: `${pctB}%` }}
+                        />
                       </div>
                     </div>
                   </div>

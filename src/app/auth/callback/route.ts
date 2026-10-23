@@ -50,9 +50,11 @@ export async function GET(request: NextRequest) {
 
     if (user) {
       const response = NextResponse.redirect(`${origin}/`);
+      const sessionLifetimeSeconds = 60 * 60 * 24 * 400; // 400 días
       response.cookies.set("auth_user_id", user.id, {
         path: "/",
-        maxAge: 60 * 60 * 24 * 365,
+        maxAge: sessionLifetimeSeconds,
+        expires: new Date(Date.now() + sessionLifetimeSeconds * 1000),
         httpOnly: true,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
