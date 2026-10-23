@@ -42,32 +42,46 @@ export async function GET(req: Request) {
     const sessionId = url.searchParams.get("sessionId") || crypto.randomUUID();
     const messageEndpoint = `${baseUrl}/api/mcp?sessionId=${sessionId}${keyParam}`;
 
-    let timer: NodeJS.Timeout | null = null;
+    let heartbeatTimer: NodeJS.Timeout | null = null;
+    let autoCloseTimer: NodeJS.Timeout | null = null;
+
     const stream = new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder();
+        // retry directive (10 segundos) para reconexión limpia en clientes SSE
+        controller.enqueue(encoder.encode(`retry: 10000\n\n`));
         // Evento 'endpoint' según especificación MCP SSE transport
         controller.enqueue(encoder.encode(`event: endpoint\ndata: ${messageEndpoint}\n\n`));
 
         // Heartbeat para mantener viva la conexión sin que Vercel la considere colgada
-        timer = setInterval(() => {
+        heartbeatTimer = setInterval(() => {
           try {
             controller.enqueue(encoder.encode(`: ping\n\n`));
           } catch {
-            if (timer) clearInterval(timer);
+            if (heartbeatTimer) clearInterval(heartbeatTimer);
           }
-        }, 15000);
+        }, 10000);
+
+        // Cierre preventivo elegante a los 25s para que la función serverless de Vercel termine en 200 OK sin timeout (evita FUNCTION_INVOCATION_TIMEOUT)
+        autoCloseTimer = setTimeout(() => {
+          if (heartbeatTimer) clearInterval(heartbeatTimer);
+          try {
+            controller.close();
+          } catch {}
+        }, 25000);
 
         // Si el cliente cierra la conexión o cancela la petición, cerrar el stream limpiamente
         req.signal.addEventListener("abort", () => {
-          if (timer) clearInterval(timer);
+          if (heartbeatTimer) clearInterval(heartbeatTimer);
+          if (autoCloseTimer) clearTimeout(autoCloseTimer);
           try {
             controller.close();
           } catch {}
         });
       },
       cancel() {
-        if (timer) clearInterval(timer);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        if (autoCloseTimer) clearTimeout(autoCloseTimer);
       },
     });
 

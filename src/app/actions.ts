@@ -3045,6 +3045,24 @@ export async function advanceCardToNextSummaryAction(data: {
           .join(", ")}`
       : null;
 
+  // Marcar el ciclo que se cierra como pagado/archivado para dar paso al nuevo
+  await prisma.cardMonthlyPeriod.update({
+    where: { id: data.currentPeriodId },
+    data: {
+      isPaid: true,
+      paidAt: currentPeriod.paidAt || new Date(),
+    },
+  });
+
+  // Actualizar días de corte y vencimiento base en la tarjeta para los próximos ciclos
+  await prisma.personalCreditCard.update({
+    where: { id: card.id },
+    data: {
+      defaultClosingDay: nextClosingDate.getUTCDate(),
+      defaultDueDay: nextDueDate.getUTCDate(),
+    },
+  });
+
   const newPeriod = await prisma.cardMonthlyPeriod.upsert({
     where: {
       cardId_year_month: {

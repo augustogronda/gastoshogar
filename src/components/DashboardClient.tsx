@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Wallet,
@@ -267,6 +268,11 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("hogar");
   const [personalTab, setPersonalTab] = useState<"gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones">("gastos");
   const [hogarFilter, setHogarFilter] = useState<string>("ALL");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [hogarSearchQuery, setHogarSearchQuery] = useState<string>("");
   const [sharedInvestmentsTab, setSharedInvestmentsTab] = useState<"fci" | "portfolio">("fci");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
@@ -2526,8 +2532,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       />
 
       {/* Modal de Confirmación de Cierre Mensual */}
-      {isCloseModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      {isCloseModalOpen && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+          style={{ minHeight: "100vh", minWidth: "100vw" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsCloseModalOpen(false);
+          }}
+        >
           <div className="w-full max-w-md super-card rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
               <div className="flex items-center gap-2">
@@ -2541,7 +2553,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
               <button
                 onClick={() => setIsCloseModalOpen(false)}
-                className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
+                className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2609,7 +2621,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               <button
                 onClick={handleCloseMonth}
                 disabled={isProcessingClose}
-                className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-amber-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-amber-400/20"
+                className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-amber-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition border border-amber-400/20 cursor-pointer"
               >
                 <Lock className="w-4 h-4" />
                 <span>
@@ -2620,13 +2632,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               <button
                 onClick={() => setIsCloseModalOpen(false)}
                 disabled={isProcessingClose}
-                className="w-full py-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-medium text-xs active:scale-[0.98] transition"
+                className="w-full py-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-medium text-xs active:scale-[0.98] transition cursor-pointer"
               >
                 Cancelar
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal de Detalle y Edición de Gasto del Hogar */}

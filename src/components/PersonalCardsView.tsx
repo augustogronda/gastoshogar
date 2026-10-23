@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { CreditCard, Check, Sparkles, Calendar, Plus, ArrowRight, X, Repeat } from "./ui/icons";
 import { Upload } from "lucide-react";
@@ -88,6 +89,11 @@ export function PersonalCardsView({
   const [processingCardId, setProcessingCardId] = useState<string | null>(null);
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Sincronizar estado local cuando llegan datos nuevos del servidor
   useEffect(() => {
@@ -228,6 +234,7 @@ export function PersonalCardsView({
             ? `✓ Nuevo resumen abierto con ${res.linkedInstallments.length} cuota(s) ($${nextAmt})`
             : `✓ Nuevo resumen de ${cardItem.bank} ${cardItem.brand} abierto en $0`
         );
+        router.refresh();
       }
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Error al abrir el siguiente resumen");
@@ -497,8 +504,17 @@ export function PersonalCardsView({
       </section>
 
       {/* Modal nativo oscuro para confirmar el paso al Siguiente Resumen */}
-      {cardForNextSummary && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      {cardForNextSummary && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+          style={{ minHeight: "100vh", minWidth: "100vw" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              triggerHaptic(6);
+              setCardForNextSummary(null);
+            }
+          }}
+        >
           <div className="w-full max-w-sm super-card rounded-3xl p-6 shadow-2xl border border-white/[0.12] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
               <div className="flex items-center gap-2.5">
@@ -551,7 +567,7 @@ export function PersonalCardsView({
               <button
                 type="button"
                 onClick={confirmAdvanceNextSummary}
-                className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 flex items-center justify-center gap-1.5 active:scale-[0.98] transition"
+                className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 flex items-center justify-center gap-1.5 active:scale-[0.98] transition cursor-pointer"
               >
                 <span>Confirmar e Ir al Siguiente Resumen</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -559,13 +575,14 @@ export function PersonalCardsView({
               <button
                 type="button"
                 onClick={() => setCardForNextSummary(null)}
-                className="w-full py-2.5 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-medium text-xs transition"
+                className="w-full py-2.5 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-medium text-xs transition cursor-pointer"
               >
                 Cancelar
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal para editar resumen de tarjeta */}

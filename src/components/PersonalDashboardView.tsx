@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Wallet,
@@ -453,6 +454,11 @@ export function PersonalDashboardView({
   } = personalData;
 
   const [localExpenses, setLocalExpenses] = useState<PersonalExpenseItem[]>(serverExpenses || []);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (serverExpenses) {
@@ -1685,8 +1691,17 @@ export function PersonalDashboardView({
       />
 
       {/* Modal de Cierre Mensual Personal */}
-      {isCloseModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      {isCloseModalOpen && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+          style={{ minHeight: "100vh", minWidth: "100vw" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsCloseModalOpen(false);
+              onResetExternalMenuAction?.();
+            }
+          }}
+        >
           <div className="w-full max-w-md super-card rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
               <div className="flex items-center gap-2">
@@ -1754,7 +1769,7 @@ export function PersonalDashboardView({
               <button
                 onClick={handleClosePersonalMonth}
                 disabled={isProcessing}
-                className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition"
+                className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition cursor-pointer"
               >
                 <Lock className="w-4 h-4" />
                 <span>Confirmar Cierre Personal</span>
@@ -1762,13 +1777,14 @@ export function PersonalDashboardView({
               <button
                 onClick={() => setIsCloseModalOpen(false)}
                 disabled={isProcessing}
-                className="w-full py-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-medium text-xs active:scale-[0.98] transition"
+                className="w-full py-3 rounded-2xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-medium text-xs active:scale-[0.98] transition cursor-pointer"
               >
                 Cancelar
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal de Detalle / Edición de Gasto Personal */}

@@ -221,19 +221,17 @@ export async function getCardsForUserAndMonth(
 
   const cardsWithMonthData = await Promise.all(
     cards.map(async (c) => {
-      // 1. Buscar si hay un período para el mes exacto que tenga saldo cargado (> 0)
+      // 1. Priorizar período IMPAGO con saldo cargado (> 0)
       let activePeriod = c.periods.find(
-        (p) => p.year === targetYear && p.month === targetMonth && (p.statementAmount > 0 || p.statementAmountUsd > 0)
+        (p) => !p.isPaid && (p.statementAmount > 0 || p.statementAmountUsd > 0)
       );
 
-      // 2. Si este mes no tiene saldo, buscar si hay algún período impago con saldo cargado (> 0)
+      // 2. Si no hay impago con saldo > 0, buscar el período IMPAGO más reciente (ej: nuevo ciclo recién avanzado en $0)
       if (!activePeriod) {
-        activePeriod = c.periods.find(
-          (p) => !p.isPaid && (p.statementAmount > 0 || p.statementAmountUsd > 0)
-        );
+        activePeriod = c.periods.find((p) => !p.isPaid);
       }
 
-      // 3. Si no hay ningún período con saldo, tomar el del mes exacto consultado
+      // 3. Si todos los períodos están pagados/cerrados, tomar el del mes exacto consultado
       if (!activePeriod) {
         activePeriod = c.periods.find((p) => p.year === targetYear && p.month === targetMonth);
       }

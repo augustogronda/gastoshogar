@@ -1,7 +1,7 @@
 {
-  "version": "1.24.2",
-  "build": 2026102315,
-  "releasedAt": "2026-10-23T21:22:00Z",
-  "title": "Corrección de centrado y portal del modal de edición manual de tarjetas",
-  "description": "Se integró createPortal hacia document.body con z-index 9999 y bloqueo de distorsión de coordenadas en CardStatementModal para que al editar manualmente una tarjeta el modal aparezca siempre centrado en pantalla sin importar el scroll o la cantidad de tarjetas."
+  "version": "1.24.3",
+  "build": 2026102316,
+  "releasedAt": "2026-10-23T21:35:00Z",
+  "title": "Corrección de cierre de tarjeta, centrado de modal y timeout MCP Vercel",
+  "description": "Se integró createPortal en el modal de cierre/apertura del siguiente resumen de tarjeta, se garantizó la transición activa al nuevo ciclo cerrando el resumen anterior, y se solucionó el timeout de SSE en /api/mcp cerrando la conexión ordenadamente antes del límite serverless de Vercel."
 }
