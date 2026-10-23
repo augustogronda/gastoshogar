@@ -1,7 +1,7 @@
 {
-  "version": "1.21.0",
-  "build": 2026102302,
-  "releasedAt": "2026-10-23T03:45:00Z",
-  "title": "Long Session permanente y mejoras avanzadas para iPad y Escritorio PC",
-  "description": "Sesión ultra-extendida y resiliente con middleware de renovación de 400 días y auto-recuperación de sesión. Vistas optimizadas para iPad y PC con atajos de teclado, barra de proporción de aportes y diagnóstico de ritmo del mes."
+  "version": "1.21.1",
+  "build": 2026102303,
+  "releasedAt": "2026-10-23T13:20:00Z",
+  "title": "Fix: Corrección de carga de página y estabilidad en Server Components",
+  "description": "Se elimina la mutación síncrona de cookies dentro de Server Components que causaba el fallo de carga, se blinda el HomePage con fallback de error y boundary reactivo."
 }

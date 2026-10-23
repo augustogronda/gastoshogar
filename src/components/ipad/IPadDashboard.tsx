@@ -156,6 +156,8 @@ export function IPadDashboard({
   userB,
 }: IPadDashboardProps) {
   // Cálculo de ratio de aportes entre integrantes
+  const nameA = userA?.name || "Augusto";
+  const nameB = userB?.name || "Karen";
   const totalCommitted = (userA?.committedAmount || 0) + (userB?.committedAmount || 0) || 1;
   const pctA = Math.round(((userA?.committedAmount || 0) / totalCommitted) * 100);
   const pctB = 100 - pctA;
@@ -609,34 +611,34 @@ export function IPadDashboard({
                       <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
                           <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center justify-center font-bold text-xs">
-                            {userA.name.charAt(0)}
+                            {nameA.charAt(0)}
                           </div>
                           <div>
-                            <span className="text-xs font-bold text-white block">{userA.name}</span>
+                            <span className="text-xs font-bold text-white block">{nameA}</span>
                             <span className="text-[10px] text-zinc-400 font-mono">
-                              Bolsillo: ${Math.round(userA.outOfPocketPaid).toLocaleString("es-AR")}
+                              Bolsillo: ${Math.round(userA?.outOfPocketPaid || 0).toLocaleString("es-AR")}
                             </span>
                           </div>
                         </div>
                         <span className="text-xs font-bold text-white font-mono">
-                          ${Math.round(userA.committedAmount).toLocaleString("es-AR")}
+                          ${Math.round(userA?.committedAmount || 0).toLocaleString("es-AR")}
                         </span>
                       </div>
 
                       <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
                           <div className="w-7 h-7 rounded-full bg-rose-500/20 text-rose-300 border border-rose-400/30 flex items-center justify-center font-bold text-xs">
-                            {userB.name.charAt(0)}
+                            {nameB.charAt(0)}
                           </div>
                           <div>
-                            <span className="text-xs font-bold text-white block">{userB.name}</span>
+                            <span className="text-xs font-bold text-white block">{nameB}</span>
                             <span className="text-[10px] text-zinc-400 font-mono">
-                              Bolsillo: ${Math.round(userB.outOfPocketPaid).toLocaleString("es-AR")}
+                              Bolsillo: ${Math.round(userB?.outOfPocketPaid || 0).toLocaleString("es-AR")}
                             </span>
                           </div>
                         </div>
                         <span className="text-xs font-bold text-white font-mono">
-                          ${Math.round(userB.committedAmount).toLocaleString("es-AR")}
+                          ${Math.round(userB?.committedAmount || 0).toLocaleString("es-AR")}
                         </span>
                       </div>
                     </div>
@@ -644,8 +646,8 @@ export function IPadDashboard({
                     {/* Barra de Proporción de Aportes Pareja */}
                     <div className="space-y-1.5 pt-1">
                       <div className="flex items-center justify-between text-[11px] font-mono">
-                        <span className="text-blue-300 font-semibold">{userA.name} ({pctA}%)</span>
-                        <span className="text-rose-300 font-semibold">{userB.name} ({pctB}%)</span>
+                        <span className="text-blue-300 font-semibold">{nameA} ({pctA}%)</span>
+                        <span className="text-rose-300 font-semibold">{nameB} ({pctB}%)</span>
                       </div>
                       <div className="w-full h-2 rounded-full overflow-hidden flex bg-zinc-800/80 border border-white/[0.08]">
                         <div
@@ -930,18 +932,18 @@ export function IPadDashboard({
                     <div className="grid grid-cols-2 gap-3">
                       <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
                         <span className="text-xs font-bold text-zinc-300 block mb-1">
-                          Participación de {userA.name}
+                          Participación de {nameA}
                         </span>
                         <span className="text-base font-mono font-bold text-white">
-                          {Math.round(userA.fciQuotaSharePct)}%
+                          {Math.round(userA?.fciQuotaSharePct || 50)}%
                         </span>
                       </div>
                       <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
                         <span className="text-xs font-bold text-zinc-300 block mb-1">
-                          Participación de {userB.name}
+                          Participación de {nameB}
                         </span>
                         <span className="text-base font-mono font-bold text-white">
-                          {Math.round(userB.fciQuotaSharePct)}%
+                          {Math.round(userB?.fciQuotaSharePct || 50)}%
                         </span>
                       </div>
                     </div>

@@ -77,17 +77,6 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     };
   }
 
-  // Renovar cookie de sesión permanente en cada acceso activo (Long Session de 400 días)
-  const sessionLifetimeSeconds = 60 * 60 * 24 * 400; // 400 días
-  cookieStore.set("auth_user_id", loggedUserId, {
-    path: "/",
-    maxAge: sessionLifetimeSeconds,
-    expires: new Date(Date.now() + sessionLifetimeSeconds * 1000),
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  });
-
   const household = await ensureDefaultHousehold();
 
   // Identificar usuario conectado (Augusto o Agus) antes de lanzar la ola paralela

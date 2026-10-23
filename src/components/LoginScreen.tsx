@@ -69,7 +69,9 @@ export function LoginScreen() {
     const tryAutoRestore = async () => {
       try {
         const savedToken = localStorage.getItem("gastoshogar_device_token");
-        if (savedToken && typeof window !== "undefined" && !window.location.search.includes("error")) {
+        const alreadyAttempted = sessionStorage.getItem("gastoshogar_restore_attempted");
+        if (savedToken && !alreadyAttempted && typeof window !== "undefined" && !window.location.search.includes("error")) {
+          sessionStorage.setItem("gastoshogar_restore_attempted", "true");
           setIsAutoRestoring(true);
           const res = await autoRestoreSessionAction(savedToken);
           if (res.success) {
