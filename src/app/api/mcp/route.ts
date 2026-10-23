@@ -48,27 +48,28 @@ export async function GET(req: Request) {
     const stream = new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder();
-        // retry directive (10 segundos) para reconexión limpia en clientes SSE
-        controller.enqueue(encoder.encode(`retry: 10000\n\n`));
+        // retry directive (15 segundos) para reconexión limpia en clientes SSE
+        controller.enqueue(encoder.encode(`retry: 15000\n\n`));
         // Evento 'endpoint' según especificación MCP SSE transport
         controller.enqueue(encoder.encode(`event: endpoint\ndata: ${messageEndpoint}\n\n`));
 
-        // Heartbeat para mantener viva la conexión sin que Vercel la considere colgada
+        // Heartbeat para mantener viva la conexión
         heartbeatTimer = setInterval(() => {
           try {
             controller.enqueue(encoder.encode(`: ping\n\n`));
           } catch {
             if (heartbeatTimer) clearInterval(heartbeatTimer);
           }
-        }, 10000);
+        }, 3500);
 
-        // Cierre preventivo elegante a los 25s para que la función serverless de Vercel termine en 200 OK sin timeout (evita FUNCTION_INVOCATION_TIMEOUT)
+        // Cierre preventivo elegante a los 8s para que la función serverless de Vercel (Hobby o Pro)
+        // termine de forma limpia en 200 OK con código de salida 0 sin timeouts
         autoCloseTimer = setTimeout(() => {
           if (heartbeatTimer) clearInterval(heartbeatTimer);
           try {
             controller.close();
           } catch {}
-        }, 25000);
+        }, 8000);
 
         // Si el cliente cierra la conexión o cancela la petición, cerrar el stream limpiamente
         req.signal.addEventListener("abort", () => {

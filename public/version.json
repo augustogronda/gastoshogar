@@ -1,7 +1,7 @@
 {
-  "version": "1.24.3",
-  "build": 2026102316,
-  "releasedAt": "2026-10-23T21:35:00Z",
-  "title": "Corrección de cierre de tarjeta, centrado de modal y timeout MCP Vercel",
-  "description": "Se integró createPortal en el modal de cierre/apertura del siguiente resumen de tarjeta, se garantizó la transición activa al nuevo ciclo cerrando el resumen anterior, y se solucionó el timeout de SSE en /api/mcp cerrando la conexión ordenadamente antes del límite serverless de Vercel."
+  "version": "1.24.4",
+  "build": 2026102317,
+  "releasedAt": "2026-10-23T21:56:00Z",
+  "title": "Solución de agotamiento de pool de conexiones Prisma y timeouts en Serverless",
+  "description": "Se eliminó el flag restrictivo connection_limit=1 que provocaba que las consultas paralelas en Promise.all se encolaran y agotaran el pool de conexiones en Vercel. Se configuró connection_limit=10 y pool_timeout=30 con PgBouncer en modo transacción, y se optimizó el cierre limpio de SSE en /api/mcp a 8s para evitar timeouts en planes Hobby."
 }

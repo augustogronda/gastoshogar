@@ -9,11 +9,17 @@ function getDatabaseUrl(): string {
     url = url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543");
   }
 
-  // Asegurar flags de PgBouncer para evitar el error de prepared statement "s0" already exists (42P05)
-  if (!url.includes("pgbouncer=true")) {
-    const sep = url.includes("?") ? "&" : "?";
-    url = `${url}${sep}pgbouncer=true&connection_limit=1`;
-  }
+  // Limpiar cualquier flag restrictivo previo (connection_limit=1 o timeouts viejos)
+  url = url.replace(/([?&])connection_limit=\d+/g, "");
+  url = url.replace(/([?&])pool_timeout=\d+/g, "");
+  url = url.replace(/([?&])pgbouncer=(true|false)/g, "");
+
+  // Asegurar flags óptimos para Supabase PgBouncer en Serverless:
+  // - pgbouncer=true: evita error 42P05 de prepared statement
+  // - connection_limit=10: permite que los Promise.all concurrentes de getDashboardData se ejecuten en paralelo sin saturar el pool interno
+  // - pool_timeout=30: tolerancia de 30s para adquirir conexión en picos de latencia
+  const sep = url.includes("?") ? "&" : "?";
+  url = `${url}${sep}pgbouncer=true&connection_limit=10&pool_timeout=30`;
 
   return url;
 }
