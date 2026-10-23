@@ -268,30 +268,30 @@ export function ImportStatementModal({
     .reduce((s, i) => s + (i.amountUsd || 0), 0);
 
   const modalContent = (
-    <div className="fixed inset-0 z-[999999] flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="relative w-full max-w-4xl h-[92vh] max-h-[820px] flex flex-col bg-[#141824] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[999999] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="relative w-full max-w-4xl h-[94vh] sm:h-[90vh] max-h-[840px] flex flex-col bg-[#141824] border border-white/10 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden">
         
         {/* Encabezado fijo */}
-        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/[0.02]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <CreditCard className="w-5 h-5 text-white" />
+        <div className="shrink-0 flex items-center justify-between px-4 py-3 sm:px-6 sm:py-3.5 border-b border-white/10 bg-white/[0.02]">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">Importar Resumen de Tarjeta</h2>
-              <p className="text-xs text-white/50">Procesamiento automático local sin IA (0 tokens)</p>
+              <h2 className="text-sm sm:text-base md:text-lg font-bold text-white tracking-tight">Importar Resumen de Tarjeta</h2>
+              <p className="text-[11px] sm:text-xs text-white/50">Procesamiento automático local sin IA (0 tokens)</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Contenido principal con scroll interior */}
-        <div className="flex-1 min-h-0 flex flex-col p-4 sm:p-6 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col p-3 sm:p-4 md:p-5 overflow-hidden">
           {errorMsg && (
             <div className="shrink-0 mb-3 flex items-start gap-2.5 p-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-300 text-xs leading-relaxed">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-rose-400" />
@@ -395,38 +395,36 @@ export function ImportStatementModal({
             </div>
           ) : (
             /* PASO 2: PREVIEW */
-            <div className="flex-1 min-h-0 flex flex-col space-y-4 overflow-hidden">
-              {/* Card de Configuración y Resumen del Período */}
-              <div className="shrink-0 p-4 bg-white/[0.03] border border-white/10 rounded-2xl space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/5">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="text-xs text-white/50">Banco detectado:</span>
-                    <span className="px-3 py-0.5 text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-full">
+            <div className="flex-1 min-h-0 flex flex-col space-y-3 overflow-hidden">
+              {/* Barra de Configuración Compacta */}
+              <div className="shrink-0 p-3 bg-white/[0.03] border border-white/10 rounded-2xl space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] text-white/50">Banco detectado:</span>
+                    <span className="px-2.5 py-0.5 text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-full">
                       {parsedData?.detectedBank} {parsedData?.detectedBrand}
                     </span>
                     {parsedData?.cardLastDigits && (
-                      <span className="text-xs text-white/40 font-mono">•••• {parsedData.cardLastDigits}</span>
+                      <span className="text-[11px] text-white/40 font-mono">•••• {parsedData.cardLastDigits}</span>
                     )}
                   </div>
                   <button
                     type="button"
                     onClick={() => setStep("upload")}
-                    className="text-xs text-white/50 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="text-[11px] text-white/50 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    <RefreshCw className="w-3 h-3" />
                     Cambiar archivo
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-white/60 mb-1">
-                      Titular del gasto
-                    </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-white/60 shrink-0 w-16">Titular:</span>
                     <select
                       value={selectedUserId}
                       onChange={(e) => setSelectedUserId(e.target.value)}
-                      className="w-full py-2 px-3 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                      className="w-full py-1.5 px-2.5 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
                     >
                       {users.map((u) => (
                         <option key={u.id} value={u.id} className="bg-slate-900 text-white">
@@ -436,14 +434,12 @@ export function ImportStatementModal({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-white/60 mb-1">
-                      Asignar a tarjeta
-                    </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-white/60 shrink-0 w-16">Tarjeta:</span>
                     <select
                       value={selectedCardId}
                       onChange={(e) => setSelectedCardId(e.target.value)}
-                      className="w-full py-2 px-3 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                      className="w-full py-1.5 px-2.5 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
                     >
                       <option value="" className="bg-slate-900 text-white">
                         (Ninguna / Gasto manual)
@@ -460,14 +456,14 @@ export function ImportStatementModal({
                 </div>
 
                 {parsedData && (parsedData.statementAmount > 0 || parsedData.dueDate) && (
-                  <label className="flex items-start gap-2.5 pt-1.5 text-xs text-white/80 cursor-pointer select-none">
+                  <label className="flex items-center gap-2 pt-0.5 text-xs text-white/80 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={updateCardSummary}
                       onChange={(e) => setUpdateCardSummary(e.target.checked)}
-                      className="mt-0.5 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-0"
+                      className="rounded border-white/20 bg-white/5 text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                     />
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-white/70 font-mono">
+                    <div className="flex flex-wrap gap-x-2.5 text-[11px] text-white/70 font-mono items-center">
                       <span>Actualizar tarjeta:</span>
                       {parsedData.statementAmount > 0 && (
                         <span className="text-white font-bold">
@@ -484,18 +480,18 @@ export function ImportStatementModal({
                 )}
               </div>
 
-              {/* Lista scrolleable de consumos */}
+              {/* Lista compacta de consumos (estilo tabla / filas densas) */}
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <div className="shrink-0 flex items-center justify-between text-xs text-white/60 mb-2 px-1">
                   <button
                     type="button"
                     onClick={() => toggleAll(selectedCount !== items.length)}
-                    className="flex items-center gap-1.5 font-semibold hover:text-white transition-colors cursor-pointer"
+                    className="flex items-center gap-2 font-semibold hover:text-white transition-colors cursor-pointer select-none"
                   >
                     {selectedCount === items.length ? (
                       <CheckSquare className="w-4 h-4 text-blue-400" />
                     ) : (
-                      <Square className="w-4 h-4" />
+                      <Square className="w-4 h-4 text-white/40" />
                     )}
                     <span>
                       {selectedCount === items.length ? "Deseleccionar todos" : "Seleccionar todos"}
@@ -506,79 +502,94 @@ export function ImportStatementModal({
                   </span>
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.01] divide-y divide-white/5 pr-0.5">
                   {items.map((item) => (
                     <div
                       key={item.id}
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-2xl border transition-all ${
+                      className={`px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-3 transition-colors ${
                         item.selected
-                          ? "bg-white/[0.04] border-white/15"
-                          : "bg-white/[0.01] border-white/5 opacity-40"
+                          ? "hover:bg-white/[0.04] bg-white/[0.01]"
+                          : "opacity-35 hover:opacity-55 bg-transparent"
                       }`}
                     >
-                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                      {/* Izquierda: Checkbox + Fecha (en desktop) + Título + Badges */}
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <button
                           type="button"
                           onClick={() => toggleItem(item.id)}
-                          className="mt-0.5 text-white/40 hover:text-white transition-colors shrink-0 cursor-pointer"
+                          className="text-white/40 hover:text-white transition-colors shrink-0 cursor-pointer p-0.5"
+                          aria-label="Seleccionar consumo"
                         >
                           {item.selected ? (
                             <CheckSquare className="w-4 h-4 text-blue-400" />
                           ) : (
-                            <Square className="w-4 h-4" />
+                            <Square className="w-4 h-4 text-white/40" />
                           )}
                         </button>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs sm:text-sm font-semibold text-white tracking-tight truncate">
-                              {item.title}
+
+                        <span className="font-mono text-xs text-white/40 shrink-0 hidden sm:inline-block w-20">
+                          {item.date}
+                        </span>
+
+                        <div className="min-w-0 flex-1 flex items-center gap-1.5 flex-wrap">
+                          <span
+                            onClick={() => toggleItem(item.id)}
+                            className="text-xs sm:text-sm font-medium text-white truncate cursor-pointer hover:text-blue-300 transition-colors"
+                            title={item.title}
+                          >
+                            {item.title}
+                          </span>
+                          {item.installmentNumber && item.totalInstallments && (
+                            <span className="shrink-0 px-1.5 py-0.2 text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded">
+                              Cuota {item.installmentNumber}/{item.totalInstallments}
                             </span>
-                            {item.installmentNumber && item.totalInstallments && (
-                              <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md">
-                                Cuota {item.installmentNumber}/{item.totalInstallments}
-                              </span>
-                            )}
-                            {item.isTaxOrFee && (
-                              <span className="px-2 py-0.5 text-[10px] font-medium bg-white/10 text-white/60 rounded">
-                                Impuesto / Sellos
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-white/40 mt-1 flex-wrap">
-                            <span className="font-mono">{item.date}</span>
-                            <span>•</span>
-                            <select
-                              value={item.category}
-                              onChange={(e) => updateItemCategory(item.id, e.target.value)}
-                              className="bg-transparent border-0 p-0 text-xs text-blue-300 hover:text-blue-200 cursor-pointer focus:ring-0 font-medium"
-                            >
-                              {categories.map((cat) => (
-                                <option key={cat.id} value={cat.name} className="bg-slate-900 text-white">
-                                  {cat.name}
-                                </option>
-                              ))}
-                            </select>
-                            <span>•</span>
-                            <button
-                              type="button"
-                              onClick={() => updateItemScope(item.id, item.scope === "personal" ? "hogar" : "personal")}
-                              className={`text-[10px] px-2 py-0.5 rounded-md font-semibold cursor-pointer transition ${
-                                item.scope === "hogar"
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                  : "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                              }`}
-                            >
-                              {item.scope === "hogar" ? "Hogar 60%" : "Personal (Revisar)"}
-                            </button>
-                          </div>
+                          )}
+                          {item.isTaxOrFee && (
+                            <span className="shrink-0 px-1.5 py-0.2 text-[9px] font-medium bg-white/10 text-white/60 rounded">
+                              Impuesto
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      <div className="text-right mt-2 sm:mt-0 font-mono text-sm font-bold text-white pl-7 sm:pl-4 shrink-0">
-                        {item.amount > 0 && <div>${Math.round(item.amount).toLocaleString("es-AR")}</div>}
-                        {item.amountUsd && item.amountUsd > 0 && (
-                          <div className="text-emerald-400 text-xs">U$S {item.amountUsd.toFixed(2)}</div>
-                        )}
+                      {/* Derecha: Fecha (en móvil) + Categoría + Ámbito + Monto */}
+                      <div className="flex items-center justify-between sm:justify-end gap-2 pl-6 sm:pl-0 shrink-0">
+                        <span className="font-mono text-[10px] text-white/40 sm:hidden">
+                          {item.date}
+                        </span>
+
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={item.category}
+                            onChange={(e) => updateItemCategory(item.id, e.target.value)}
+                            className="bg-white/5 hover:bg-white/10 text-[11px] text-blue-300 border border-white/10 rounded-md px-2 py-0.5 cursor-pointer focus:ring-0 max-w-[115px] sm:max-w-[130px] truncate"
+                          >
+                            {categories.map((cat) => (
+                              <option key={cat.id} value={cat.name} className="bg-slate-900 text-white">
+                                {cat.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => updateItemScope(item.id, item.scope === "personal" ? "hogar" : "personal")}
+                            className={`text-[10px] px-2 py-0.5 rounded-md font-semibold cursor-pointer transition shrink-0 ${
+                              item.scope === "hogar"
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30"
+                                : "bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30"
+                            }`}
+                          >
+                            {item.scope === "hogar" ? "Hogar 60%" : "Personal"}
+                          </button>
+                        </div>
+
+                        <div className="text-right font-mono font-bold text-white shrink-0 min-w-[75px] sm:min-w-[95px]">
+                          {item.amount > 0 && <div className="text-xs sm:text-sm">${Math.round(item.amount).toLocaleString("es-AR")}</div>}
+                          {item.amountUsd && item.amountUsd > 0 && (
+                            <div className="text-emerald-400 text-[11px]">U$S {item.amountUsd.toFixed(2)}</div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -590,12 +601,12 @@ export function ImportStatementModal({
 
         {/* Barra de confirmación inferior SIEMPRE fija */}
         {step === "preview" && (
-          <div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-white/10 bg-[#0F131D]">
+          <div className="shrink-0 flex items-center justify-between px-4 py-3 sm:px-6 sm:py-3.5 border-t border-white/10 bg-[#0F131D]">
             <div>
-              <div className="text-xs text-white/50 font-medium">
+              <div className="text-[11px] sm:text-xs text-white/50 font-medium">
                 {selectedCount} de {items.length} consumos seleccionados
               </div>
-              <div className="text-base sm:text-lg font-bold text-white font-mono">
+              <div className="text-sm sm:text-base md:text-lg font-bold text-white font-mono">
                 ${Math.round(selectedTotalPesos).toLocaleString("es-AR")}
                 {selectedTotalUsd > 0 && (
                   <span className="text-emerald-400 font-normal text-xs sm:text-sm ml-2">
@@ -605,11 +616,11 @@ export function ImportStatementModal({
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-semibold text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
@@ -617,7 +628,7 @@ export function ImportStatementModal({
                 type="button"
                 onClick={handleImport}
                 disabled={isImporting || selectedCount === 0}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-500/25 transition-all cursor-pointer"
+                className="px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-500/25 transition-all cursor-pointer"
               >
                 {isImporting ? (
                   <>

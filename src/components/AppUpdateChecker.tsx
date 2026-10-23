@@ -66,8 +66,8 @@ export function AppUpdateChecker() {
       if (hasNewerVersion) {
         setUpdateInfo(remote);
         setShowToast(true);
-        // Iniciar cuenta regresiva para actualización suave
-        setCountdown(5);
+        // Desactivar cuenta regresiva automática para evitar recargas disruptivas mientras el usuario interactúa
+        setCountdown(null);
       } else if (isManual) {
         alert(`¡La app ya está al día con la última versión (v${remote.version})!`);
       }

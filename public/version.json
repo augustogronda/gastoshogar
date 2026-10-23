@@ -1,7 +1,7 @@
 {
-  "version": "1.23.2",
-  "build": 2026102307,
-  "releasedAt": "2026-10-23T15:46:00Z",
-  "title": "Fix viewport y renderizado con portal en modal de importación de resumen",
-  "description": "Se montó el modal de importación con createPortal en document.body para evitar distorsiones de posicionamiento en PC causadas por contenedores padres con transform CSS, permitiendo visualización centrada perfecta en cualquier nivel de zoom."
+  "version": "1.23.3",
+  "build": 2026102308,
+  "releasedAt": "2026-10-23T15:54:00Z",
+  "title": "Vista compacta de lista para importación de resumen y eliminación de recarga automática",
+  "description": "Se rediseñó la vista previa del resumen reemplazando cards gigantes por una lista compacta estilo tabla con checkboxes alineados a la izquierda (entran 10-14 consumos a la vez). Se eliminó la cuenta regresiva que reiniciaba la app al detectar actualizaciones mientras el usuario interactúa."
 }
