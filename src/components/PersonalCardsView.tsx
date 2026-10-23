@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import { CreditCard, Check, Sparkles, Calendar, Plus, ArrowRight, X, Repeat } from "./ui/icons";
+import { Upload } from "lucide-react";
 import { CreditCardVisual } from "./CreditCardVisual";
 import { CardStatementModal } from "./CardStatementModal";
+import { ImportStatementModal } from "./ImportStatementModal";
 import { CardShoppingAdvisorBanner } from "./CardShoppingAdvisorBanner";
 import { computeCardShoppingStrategy } from "@/lib/card-recommendation";
 import { toggleCardPaidAction, advanceCardToNextSummaryAction } from "@/app/actions";
@@ -20,6 +22,8 @@ interface PersonalCardsViewProps {
   year: number;
   month: number;
   monthName: string;
+  categories?: Array<{ id: string; name: string }>;
+  users?: Array<{ id: string; name: string }>;
   onOpenNewRecurring?: () => void;
   cardsData?: {
     cards: Array<{
@@ -65,13 +69,19 @@ interface PersonalCardsViewProps {
 }
 
 export function PersonalCardsView({
+  userId,
   userName,
+  year,
+  month,
+  categories,
+  users,
   onOpenNewRecurring,
   cardsData,
 }: PersonalCardsViewProps) {
   const [localCards, setLocalCards] = useState(cardsData?.cards || []);
   const [selectedCardForEdit, setSelectedCardForEdit] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [cardForNextSummary, setCardForNextSummary] = useState<any | null>(null);
   const [processingCardId, setProcessingCardId] = useState<string | null>(null);
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
@@ -275,9 +285,22 @@ export function PersonalCardsView({
             <CreditCard className="w-4 h-4 text-purple-400" />
             Resúmenes Activos de Tarjetas
           </span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.08] text-zinc-300 font-bold border border-white/[0.1]">
-            {paidCount}/{localCards.length} Pagadas
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic("light");
+                setIsImportModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-600/50 hover:to-indigo-600/50 text-blue-300 border border-blue-500/30 text-[11px] font-semibold shadow-sm transition-all cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Importar Resumen</span>
+            </button>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.08] text-zinc-300 font-bold border border-white/[0.1]">
+              {paidCount}/{localCards.length} Pagadas
+            </span>
+          </div>
         </div>
 
         <div className="flex items-baseline justify-between mb-3">
@@ -528,6 +551,39 @@ export function PersonalCardsView({
         }}
         cardData={selectedCardForEdit}
         onOptimisticSave={handleOptimisticSave}
+      />
+
+      {/* Modal para importar resumen bancario (0 tokens IA) */}
+      <ImportStatementModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        users={users && users.length > 0 ? users : [{ id: userId, name: userName }]}
+        cards={localCards.map((c) => ({
+          id: c.id,
+          bank: c.bank,
+          brand: c.brand,
+          lastDigits: c.lastDigits,
+          userId: c.userId,
+        }))}
+        categories={
+          categories && categories.length > 0
+            ? categories
+            : [
+                { id: "1", name: "Supermercado" },
+                { id: "2", name: "Salidas & Delivery" },
+                { id: "3", name: "Transporte & Combustible" },
+                { id: "4", name: "Farmacia & Salud" },
+                { id: "5", name: "Hogar & Arreglos" },
+                { id: "6", name: "Servicios (Luz, Gas, Wifi)" },
+                { id: "7", name: "Tarjetas" },
+                { id: "8", name: "Varios" },
+              ]
+        }
+        currentYear={year}
+        currentMonth={month}
+        onSuccess={() => {
+          showToast("✓ Consumos importados con éxito");
+        }}
       />
     </div>
   );

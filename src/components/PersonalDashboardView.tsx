@@ -1365,6 +1365,7 @@ export function PersonalDashboardView({
           year={currentYear}
           month={currentMonth}
           monthName={monthName}
+          categories={categories}
           cardsData={cardsData}
           onOpenNewRecurring={() => setIsRecurringModalOpen(true)}
         />

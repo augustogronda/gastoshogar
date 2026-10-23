@@ -2947,5 +2947,198 @@ export async function deletePersonalCardAction(cardId: string) {
   return { success: true };
 }
 
+// ==========================================
+// ACCIONES DE IMPORTACIÓN DE RESÚMENES (0 TOKENS)
+// ==========================================
+
+export async function parsePdfStatementAction(formData: FormData) {
+  try {
+    const file = formData.get("file") as File | null;
+    if (!file) throw new Error("No se recibió ningún archivo PDF.");
+
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+
+    // Carga dinámica de pdf-parse
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse(uint8Array);
+    const textResult = await parser.getText();
+
+    if (!textResult || !textResult.text) {
+      throw new Error("No se pudo extraer texto del archivo PDF.");
+    }
+
+    const { parseStatementText } = await import("@/lib/statement-parser");
+    const parsed = parseStatementText(textResult.text);
+
+    return {
+      success: true,
+      data: parsed,
+      rawTextLength: textResult.text.length,
+    };
+  } catch (err: unknown) {
+    console.error("Error al procesar PDF:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function parseTextStatementAction(rawText: string) {
+  try {
+    if (!rawText || !rawText.trim()) {
+      throw new Error("El texto está vacío.");
+    }
+
+    const { parseStatementText } = await import("@/lib/statement-parser");
+    const parsed = parseStatementText(rawText);
+
+    return {
+      success: true,
+      data: parsed,
+    };
+  } catch (err: unknown) {
+    console.error("Error al procesar texto de resumen:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function importStatementExpensesAction(payload: {
+  userId: string;
+  cardId?: string;
+  year: number;
+  month: number;
+  cardName?: string;
+  updateCardSummary?: boolean;
+  statementAmount?: number;
+  statementAmountUsd?: number;
+  dueDate?: string;
+  closingDate?: string;
+  items: Array<{
+    title: string;
+    amount: number;
+    amountUsd?: number;
+    date: string;
+    category?: string;
+    installmentNumber?: number;
+    totalInstallments?: number;
+    notes?: string;
+    scope: "personal" | "hogar";
+    markForReview: boolean;
+  }>;
+}) {
+  try {
+    const household = await ensureDefaultHousehold();
+    const targetUser = household.users.find((u: any) => u.id === payload.userId) || household.users[0];
+    if (!targetUser) throw new Error("Usuario no encontrado.");
+
+    const { addReviewFlag } = await import("@/lib/expense-review");
+
+    let importedCount = 0;
+
+    for (const item of payload.items) {
+      if (!item.title || item.amount <= 0) continue;
+
+      // Resolver categoría
+      const matchedCat = household.categories.find(
+        (c: any) => c.name.toLowerCase() === (item.category || "").toLowerCase()
+      ) || household.categories[0];
+
+      const dateObj = new Date(item.date);
+      const expYear = dateObj.getFullYear() || payload.year;
+      const expMonth = dateObj.getMonth() + 1 || payload.month;
+
+      let finalNotes = item.notes?.trim() || null;
+      if (item.scope === "personal" && (item.markForReview || payload.cardName)) {
+        finalNotes = addReviewFlag(finalNotes, payload.cardName);
+      }
+
+      if (item.scope === "personal") {
+        await prisma.personalIncome.upsert({
+          where: { userId_year_month: { userId: targetUser.id, year: expYear, month: expMonth } },
+          update: {},
+          create: { userId: targetUser.id, year: expYear, month: expMonth },
+        });
+
+        await prisma.personalExpense.create({
+          data: {
+            userId: targetUser.id,
+            year: expYear,
+            month: expMonth,
+            title: item.title.trim(),
+            amount: item.amount,
+            date: dateObj,
+            categoryId: matchedCat?.id,
+            installmentNumber: item.installmentNumber,
+            totalInstallments: item.totalInstallments,
+            notes: finalNotes,
+          },
+        });
+      } else {
+        // Hogar (60%)
+        let period = await prisma.monthlyPeriod.findUnique({
+          where: { householdId_year_month: { householdId: household.id, year: expYear, month: expMonth } },
+        });
+        if (!period) {
+          period = await prisma.monthlyPeriod.create({
+            data: { householdId: household.id, year: expYear, month: expMonth },
+          });
+        }
+        await prisma.expense.create({
+          data: {
+            periodId: period.id,
+            title: item.title.trim(),
+            amount: item.amount,
+            date: dateObj,
+            categoryId: matchedCat?.id || household.categories[0].id,
+            paidById: targetUser.id,
+            isFromPoolFund: false,
+            installmentNumber: item.installmentNumber,
+            totalInstallments: item.totalInstallments,
+            notes: finalNotes,
+          },
+        });
+      }
+      importedCount++;
+    }
+
+    // Actualizar resumen de tarjeta si se solicitó
+    if (payload.cardId && payload.updateCardSummary) {
+      await prisma.cardMonthlyPeriod.upsert({
+        where: { cardId_year_month: { cardId: payload.cardId, year: payload.year, month: payload.month } },
+        update: {
+          ...(typeof payload.statementAmount === "number" && payload.statementAmount > 0 ? { statementAmount: payload.statementAmount } : {}),
+          ...(typeof payload.statementAmountUsd === "number" && payload.statementAmountUsd > 0 ? { statementAmountUsd: payload.statementAmountUsd } : {}),
+          ...(payload.dueDate ? { dueDate: new Date(payload.dueDate) } : {}),
+          ...(payload.closingDate ? { closingDate: new Date(payload.closingDate) } : {}),
+        },
+        create: {
+          cardId: payload.cardId,
+          year: payload.year,
+          month: payload.month,
+          statementAmount: payload.statementAmount || 0,
+          statementAmountUsd: payload.statementAmountUsd || 0,
+          dueDate: payload.dueDate ? new Date(payload.dueDate) : null,
+          closingDate: payload.closingDate ? new Date(payload.closingDate) : null,
+        },
+      });
+      invalidateCardsCache();
+    }
+
+    revalidatePath("/");
+    return { success: true, importedCount };
+  } catch (err: unknown) {
+    console.error("Error al importar lote de gastos:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 
 

@@ -1,7 +1,7 @@
 {
-  "version": "1.22.0",
-  "build": 2026102304,
-  "releasedAt": "2026-10-23T14:15:00Z",
-  "title": "Fix de modales al alternar espacios y URLs limpias sin parámetros redundantes",
-  "description": "Se elimina el auto-reaperturado fantasma de modales al volver al espacio personal reseteando la acción al cerrar/cancelar o cambiar de espacio. URLs limpias sin parámetros de año y mes cuando se navega en el mes en curso."
+  "version": "1.23.0",
+  "build": 2026102305,
+  "releasedAt": "2026-10-23T15:15:00Z",
+  "title": "Importador universal de resúmenes bancarios (Santander, BBVA, Galicia, Mercado Pago)",
+  "description": "Permite arrastrar archivos PDF o pegar texto copiado para extraer automáticamente todos los consumos, cuotas y totales con auto-categorización local y previsualización editable, con costo cero y sin consumir tokens de IA."
 }
