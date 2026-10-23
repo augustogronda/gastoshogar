@@ -582,13 +582,7 @@ export function PersonalCardsView({
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         users={users && users.length > 0 ? users : [{ id: userId, name: userName }]}
-        cards={localCards.map((c) => ({
-          id: c.id,
-          bank: c.bank,
-          brand: c.brand,
-          lastDigits: c.lastDigits,
-          userId: c.userId,
-        }))}
+        cards={localCards}
         categories={
           categories && categories.length > 0
             ? categories

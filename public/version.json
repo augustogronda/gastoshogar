@@ -1,7 +1,7 @@
 {
-  "version": "1.23.4",
-  "build": 2026102309,
-  "releasedAt": "2026-10-23T16:03:00Z",
-  "title": "Corrección de cálculo exacto: exclusión de pago mínimo y detección inteligente de anulaciones",
-  "description": "Se corrigió el total del resumen excluyendo filas de resumen como 'Mínimo a pagar'. Se incorporó detector inteligente de anulaciones/reembolsos (ej: compras canceladas de igual importe se marcan anuladas y deseleccionadas automáticamente), logrando coincidencia exacta con el total del banco."
+  "version": "1.23.5",
+  "build": 2026102310,
+  "releasedAt": "2026-10-23T16:14:00Z",
+  "title": "Fix reset de estado en modal de importación por renderizado reactivo del padre",
+  "description": "Se corrigió el problema por el cual el modal volvía automáticamente a la pantalla de subir PDF tras unos segundos: se estabilizó la dependencia de tarjetas en PersonalCardsView y se guardó la referencia previa de apertura para que el modal solo reinicie estado en la transición inicial de cerrado a abierto."
 }

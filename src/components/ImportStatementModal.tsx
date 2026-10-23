@@ -47,6 +47,7 @@ export function ImportStatementModal({
   const [updateCardSummary, setUpdateCardSummary] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevIsOpenRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -62,9 +63,9 @@ export function ImportStatementModal({
     };
   }, [isOpen]);
 
-  // Inicializar usuario y tarjeta cuando se abre el modal
+  // Inicializar usuario y tarjeta ÚNICAMENTE cuando el modal pasa de cerrado a abierto
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setStep("upload");
       setErrorMsg(null);
       setParsedData(null);
@@ -79,6 +80,7 @@ export function ImportStatementModal({
         setSelectedUserId(users[0].id);
       }
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, preselectedCardId, cards, users]);
 
   if (!isOpen || !mounted) return null;
