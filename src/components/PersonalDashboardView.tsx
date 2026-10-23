@@ -122,7 +122,8 @@ interface PersonalDashboardViewProps {
   };
   activeTab?: "gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones";
   onTabChange?: (tab: "gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones") => void;
-  externalMenuAction?: { type: "income" | "closeOrReopen"; seq: number } | null;
+  externalMenuAction?: { type: "income" | "expense" | "closeOrReopen"; seq: number } | null;
+  onResetExternalMenuAction?: () => void;
   onSyncPersonalExpenses?: (expenses: PersonalExpenseItem[]) => void;
 }
 
@@ -364,6 +365,7 @@ export function PersonalDashboardView({
   activeTab = "gastos",
   onTabChange,
   externalMenuAction,
+  onResetExternalMenuAction,
   onSyncPersonalExpenses,
 }: PersonalDashboardViewProps) {
   const personalTab = activeTab;
@@ -382,6 +384,7 @@ export function PersonalDashboardView({
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const lastProcessedSeqRef = React.useRef<number | null>(null);
   const [confirmState, setConfirmState] = useState<{
     type: "deleteExpense" | "deleteRecurring" | "reopenMonth";
     id?: string;
@@ -699,8 +702,13 @@ export function PersonalDashboardView({
 
   useEffect(() => {
     if (!externalMenuAction) return;
+    if (lastProcessedSeqRef.current === externalMenuAction.seq) return;
+    lastProcessedSeqRef.current = externalMenuAction.seq;
+
     if (externalMenuAction.type === "income") {
       setIsIncomeModalOpen(true);
+    } else if (externalMenuAction.type === "expense") {
+      setIsExpenseModalOpen(true);
     } else if (externalMenuAction.type === "closeOrReopen") {
       if (isClosed) {
         handleReopenPersonalMonth();
@@ -708,7 +716,8 @@ export function PersonalDashboardView({
         setIsCloseModalOpen(true);
       }
     }
-  }, [externalMenuAction]);
+    onResetExternalMenuAction?.();
+  }, [externalMenuAction, isClosed, onResetExternalMenuAction]);
 
   // Cálculo de análisis por categoría memoizado
   const sortedCategories = useMemo(() => {
@@ -1402,7 +1411,10 @@ export function PersonalDashboardView({
       {/* Modales Personales */}
       <PersonalIncomeModal
         isOpen={isIncomeModalOpen}
-        onClose={() => setIsIncomeModalOpen(false)}
+        onClose={() => {
+          setIsIncomeModalOpen(false);
+          onResetExternalMenuAction?.();
+        }}
         userId={currentUser.id}
         userName={currentUser.name}
         year={currentYear}
@@ -1418,7 +1430,10 @@ export function PersonalDashboardView({
 
       <PersonalExpenseModal
         isOpen={isExpenseModalOpen}
-        onClose={() => setIsExpenseModalOpen(false)}
+        onClose={() => {
+          setIsExpenseModalOpen(false);
+          onResetExternalMenuAction?.();
+        }}
         userId={currentUser.id}
         userName={currentUser.name}
         year={currentYear}
@@ -1429,7 +1444,10 @@ export function PersonalDashboardView({
 
       <PersonalRecurringModal
         isOpen={isRecurringModalOpen}
-        onClose={() => setIsRecurringModalOpen(false)}
+        onClose={() => {
+          setIsRecurringModalOpen(false);
+          onResetExternalMenuAction?.();
+        }}
         userId={currentUser.id}
         userName={currentUser.name}
         currentYear={currentYear}
@@ -1453,7 +1471,10 @@ export function PersonalDashboardView({
                 </div>
               </div>
               <button
-                onClick={() => setIsCloseModalOpen(false)}
+                onClick={() => {
+                  setIsCloseModalOpen(false);
+                  onResetExternalMenuAction?.();
+                }}
                 className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 transition"
               >
                 <X className="w-4 h-4" />

@@ -361,12 +361,20 @@ export function IPadDashboard({
             type="button"
             onClick={() => {
               triggerHaptic(12);
-              setIsExpenseModalOpen(true);
+              if (spaceMode === "personal") {
+                setPersonalMenuAction({ type: "expense", seq: Date.now() });
+              } else {
+                setIsExpenseModalOpen(true);
+              }
             }}
-            className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/30 flex items-center gap-2 transition active:scale-95"
+            className={`py-2.5 px-4 rounded-xl ${
+              spaceMode === "personal"
+                ? "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30"
+                : "bg-blue-600 hover:bg-blue-500 shadow-blue-600/30"
+            } text-white font-bold text-xs shadow-md flex items-center gap-2 transition active:scale-95`}
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>Nuevo Gasto</span>
+            <span>{spaceMode === "personal" ? "Nuevo Gasto Personal" : "Nuevo Gasto"}</span>
           </button>
         </div>
 
@@ -524,6 +532,7 @@ export function IPadDashboard({
               activeTab={personalTab}
               onTabChange={setPersonalTab}
               externalMenuAction={personalMenuAction}
+              onResetExternalMenuAction={() => setPersonalMenuAction(null)}
               onSyncPersonalExpenses={handleSyncPersonalExpenses}
             />
           )

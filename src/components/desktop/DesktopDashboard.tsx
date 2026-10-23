@@ -211,7 +211,11 @@ export function DesktopDashboard({
       if (e.key === "n" || e.key === "N") {
         e.preventDefault();
         triggerHaptic(12);
-        setIsExpenseModalOpen(true);
+        if (spaceMode === "personal") {
+          setPersonalMenuAction({ type: "expense", seq: Date.now() });
+        } else {
+          setIsExpenseModalOpen(true);
+        }
       } else if (e.key === "/" || ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K"))) {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -691,17 +695,27 @@ export function DesktopDashboard({
               type="button"
               onClick={() => {
                 triggerHaptic(12);
-                setIsExpenseModalOpen(true);
+                if (spaceMode === "personal") {
+                  setPersonalMenuAction({ type: "expense", seq: Date.now() });
+                } else {
+                  setIsExpenseModalOpen(true);
+                }
               }}
               className={`w-full py-3 ${
                 isSidebarCollapsed ? "px-2" : "px-4"
-              } rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition active:scale-95 group`}
+              } rounded-2xl ${
+                spaceMode === "personal"
+                  ? "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30"
+                  : "bg-blue-600 hover:bg-blue-500 shadow-blue-600/30"
+              } text-white font-bold text-xs shadow-lg flex items-center justify-center gap-2 transition active:scale-95 group`}
               title="Nuevo Gasto (Atajo N)"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              {!isSidebarCollapsed && <span>Nuevo Gasto</span>}
               {!isSidebarCollapsed && (
-                <kbd className="hidden lg:inline-block ml-auto text-[10px] px-1.5 py-0.5 rounded bg-blue-700 text-blue-200 font-mono">
+                <span>{spaceMode === "personal" ? "Nuevo Gasto Personal" : "Nuevo Gasto"}</span>
+              )}
+              {!isSidebarCollapsed && (
+                <kbd className="hidden lg:inline-block ml-auto text-[10px] px-1.5 py-0.5 rounded bg-black/20 text-white/80 font-mono">
                   N
                 </kbd>
               )}
@@ -819,6 +833,7 @@ export function DesktopDashboard({
                 activeTab={personalTab}
                 onTabChange={setPersonalTab}
                 externalMenuAction={personalMenuAction}
+                onResetExternalMenuAction={() => setPersonalMenuAction(null)}
                 onSyncPersonalExpenses={handleSyncPersonalExpenses}
               />
             </div>

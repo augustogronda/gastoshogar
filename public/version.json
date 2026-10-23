@@ -1,7 +1,7 @@
 {
-  "version": "1.21.1",
-  "build": 2026102303,
-  "releasedAt": "2026-10-23T13:20:00Z",
-  "title": "Fix: Corrección de carga de página y estabilidad en Server Components",
-  "description": "Se elimina la mutación síncrona de cookies dentro de Server Components que causaba el fallo de carga, se blinda el HomePage con fallback de error y boundary reactivo."
+  "version": "1.22.0",
+  "build": 2026102304,
+  "releasedAt": "2026-10-23T14:15:00Z",
+  "title": "Fix de modales al alternar espacios y URLs limpias sin parámetros redundantes",
+  "description": "Se elimina el auto-reaperturado fantasma de modales al volver al espacio personal reseteando la acción al cerrar/cancelar o cambiar de espacio. URLs limpias sin parámetros de año y mes cuando se navega en el mes en curso."
 }

@@ -251,9 +251,14 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
   const [spaceMode, setSpaceMode] = useState<"hogar" | "personal">("hogar");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [personalMenuAction, setPersonalMenuAction] = useState<{
-    type: "income" | "closeOrReopen";
+    type: "income" | "expense" | "closeOrReopen";
     seq: number;
   } | null>(null);
+
+  const handleSpaceModeChange = (mode: "hogar" | "personal") => {
+    setPersonalMenuAction(null);
+    setSpaceMode(mode);
+  };
   const [activeTab, setActiveTab] = useState<ActiveTab>("hogar");
   const [personalTab, setPersonalTab] = useState<"gastos" | "analisis" | "cuotas" | "tarjetas" | "inversiones">("gastos");
   const [hogarFilter, setHogarFilter] = useState<string>("ALL");
@@ -542,15 +547,25 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     };
   }, [currentYear, currentMonth]);
 
+  // Limpiar URL si ya estamos en el mes actual al cargar la app
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const now = new Date();
+      const isCurrentRealMonth = currentYear === now.getFullYear() && currentMonth === (now.getMonth() + 1);
+      if (isCurrentRealMonth && window.location.search) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    }
+  }, [currentYear, currentMonth]);
+
   // Manejo de navegación del navegador (botones atrás/adelante)
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const y = params.get("year") ? parseInt(params.get("year")!) : undefined;
-      const m = params.get("month") ? parseInt(params.get("month")!) : undefined;
-      if (y && m) {
-        switchMonth(y, m);
-      }
+      const now = new Date();
+      const y = params.get("year") ? parseInt(params.get("year")!) : now.getFullYear();
+      const m = params.get("month") ? parseInt(params.get("month")!) : (now.getMonth() + 1);
+      switchMonth(y, m);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -561,12 +576,15 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     if (targetYear === currentYear && targetMonth === currentMonth) return;
 
     const key = `${targetYear}-${targetMonth}`;
+    const now = new Date();
+    const isCurrentRealMonth = targetYear === now.getFullYear() && targetMonth === (now.getMonth() + 1);
+    const targetUrl = isCurrentRealMonth ? "/" : `/?year=${targetYear}&month=${targetMonth}`;
 
     // 1. Si está en caché local, respuesta inmediata en 0ms
     if (dataCacheRef.current.has(key)) {
       const cached = dataCacheRef.current.get(key)!;
       setDashboardData(cached);
-      window.history.pushState(null, "", `/?year=${targetYear}&month=${targetMonth}`);
+      window.history.pushState(null, "", targetUrl);
       return;
     }
 
@@ -576,7 +594,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       const freshData = await getDashboardData(targetYear, targetMonth);
       dataCacheRef.current.set(key, freshData);
       setDashboardData(freshData);
-      window.history.pushState(null, "", `/?year=${targetYear}&month=${targetMonth}`);
+      window.history.pushState(null, "", targetUrl);
     } catch (err) {
       console.error("Error al cargar mes:", err);
     } finally {
@@ -1089,7 +1107,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     isClosed,
     isChangingMonth,
     spaceMode,
-    setSpaceMode,
+    setSpaceMode: handleSpaceModeChange,
     activeTab,
     setActiveTab,
     personalTab,
@@ -1467,7 +1485,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             aria-selected={spaceMode === "hogar"}
             onClick={() => {
               if (spaceMode !== "hogar") triggerHaptic(10);
-              setSpaceMode("hogar");
+              handleSpaceModeChange("hogar");
             }}
             className={`flex-1 min-h-[38px] py-2 px-3 rounded-[10px] text-[13px] tracking-[-0.01em] font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-[0.98] ${
               spaceMode === "hogar"
@@ -1484,7 +1502,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             aria-selected={spaceMode === "personal"}
             onClick={() => {
               if (spaceMode !== "personal") triggerHaptic(10);
-              setSpaceMode("personal");
+              handleSpaceModeChange("personal");
             }}
             className={`flex-1 min-h-[38px] py-2 px-3 rounded-[10px] text-[13px] tracking-[-0.01em] font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-[0.98] ${
               spaceMode === "personal"
@@ -1529,6 +1547,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               activeTab={personalTab}
               onTabChange={setPersonalTab}
               externalMenuAction={personalMenuAction}
+              onResetExternalMenuAction={() => setPersonalMenuAction(null)}
               onSyncPersonalExpenses={handleSyncPersonalExpenses}
             />
           )
