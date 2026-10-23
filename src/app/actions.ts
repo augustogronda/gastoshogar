@@ -2959,22 +2959,23 @@ export async function parsePdfStatementAction(formData: FormData) {
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
 
-    // Carga dinámica de pdf-parse
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse(uint8Array);
-    const textResult = await parser.getText();
+    // Carga de unpdf (100% compatible con Vercel Serverless / sin error de DOMMatrix)
+    const { extractText } = await import("unpdf");
+    const { text } = await extractText(uint8Array);
 
-    if (!textResult || !textResult.text) {
+    const fullText = Array.isArray(text) ? text.join("\n") : (text || "");
+
+    if (!fullText || !fullText.trim()) {
       throw new Error("No se pudo extraer texto del archivo PDF.");
     }
 
     const { parseStatementText } = await import("@/lib/statement-parser");
-    const parsed = parseStatementText(textResult.text);
+    const parsed = parseStatementText(fullText);
 
     return {
       success: true,
       data: parsed,
-      rawTextLength: textResult.text.length,
+      rawTextLength: fullText.length,
     };
   } catch (err: unknown) {
     console.error("Error al procesar PDF:", err);

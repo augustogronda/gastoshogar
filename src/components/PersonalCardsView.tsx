@@ -278,6 +278,30 @@ export function PersonalCardsView({
         </div>
       )}
 
+      {/* Banner superior de Importación Rápida de Resúmenes */}
+      <div className="flex items-center justify-between p-3.5 bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-purple-900/40 border border-blue-500/30 rounded-2xl shadow-lg">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+            <Upload className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-xs font-bold text-white block truncate">Importar Resumen de Tarjeta</span>
+            <span className="text-[11px] text-zinc-400 truncate block">PDF Santander, BBVA, Galicia o texto MP</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic("medium");
+            setIsImportModalOpen(true);
+          }}
+          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/30 flex items-center gap-1.5 transition active:scale-95 shrink-0 cursor-pointer ml-2"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          <span>Importar</span>
+        </button>
+      </div>
+
       {/* Tarjeta Resumen de Resúmenes Activos (Independientes del mes calendario) */}
       <section className="super-card rounded-3xl p-5 relative overflow-hidden">
         <div className="flex items-center justify-between mb-3">
