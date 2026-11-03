@@ -1,7 +1,7 @@
 {
-  "version": "1.24.4",
-  "build": 2026102317,
-  "releasedAt": "2026-10-23T21:56:00Z",
-  "title": "Solución de agotamiento de pool de conexiones Prisma y timeouts en Serverless",
-  "description": "Se eliminó el flag restrictivo connection_limit=1 que provocaba que las consultas paralelas en Promise.all se encolaran y agotaran el pool de conexiones en Vercel. Se configuró connection_limit=10 y pool_timeout=30 con PgBouncer en modo transacción, y se optimizó el cierre limpio de SSE en /api/mcp a 8s para evitar timeouts en planes Hobby."
+  "version": "1.25.0",
+  "build": 2026110201,
+  "releasedAt": "2026-11-02T21:12:00Z",
+  "title": "Apertura instantánea en celular (0ms)",
+  "description": "App Shell offline con Service Worker, arranque inmediato desde memoria local sin pantalla negra y sincronización silenciosa en segundo plano."
 }

@@ -18,6 +18,7 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Hogar",
+    startupImage: ["/icon-512.png"],
   },
   icons: {
     icon: [
@@ -33,6 +34,7 @@ export const metadata: Metadata = {
 
 import { AppUpdateChecker } from "@/components/AppUpdateChecker";
 import { DeviceProvider } from "@/lib/use-device";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 export default function RootLayout({
   children,
@@ -48,17 +50,21 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-startup-image" href="/icon-512.png" />
         <link rel="preload" href="/icon-192.png" as="image" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Hogar" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#07090e" />
+        <meta name="background-color" content="#07090e" />
       </head>
       <body
         className="min-h-full bg-[#07090e] text-zinc-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white"
         suppressHydrationWarning
       >
         <DeviceProvider>
+          <ServiceWorkerRegister />
           <AppUpdateChecker />
           {children}
         </DeviceProvider>
