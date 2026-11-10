@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   TrendingUp,
@@ -20,6 +20,7 @@ import {
   createFCIWithdrawalAction,
   deleteFCIWithdrawalAction,
 } from "@/app/actions";
+import { POPULAR_ARGENTINA_FCIS } from "@/lib/investments-service";
 import { triggerHaptic } from "@/lib/haptics";
 
 export interface FCIWithdrawalItem {
@@ -62,6 +63,9 @@ export function FCIInvestModal({
   const [newValueInput, setNewValueInput] = useState<string>(
     currentFundValue ? currentFundValue.toString() : ""
   );
+  const [fundNameInput, setFundNameInput] = useState<string>(
+    fundName || "FCI Ahorro Pareja"
+  );
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -69,6 +73,14 @@ export function FCIInvestModal({
   const [withdrawAmount, setWithdrawAmount] = useState<string>("");
   const [withdrawDestination, setWithdrawDestination] = useState<"POOL_FUND" | "CUSTOM_USE">("POOL_FUND");
   const [withdrawPurpose, setWithdrawPurpose] = useState<string>("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setNewValueInput(currentFundValue ? currentFundValue.toString() : "0");
+      setFundNameInput(fundName || "FCI Ahorro Pareja");
+      setErrorMsg(null);
+    }
+  }, [isOpen, currentFundValue, fundName]);
 
   if (!isOpen) return null;
 
@@ -92,17 +104,17 @@ export function FCIInvestModal({
   };
 
   const handleSaveValue = async () => {
-    if (!fundId) return;
-    const val = parseFloat(newValueInput) || 0;
+    const val = parseFloat(newValueInput.replace(",", ".")) || 0;
+    const cleanName = fundNameInput.trim() || "FCI Ahorro Pareja";
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      await updateFCIValueAction(fundId, val);
+      await updateFCIValueAction(fundId || "", val, cleanName);
       triggerHaptic(15);
       setIsUpdatingValue(false);
     } catch (err: unknown) {
       console.error(err);
-      setErrorMsg(err instanceof Error ? err.message : "Error al actualizar saldo");
+      setErrorMsg(err instanceof Error ? err.message : "Error al actualizar datos del FCI");
     } finally {
       setIsSubmitting(false);
     }
@@ -177,9 +189,18 @@ export function FCIInvestModal({
         
         {/* Cabecera */}
         <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
-          <div className="flex items-center gap-2">
-            <PiggyBank className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-base font-bold text-white tracking-tight">Fondo Común de Inversión</h2>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <PiggyBank className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white tracking-tight">
+                {fundName || "Fondo Común de Inversión"}
+              </h2>
+              <p className="text-[11px] text-zinc-400">
+                Fondo de ahorro de remanentes mensuales
+              </p>
+            </div>
           </div>
           <button
             onClick={() => {
@@ -192,12 +213,14 @@ export function FCIInvestModal({
           </button>
         </div>
 
-        {/* Tarjeta de Saldo Total Actual */}
+        {/* Tarjeta de Saldo Total Actual y Configuración del Fondo Común */}
         <div className="mt-4 bg-emerald-950/30 border border-emerald-500/20 rounded-2xl p-4 relative overflow-hidden">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold text-emerald-400/90 tracking-wider uppercase">
-              Patrimonio Invertido Conjunto
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-emerald-400/90 tracking-wider uppercase">
+                Saldo en {fundName || "FCI Ahorro Pareja"}
+              </span>
+            </div>
             <TrendingUp className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="flex items-baseline justify-between mt-1">
@@ -205,29 +228,75 @@ export function FCIInvestModal({
               ${Math.round(currentFundValue).toLocaleString("es-AR")}
             </span>
             <button
+              type="button"
               onClick={() => setIsUpdatingValue(!isUpdatingValue)}
-              className="text-xs text-zinc-400 hover:text-emerald-400 underline transition"
+              className="text-xs font-semibold text-emerald-300 hover:text-emerald-200 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-xl transition active:scale-95"
             >
-              {isUpdatingValue ? "Cancelar" : "Editar Saldo"}
+              {isUpdatingValue ? "Cerrar editor" : "Editar Fondo / Saldo"}
             </button>
           </div>
 
           {isUpdatingValue && (
-            <div className="mt-3 flex gap-2">
-              <input
-                type="number"
-                placeholder="Nuevo valor broker ($)"
-                value={newValueInput}
-                onChange={(e) => setNewValueInput(e.target.value)}
-                className="w-full bg-black/50 border border-white/[0.14] rounded-xl px-3 py-2 text-white text-sm font-mono tabular-nums text-center placeholder:text-center placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-inner"
-              />
-              <button
-                onClick={handleSaveValue}
-                disabled={isSubmitting}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md active:scale-95 transition whitespace-nowrap disabled:opacity-50"
-              >
-                Actualizar
-              </button>
+            <div className="mt-3.5 pt-3.5 border-t border-emerald-500/20 space-y-3 animate-fade-in">
+              <div>
+                <label className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block mb-1">
+                  ¿En qué Fondo Común / Entidad está invertido?
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Fima Premium (Galicia), Balanz Money Market..."
+                  value={fundNameInput}
+                  onChange={(e) => setFundNameInput(e.target.value)}
+                  className="w-full bg-black/50 border border-white/[0.14] rounded-xl px-3 py-2 text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {POPULAR_ARGENTINA_FCIS.slice(0, 8).map((fci) => {
+                    const label = `${fci.name.split(" (")[0]} (${fci.broker})`;
+                    const isSelected = fundNameInput === label;
+                    return (
+                      <button
+                        key={fci.ticker}
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic(6);
+                          setFundNameInput(label);
+                        }}
+                        className={`text-[10px] px-2 py-1 rounded-lg border transition active:scale-95 ${
+                          isSelected
+                            ? "bg-emerald-500/30 border-emerald-400 text-white font-bold"
+                            : "bg-black/40 border-white/[0.08] text-zinc-300 hover:bg-white/[0.08]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block mb-1">
+                  Saldo Actualizado en el Broker / Banco ($)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="Nuevo valor actual ($)"
+                    value={newValueInput}
+                    onChange={(e) => setNewValueInput(e.target.value)}
+                    className="w-full bg-black/50 border border-white/[0.14] rounded-xl px-3 py-2 text-white text-sm font-mono tabular-nums placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-inner"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveValue}
+                    disabled={isSubmitting}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md active:scale-95 transition whitespace-nowrap disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Guardando..." : "Guardar"}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -958,11 +958,43 @@ export async function reopenMonthAction(periodId: string) {
   return { success: true };
 }
 
-export async function updateFCIValueAction(fundId: string, newValue: number) {
-  await prisma.investmentFund.update({
-    where: { id: fundId },
-    data: { currentValue: newValue },
-  });
+export async function updateFCIValueAction(
+  fundId: string,
+  newValue: number,
+  newName?: string
+) {
+  const cleanName = newName?.trim();
+  if (fundId) {
+    await prisma.investmentFund.update({
+      where: { id: fundId },
+      data: {
+        currentValue: newValue,
+        ...(cleanName ? { name: cleanName } : {}),
+      },
+    });
+  } else {
+    const household = await ensureDefaultHousehold();
+    const existingFund = await prisma.investmentFund.findFirst({
+      where: { householdId: household.id },
+    });
+    if (existingFund) {
+      await prisma.investmentFund.update({
+        where: { id: existingFund.id },
+        data: {
+          currentValue: newValue,
+          ...(cleanName ? { name: cleanName } : {}),
+        },
+      });
+    } else {
+      await prisma.investmentFund.create({
+        data: {
+          householdId: household.id,
+          name: cleanName || "FCI Ahorro Pareja",
+          currentValue: newValue,
+        },
+      });
+    }
+  }
   revalidatePath("/");
   return { success: true };
 }
@@ -2593,6 +2625,7 @@ export async function savePersonalInvestmentAction(data: {
         notes: data.notes?.trim() || null,
       },
     });
+    invalidatePortfolioCache();
     revalidatePath("/");
     return updated;
   } else {
@@ -2720,6 +2753,8 @@ export async function deleteSharedInvestmentAction(id: string) {
 
 export async function refreshSharedInvestmentsAction(householdId: string) {
   if (!householdId) throw new Error("ID de hogar requerido");
+
+  invalidatePortfolioCache();
 
   const rawInvestments = await prisma.sharedInvestment.findMany({
     where: { householdId },

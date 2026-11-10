@@ -26,33 +26,149 @@ const quoteCache = new Map<string, { quote: MarketQuote; timestamp: number }>();
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
 
+export const POPULAR_ARGENTINA_FCIS = [
+  {
+    ticker: "FCI-FIMA-PREM",
+    name: "Fima Premium (Money Market)",
+    broker: "Banco Galicia",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-FIMA-AHORRO",
+    name: "Fima Ahorro Plus (Renta Fija)",
+    broker: "Banco Galicia",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-BALANZ-MM",
+    name: "Balanz Capital Money Market",
+    broker: "Balanz",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-BALANZ-PERF",
+    name: "Balanz Performance (Renta Fija)",
+    broker: "Balanz",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-COCOS-DARUMA",
+    name: "Cocos Daruma Renta Mixta",
+    broker: "Cocos Capital",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-SANTANDER-SA",
+    name: "Super Ahorro $ (Money Market)",
+    broker: "Santander",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-BBVA-FBA",
+    name: "FBA Renta Pesos",
+    broker: "BBVA",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-MP-BIND",
+    name: "Mercado Fondo (Bind)",
+    broker: "Mercado Pago",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-IOL-PREMIER",
+    name: "Premier Renta CP en Pesos",
+    broker: "InvertirOnline (IOL)",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-IOL-USD",
+    name: "IOL Dólar Ahorro Plus",
+    broker: "InvertirOnline (IOL)",
+    assetType: "FCI",
+    defaultCurrency: "USD",
+  },
+  {
+    ticker: "FCI-DELTA-PESOS",
+    name: "Delta Pesos (Personal Pay)",
+    broker: "Delta / Personal Pay",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-UALA",
+    name: "Ualá / Uilo FCI Ahorro",
+    broker: "Ualá",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-PIONERO",
+    name: "Pionero Pesos",
+    broker: "Banco Macro",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+  {
+    ticker: "FCI-PELLEGRINI",
+    name: "Pellegrini Renta Pesos",
+    broker: "Banco Nación",
+    assetType: "FCI",
+    defaultCurrency: "ARS",
+  },
+];
+
 export const POPULAR_ARGENTINA_ASSETS = [
   // CEDEARs Principales
   { ticker: "SPY.BA", name: "S&P 500 ETF (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
+  { ticker: "QQQ.BA", name: "Nasdaq 100 ETF (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
   { ticker: "AAPL.BA", name: "Apple Inc. (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
   { ticker: "MELI.BA", name: "MercadoLibre (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
   { ticker: "NVDA.BA", name: "NVIDIA Corp. (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
-  { ticker: "KO.BA", name: "Coca-Cola (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
   { ticker: "MSFT.BA", name: "Microsoft (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
-  { ticker: "TSLA.BA", name: "Tesla (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
-  { ticker: "QQQ.BA", name: "Nasdaq 100 ETF (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
-  { ticker: "DIA.BA", name: "Dow Jones ETF (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
+  { ticker: "GOOGL.BA", name: "Alphabet / Google (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
   { ticker: "AMZN.BA", name: "Amazon.com (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
-  { ticker: "GOOGL.BA", name: "Alphabet (Google) (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
+  { ticker: "META.BA", name: "Meta Platforms (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
+  { ticker: "TSLA.BA", name: "Tesla (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
+  { ticker: "KO.BA", name: "Coca-Cola (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
+  { ticker: "BRKB.BA", name: "Berkshire Hathaway (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
+  { ticker: "VIST.BA", name: "Vista Energy (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
+  { ticker: "DIA.BA", name: "Dow Jones ETF (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
+  { ticker: "EWZ.BA", name: "iShares MSCI Brazil (CEDEAR)", assetType: "CEDEAR", defaultCurrency: "ARS" },
 
-  // Acciones y Bonos Locales
+  // Acciones Locales (Merval / BYMA)
   { ticker: "GGAL.BA", name: "Grupo Financiero Galicia", assetType: "ACCION", defaultCurrency: "ARS" },
   { ticker: "YPFD.BA", name: "YPF S.A.", assetType: "ACCION", defaultCurrency: "ARS" },
   { ticker: "PAMP.BA", name: "Pampa Energía", assetType: "ACCION", defaultCurrency: "ARS" },
-  { ticker: "TXAR.BA", name: "Ternium Argentina", assetType: "ACCION", defaultCurrency: "ARS" },
   { ticker: "BMA.BA", name: "Banco Macro", assetType: "ACCION", defaultCurrency: "ARS" },
+  { ticker: "TGSU2.BA", name: "Transportadora de Gas del Sur", assetType: "ACCION", defaultCurrency: "ARS" },
+  { ticker: "CEPU.BA", name: "Central Puerto", assetType: "ACCION", defaultCurrency: "ARS" },
+  { ticker: "TXAR.BA", name: "Ternium Argentina", assetType: "ACCION", defaultCurrency: "ARS" },
+  { ticker: "ALUA.BA", name: "Aluar Aluminio Argentino", assetType: "ACCION", defaultCurrency: "ARS" },
+  { ticker: "EDN.BA", name: "Edenor", assetType: "ACCION", defaultCurrency: "ARS" },
+  { ticker: "BYMA.BA", name: "Bolsas y Mercados Argentinos", assetType: "ACCION", defaultCurrency: "ARS" },
+
+  // Bonos y Títulos Públicos
   { ticker: "AL30.BA", name: "Bono AL30 (Bonar 2030)", assetType: "BONO", defaultCurrency: "ARS" },
   { ticker: "GD30.BA", name: "Bono GD30 (Global 2030)", assetType: "BONO", defaultCurrency: "ARS" },
+  { ticker: "AL35.BA", name: "Bono AL35 (Bonar 2035)", assetType: "BONO", defaultCurrency: "ARS" },
+  { ticker: "GD35.BA", name: "Bono GD35 (Global 2035)", assetType: "BONO", defaultCurrency: "ARS" },
+  { ticker: "TX26.BA", name: "Boncer 2026 CER (TX26)", assetType: "BONO", defaultCurrency: "ARS" },
 
-  // Cripto
-  { ticker: "BTC-USD", name: "Bitcoin", assetType: "CRYPTO", defaultCurrency: "USD" },
-  { ticker: "ETH-USD", name: "Ethereum", assetType: "CRYPTO", defaultCurrency: "USD" },
-  { ticker: "SOL-USD", name: "Solana", assetType: "CRYPTO", defaultCurrency: "USD" },
+  // Cripto & Stablecoins
+  { ticker: "BTC-USD", name: "Bitcoin (BTC)", assetType: "CRYPTO", defaultCurrency: "USD" },
+  { ticker: "ETH-USD", name: "Ethereum (ETH)", assetType: "CRYPTO", defaultCurrency: "USD" },
+  { ticker: "SOL-USD", name: "Solana (SOL)", assetType: "CRYPTO", defaultCurrency: "USD" },
+  { ticker: "USDT-USD", name: "Tether / Dólar Cripto (USDT)", assetType: "CRYPTO", defaultCurrency: "USD" },
 ];
 
 /**
@@ -205,6 +321,23 @@ export async function searchTickers(query: string) {
     }
   }
 
+  // 1b. Incluir también Fondos Comunes de Inversión (FCIs) populares
+  for (const fci of POPULAR_ARGENTINA_FCIS) {
+    if (
+      fci.ticker.toUpperCase().includes(q) ||
+      fci.name.toUpperCase().includes(q) ||
+      fci.broker.toUpperCase().includes(q)
+    ) {
+      results.push({
+        ticker: fci.ticker,
+        name: `${fci.name} (${fci.broker})`,
+        assetType: "FCI",
+        currency: fci.defaultCurrency,
+        exchange: fci.broker,
+      });
+    }
+  }
+
   // 2. Si la consulta tiene al menos 2 caracteres, buscar en Yahoo Finance API
   if (q.length >= 2) {
     try {
@@ -346,9 +479,12 @@ export async function hydrateInvestments(
     };
   }
 
-  // Clave de caché basada en los IDs y cantidades (chequear ANTES de llamar a APIs externas)
+  // Clave de caché basada en los campos del activo (chequear ANTES de llamar a APIs externas)
   const cacheKey = rawInvestments
-    .map((i) => `${i.id}_${i.quantity}_${i.manualPrice || 0}`)
+    .map(
+      (i) =>
+        `${i.id}_${i.ticker}_${i.name}_${i.assetType}_${i.quantity}_${i.buyPrice || 0}_${i.manualPrice || 0}_${i.currency}_${i.notes || ""}`
+    )
     .sort()
     .join("|");
 
@@ -362,8 +498,15 @@ export async function hydrateInvestments(
 
   // Obtener cotizaciones de mercado en paralelo con tolerancia a fallas
   const quotesPromises = rawInvestments.map(async (inv) => {
-    // Si es un FCI o activo con precio manual y sin ticker bursátil estándar, saltear
-    if (inv.manualPrice && (inv.assetType === "FCI" || inv.ticker.startsWith("FCI-"))) {
+    // Si es un FCI, Plazo Fijo, Caución u otro activo de cotización manual, no consultar Yahoo Finance
+    const isManualAssetType =
+      inv.assetType === "FCI" ||
+      inv.assetType === "PLAZO_FIJO" ||
+      inv.assetType === "ON" ||
+      inv.ticker.startsWith("FCI-") ||
+      inv.ticker.startsWith("PF-") ||
+      inv.ticker.startsWith("ON-");
+    if (isManualAssetType || (inv.manualPrice && inv.manualPrice > 0)) {
       return { id: inv.id, quote: null };
     }
     const q = await fetchTickerQuote(inv.ticker);

@@ -1,7 +1,7 @@
 {
-  "version": "1.25.0",
-  "build": 2026110201,
-  "releasedAt": "2026-11-02T21:12:00Z",
-  "title": "Apertura instantánea en celular (0ms)",
-  "description": "App Shell offline con Service Worker, arranque inmediato desde memoria local sin pantalla negra y sincronización silenciosa en segundo plano."
+  "version": "1.26.0",
+  "build": 2026111001,
+  "releasedAt": "2026-11-10T20:42:00Z",
+  "title": "Cartera de Inversiones Multi-Activo en Hogar Compartido, FCIs y Actualización Rápida",
+  "description": "Se habilitó la cartera de inversiones completa en Hogar Compartido junto al FCI de remanentes, permitiendo especificar en qué Fondo Común o broker está invertido cada activo, cargar FCIs/Plazos Fijos por saldo total o cuotapartes, sumar CEDEARs, Acciones, Bonos, ONs y Cripto con cotización en vivo, y actualizar saldos y tenencias en un toque."
 }

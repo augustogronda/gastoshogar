@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gastoshogar-v1.25.0';
+const CACHE_NAME = 'gastoshogar-v1.26.0';
 
 const PRECACHE_ASSETS = [
   '/',

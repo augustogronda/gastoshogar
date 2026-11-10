@@ -274,7 +274,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     setMounted(true);
   }, []);
   const [hogarSearchQuery, setHogarSearchQuery] = useState<string>("");
-  const [sharedInvestmentsTab, setSharedInvestmentsTab] = useState<"fci" | "portfolio">("fci");
+  const [sharedInvestmentsTab, setSharedInvestmentsTab] = useState<"all" | "fci" | "portfolio">("all");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
   const [isFCIModalOpen, setIsFCIModalOpen] = useState(false);
@@ -1252,6 +1252,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     showToast,
     personalData,
     recurringExpenses,
+    investmentFund,
     sharedInvestments,
     sharedInvestmentsSummary,
     sharedInvestmentsTab,
@@ -2057,62 +2058,136 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           />
         )}
 
-        {/* TAB 4: FCI INVERSIÓN (con soporte de Feature Flag para multi-activo) */}
+        {/* TAB 4: INVERSIONES DEL HOGAR (FCI Remanentes + Cartera Multi-Activo) */}
         {activeTab === "fci" && (
           <div className="space-y-4 animate-fade-in">
-            {/* Si el flag está activo en appConfig, mostrar sub-selector */}
+            {/* Resumen Global de Inversiones Compartidas */}
+            {(() => {
+              const fciBalanceArs = investmentFund?.currentValue || 0;
+              const portfolioArs = sharedInvestmentsSummary?.totalValuationArs || 0;
+              const totalCombinedArs = fciBalanceArs + portfolioArs;
+              const mepRate = sharedInvestmentsSummary?.rates?.mep || 1530;
+              const totalCombinedUsd = mepRate > 0 ? totalCombinedArs / mepRate : 0;
+
+              return (
+                <div className="super-card rounded-3xl p-4 border border-indigo-500/25 bg-gradient-to-br from-indigo-950/35 via-zinc-900/90 to-emerald-950/25">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                      Patrimonio Total Invertido del Hogar
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      MEP ${Math.round(mepRate).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-2xl font-extrabold text-white font-mono tabular-nums">
+                      ${Math.round(totalCombinedArs).toLocaleString("es-AR")}
+                    </span>
+                    <span className="text-xs font-bold text-zinc-400 font-mono tabular-nums">
+                      ≈ u$s {Math.round(totalCombinedUsd).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                  <div className="mt-2.5 pt-2.5 border-t border-white/[0.07] grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-black/25 rounded-xl px-2.5 py-1.5 border border-white/[0.05]">
+                      <span className="text-[10px] text-zinc-400 block truncate">
+                        Cartera ({sharedInvestments.length} activos)
+                      </span>
+                      <span className="font-mono font-bold text-indigo-300 tabular-nums">
+                        ${Math.round(portfolioArs).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                    <div className="bg-black/25 rounded-xl px-2.5 py-1.5 border border-white/[0.05]">
+                      <span className="text-[10px] text-zinc-400 block truncate">
+                        {investmentFund?.name || "FCI Remanentes"}
+                      </span>
+                      <span className="font-mono font-bold text-emerald-300 tabular-nums">
+                        ${Math.round(fciBalanceArs).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Selector de Vista: Todo / Cartera Multi-Activo / FCI Remanentes */}
             {appConfig.features.enableSharedInvestmentsPortfolio && (
-              <div className="flex bg-zinc-900/90 p-1 rounded-2xl border border-white/[0.08] shadow-inner mb-3">
+              <div className="flex bg-zinc-900/90 p-1 rounded-2xl border border-white/[0.08] shadow-inner">
                 <button
                   type="button"
-                  onClick={() => setSharedInvestmentsTab("fci")}
-                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition ${
-                    sharedInvestmentsTab === "fci"
-                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+                  onClick={() => setSharedInvestmentsTab("all")}
+                  className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition ${
+                    sharedInvestmentsTab === "all"
+                      ? "bg-white/[0.12] text-white shadow-sm"
                       : "text-zinc-400 hover:text-white"
                   }`}
                 >
-                  Fondo FCI Pareja
+                  Vista Completa
                 </button>
                 <button
                   type="button"
                   onClick={() => setSharedInvestmentsTab("portfolio")}
-                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1 ${
                     sharedInvestmentsTab === "portfolio"
                       ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                       : "text-zinc-400 hover:text-white"
                   }`}
                 >
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>Portafolio Hogar</span>
+                  <span>Cartera ({sharedInvestments.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSharedInvestmentsTab("fci")}
+                  className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1 ${
+                    sharedInvestmentsTab === "fci"
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  <PiggyBank className="w-3.5 h-3.5" />
+                  <span>FCI Remanentes</span>
                 </button>
               </div>
             )}
 
-            {appConfig.features.enableSharedInvestmentsPortfolio && sharedInvestmentsTab === "portfolio" ? (
-              <PersonalInvestmentsView
-                householdId={household.id}
-                title="Portafolio de Inversiones del Hogar"
-                investments={sharedInvestments}
-                summary={sharedInvestmentsSummary}
-              />
-            ) : (
+            {/* SECCIÓN 1: CARTERA DE INVERSIONES (FCIs, Acciones, CEDEARs, Bonos, Cripto) */}
+            {appConfig.features.enableSharedInvestmentsPortfolio &&
+              (sharedInvestmentsTab === "all" ||
+                sharedInvestmentsTab === "portfolio") && (
+                <PersonalInvestmentsView
+                  householdId={household.id}
+                  title="Cartera del Hogar (FCIs, Acciones, CEDEARs)"
+                  investments={sharedInvestments}
+                  summary={sharedInvestmentsSummary}
+                />
+              )}
+
+            {/* SECCIÓN 2: FONDO COMÚN DE REMANENTES MENSUALES */}
+            {(sharedInvestmentsTab === "all" ||
+              sharedInvestmentsTab === "fci" ||
+              !appConfig.features.enableSharedInvestmentsPortfolio) && (
               <>
                 <div className="super-card rounded-3xl p-5 shadow-xl relative overflow-hidden">
-                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">
-                    Fondo Común de Inversión Pareja
-                  </span>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
+                      Fondo Común de Remanentes Mensuales
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
+                      {investmentFund?.name || "FCI Ahorro Pareja"}
+                    </span>
+                  </div>
                   <span className="text-3xl font-extrabold text-white block mt-2 font-mono tabular-nums">
                     ${Math.round(investmentFund?.currentValue || 0).toLocaleString("es-AR")}
                   </span>
                   <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-                    Patrimonio acumulado con los remanentes mensuales del Fondo Común.
+                    Fondo común donde se acumulan los excedentes mensuales del presupuesto compartido ({investmentFund?.name || "FCI Ahorro Pareja"}). Podés indicar en qué FCI o banco está y actualizar su saldo.
                   </p>
                   <button
                     onClick={() => setIsFCIModalOpen(true)}
                     className="mt-4 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-sm font-semibold shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition duration-150"
                   >
-                    Gestionar Ahorro e Inversión
+                    Configurar FCI, Actualizar Saldo o Transferir
                   </button>
                 </div>
 
@@ -2317,7 +2392,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               </span>
             </button>
 
-            {/* Tab 4: FCI */}
+            {/* Tab 4: Inversiones */}
             <button
               type="button"
               onClick={() => {
@@ -2338,9 +2413,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              <PiggyBank className={`w-5 h-5 mb-1 ${activeTab === "fci" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
+              <TrendingUp className={`w-5 h-5 mb-1 ${activeTab === "fci" ? "stroke-[2.2]" : "stroke-[1.8]"}`} />
               <span className="text-[11px] tracking-[-0.01em] leading-none font-medium">
-                FCI
+                Inversiones
               </span>
             </button>
           </div>
