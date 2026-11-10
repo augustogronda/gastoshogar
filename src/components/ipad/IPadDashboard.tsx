@@ -90,8 +90,8 @@ export interface IPadDashboardProps {
   investmentFund?: any;
   sharedInvestments: any[];
   sharedInvestmentsSummary: any;
-  sharedInvestmentsTab: "all" | "fci" | "portfolio";
-  setSharedInvestmentsTab: (tab: "all" | "fci" | "portfolio") => void;
+  sharedInvestmentsTab: "fci" | "portfolio";
+  setSharedInvestmentsTab: (tab: "fci" | "portfolio") => void;
   pendingPersonalReviewCount: number;
   personalMenuAction: any;
   setPersonalMenuAction: (act: any) => void;
@@ -990,18 +990,7 @@ export function IPadDashboard({
                 })()}
 
                 {appConfig.features.enableSharedInvestmentsPortfolio && (
-                  <div className="flex bg-zinc-900/90 p-1 rounded-2xl border border-white/[0.08] shadow-inner mb-3 max-w-md">
-                    <button
-                      type="button"
-                      onClick={() => setSharedInvestmentsTab("all")}
-                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold transition ${
-                        sharedInvestmentsTab === "all"
-                          ? "bg-white/[0.12] text-white shadow-sm"
-                          : "text-zinc-400 hover:text-white"
-                      }`}
-                    >
-                      Vista Completa
-                    </button>
+                  <div className="flex bg-zinc-900/90 p-1 rounded-2xl border border-white/[0.08] shadow-inner mb-3 max-w-sm">
                     <button
                       type="button"
                       onClick={() => setSharedInvestmentsTab("portfolio")}
@@ -1012,7 +1001,7 @@ export function IPadDashboard({
                       }`}
                     >
                       <TrendingUp className="w-3.5 h-3.5" />
-                      <span>Cartera ({sharedInvestments.length})</span>
+                      <span>Portafolio ({sharedInvestments.length})</span>
                     </button>
                     <button
                       type="button"
@@ -1024,25 +1013,20 @@ export function IPadDashboard({
                       }`}
                     >
                       <PiggyBank className="w-3.5 h-3.5" />
-                      <span>FCI Remanentes</span>
+                      <span>Remanente FCI</span>
                     </button>
                   </div>
                 )}
 
                 {appConfig.features.enableSharedInvestmentsPortfolio &&
-                  (sharedInvestmentsTab === "all" ||
-                    sharedInvestmentsTab === "portfolio") && (
-                    <PersonalInvestmentsView
-                      householdId={household.id}
-                      title="Cartera de Inversiones del Hogar (FCIs, Acciones, CEDEARs)"
-                      investments={sharedInvestments}
-                      summary={sharedInvestmentsSummary}
-                    />
-                  )}
-
-                {(sharedInvestmentsTab === "all" ||
-                  sharedInvestmentsTab === "fci" ||
-                  !appConfig.features.enableSharedInvestmentsPortfolio) && (
+                sharedInvestmentsTab === "portfolio" ? (
+                  <PersonalInvestmentsView
+                    householdId={household.id}
+                    title="Portafolio Hogar"
+                    investments={sharedInvestments}
+                    summary={sharedInvestmentsSummary}
+                  />
+                ) : (
                   <div className="super-card rounded-3xl p-6 space-y-5">
                     <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
                       <div>

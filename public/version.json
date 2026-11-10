@@ -1,7 +1,7 @@
 {
-  "version": "1.26.0",
-  "build": 2026111001,
-  "releasedAt": "2026-11-10T20:42:00Z",
-  "title": "Cartera de Inversiones Multi-Activo en Hogar Compartido, FCIs y Actualización Rápida",
-  "description": "Se habilitó la cartera de inversiones completa en Hogar Compartido junto al FCI de remanentes, permitiendo especificar en qué Fondo Común o broker está invertido cada activo, cargar FCIs/Plazos Fijos por saldo total o cuotapartes, sumar CEDEARs, Acciones, Bonos, ONs y Cripto con cotización en vivo, y actualizar saldos y tenencias en un toque."
+  "version": "1.26.1",
+  "build": 2026111002,
+  "releasedAt": "2026-11-10T21:28:00Z",
+  "title": "Rediseño Mobile de Inversiones Compartidas y Modales",
+  "description": "Optimización completa de la vista de Inversiones en celulares: navegación simplificada en 2 pestañas (Portafolio y Remanente FCI), botones concisos siempre visibles, tarjetas en 2 filas sin recortes y modales con createPortal y pie fijo (Guardar/Cancelar siempre a la vista)."
 }

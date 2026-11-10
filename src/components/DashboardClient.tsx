@@ -274,7 +274,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     setMounted(true);
   }, []);
   const [hogarSearchQuery, setHogarSearchQuery] = useState<string>("");
-  const [sharedInvestmentsTab, setSharedInvestmentsTab] = useState<"all" | "fci" | "portfolio">("all");
+  const [sharedInvestmentsTab, setSharedInvestmentsTab] = useState<"fci" | "portfolio">("portfolio");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
   const [isFCIModalOpen, setIsFCIModalOpen] = useState(false);
@@ -2058,141 +2058,103 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           />
         )}
 
-        {/* TAB 4: INVERSIONES DEL HOGAR (FCI Remanentes + Cartera Multi-Activo) */}
+        {/* TAB 4: INVERSIONES DEL HOGAR */}
         {activeTab === "fci" && (
-          <div className="space-y-4 animate-fade-in">
-            {/* Resumen Global de Inversiones Compartidas */}
-            {(() => {
-              const fciBalanceArs = investmentFund?.currentValue || 0;
-              const portfolioArs = sharedInvestmentsSummary?.totalValuationArs || 0;
-              const totalCombinedArs = fciBalanceArs + portfolioArs;
-              const mepRate = sharedInvestmentsSummary?.rates?.mep || 1530;
-              const totalCombinedUsd = mepRate > 0 ? totalCombinedArs / mepRate : 0;
-
-              return (
-                <div className="super-card rounded-3xl p-4 border border-indigo-500/25 bg-gradient-to-br from-indigo-950/35 via-zinc-900/90 to-emerald-950/25">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                      Patrimonio Total Invertido del Hogar
-                    </span>
-                    <span className="text-[10px] font-mono text-zinc-400">
-                      MEP ${Math.round(mepRate).toLocaleString("es-AR")}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="text-2xl font-extrabold text-white font-mono tabular-nums">
-                      ${Math.round(totalCombinedArs).toLocaleString("es-AR")}
-                    </span>
-                    <span className="text-xs font-bold text-zinc-400 font-mono tabular-nums">
-                      ≈ u$s {Math.round(totalCombinedUsd).toLocaleString("es-AR")}
-                    </span>
-                  </div>
-                  <div className="mt-2.5 pt-2.5 border-t border-white/[0.07] grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-black/25 rounded-xl px-2.5 py-1.5 border border-white/[0.05]">
-                      <span className="text-[10px] text-zinc-400 block truncate">
-                        Cartera ({sharedInvestments.length} activos)
-                      </span>
-                      <span className="font-mono font-bold text-indigo-300 tabular-nums">
-                        ${Math.round(portfolioArs).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                    <div className="bg-black/25 rounded-xl px-2.5 py-1.5 border border-white/[0.05]">
-                      <span className="text-[10px] text-zinc-400 block truncate">
-                        {investmentFund?.name || "FCI Remanentes"}
-                      </span>
-                      <span className="font-mono font-bold text-emerald-300 tabular-nums">
-                        ${Math.round(fciBalanceArs).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Selector de Vista: Todo / Cartera Multi-Activo / FCI Remanentes */}
+          <div className="space-y-3.5 animate-fade-in">
+            {/* Selector limpio de 2 opciones en Mobile: Portafolio vs Remanente FCI */}
             {appConfig.features.enableSharedInvestmentsPortfolio && (
               <div className="flex bg-zinc-900/90 p-1 rounded-2xl border border-white/[0.08] shadow-inner">
                 <button
                   type="button"
-                  onClick={() => setSharedInvestmentsTab("all")}
-                  className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition ${
-                    sharedInvestmentsTab === "all"
-                      ? "bg-white/[0.12] text-white shadow-sm"
-                      : "text-zinc-400 hover:text-white"
-                  }`}
-                >
-                  Vista Completa
-                </button>
-                <button
-                  type="button"
                   onClick={() => setSharedInvestmentsTab("portfolio")}
-                  className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1 ${
+                  className={`flex-1 min-h-[38px] py-2 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
                     sharedInvestmentsTab === "portfolio"
                       ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                       : "text-zinc-400 hover:text-white"
                   }`}
                 >
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  <span>Cartera ({sharedInvestments.length})</span>
+                  <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                  <span>Portafolio ({sharedInvestments.length})</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSharedInvestmentsTab("fci")}
-                  className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1 ${
+                  className={`flex-1 min-h-[38px] py-2 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 ${
                     sharedInvestmentsTab === "fci"
                       ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
                       : "text-zinc-400 hover:text-white"
                   }`}
                 >
-                  <PiggyBank className="w-3.5 h-3.5" />
-                  <span>FCI Remanentes</span>
+                  <PiggyBank className="w-3.5 h-3.5 shrink-0" />
+                  <span>Remanente FCI</span>
                 </button>
               </div>
             )}
 
-            {/* SECCIÓN 1: CARTERA DE INVERSIONES (FCIs, Acciones, CEDEARs, Bonos, Cripto) */}
+            {/* VISTA 1: PORTAFOLIO HOGAR (igual de limpio que Personal + acceso directo al FCI de remanentes) */}
             {appConfig.features.enableSharedInvestmentsPortfolio &&
-              (sharedInvestmentsTab === "all" ||
-                sharedInvestmentsTab === "portfolio") && (
+            sharedInvestmentsTab === "portfolio" ? (
+              <>
                 <PersonalInvestmentsView
                   householdId={household.id}
-                  title="Cartera del Hogar (FCIs, Acciones, CEDEARs)"
+                  title="Portafolio Hogar"
                   investments={sharedInvestments}
                   summary={sharedInvestmentsSummary}
                 />
-              )}
 
-            {/* SECCIÓN 2: FONDO COMÚN DE REMANENTES MENSUALES */}
-            {(sharedInvestmentsTab === "all" ||
-              sharedInvestmentsTab === "fci" ||
-              !appConfig.features.enableSharedInvestmentsPortfolio) && (
+                {/* Barra compacta del FCI de Remanentes para acceso rápido sin saturar la pantalla */}
+                <div className="super-card rounded-2xl p-3.5 border border-emerald-500/20 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                      <PiggyBank className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block truncate">
+                        {investmentFund?.name || "FCI Remanentes Pareja"}
+                      </span>
+                      <span className="text-base font-extrabold text-white font-mono tabular-nums block">
+                        ${Math.round(investmentFund?.currentValue || 0).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsFCIModalOpen(true)}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0 active:scale-95 transition shadow-md shadow-emerald-600/20"
+                  >
+                    Gestionar FCI
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* VISTA 2: FONDO COMÚN DE REMANENTES MENSUALES */
               <>
-                <div className="super-card rounded-3xl p-5 shadow-xl relative overflow-hidden">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-                      Fondo Común de Remanentes Mensuales
+                <div className="super-card rounded-3xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider truncate">
+                      Fondo de Remanentes
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold truncate max-w-[160px]">
                       {investmentFund?.name || "FCI Ahorro Pareja"}
                     </span>
                   </div>
-                  <span className="text-3xl font-extrabold text-white block mt-2 font-mono tabular-nums">
+                  <span className="text-3xl font-extrabold text-white block mt-1.5 font-mono tabular-nums">
                     ${Math.round(investmentFund?.currentValue || 0).toLocaleString("es-AR")}
                   </span>
-                  <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-                    Fondo común donde se acumulan los excedentes mensuales del presupuesto compartido ({investmentFund?.name || "FCI Ahorro Pareja"}). Podés indicar en qué FCI o banco está y actualizar su saldo.
+                  <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+                    Excedentes mensuales acumulados en {investmentFund?.name || "FCI Ahorro Pareja"}.
                   </p>
                   <button
+                    type="button"
                     onClick={() => setIsFCIModalOpen(true)}
-                    className="mt-4 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-sm font-semibold shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition duration-150"
+                    className="mt-3.5 w-full min-h-[44px] py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition"
                   >
-                    Configurar FCI, Actualizar Saldo o Transferir
+                    Editar Saldo, Cambiar FCI o Transferir
                   </button>
                 </div>
 
                 {/* Card de Remanente Hipotético del Mes en Curso */}
-                <div className="super-card rounded-3xl p-5 border border-emerald-500/25 bg-gradient-to-br from-emerald-950/30 via-zinc-900/90 to-zinc-950">
+                <div className="super-card rounded-3xl p-4 sm:p-5 border border-emerald-500/25 bg-gradient-to-br from-emerald-950/30 via-zinc-900/90 to-zinc-950">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -2200,10 +2162,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                       </div>
                       <div>
                         <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-300 block">
-                          Remanente Hipotético • {monthLabel}
+                          Remanente • {monthLabel}
                         </span>
                         <span className="text-[11px] text-zinc-400">
-                          Proyección actual del mes en curso
+                          Proyección del mes en curso
                         </span>
                       </div>
                     </div>
@@ -2212,13 +2174,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="grid grid-cols-2 gap-2.5 mb-3">
                     <div className="bg-black/30 border border-white/[0.07] rounded-2xl p-3">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 block">
-                        Disponible p/ Transferir
+                        Disponible
                       </span>
                       <span
-                        className={`text-xl font-extrabold font-mono tabular-nums mt-1 block ${
+                        className={`text-lg sm:text-xl font-extrabold font-mono tabular-nums mt-1 block ${
                           poolSummary.remainingPool > 0 ? "text-emerald-400" : "text-zinc-400"
                         }`}
                       >
@@ -2227,9 +2189,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                     </div>
                     <div className="bg-black/30 border border-white/[0.07] rounded-2xl p-3">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 block">
-                        Ya Invertido en {monthLabel}
+                        Transferido
                       </span>
-                      <span className="text-xl font-extrabold text-white font-mono tabular-nums mt-1 block">
+                      <span className="text-lg sm:text-xl font-extrabold text-white font-mono tabular-nums mt-1 block">
                         ${Math.round(poolSummary.investedInFCI || 0).toLocaleString("es-AR")}
                       </span>
                     </div>
@@ -2238,10 +2200,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                   <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.06]">
                     <p className="text-[11px] text-zinc-300 leading-snug">
                       {poolSummary.remainingPool > 0
-                        ? `Si cerraran ${monthLabel} hoy, podrían sumar $${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")} extra al FCI.`
+                        ? `Podrían sumar $${Math.round(poolSummary.remainingPool).toLocaleString("es-AR")} al FCI.`
                         : poolSummary.investedInFCI > 0
-                        ? `Ya transfirieron todo el remanente disponible de ${monthLabel} al FCI.`
-                        : `Actualmente no queda excedente libre del Fondo Común en ${monthLabel}.`}
+                        ? `Ya transfirieron el remanente de ${monthLabel}.`
+                        : `Sin excedente libre en ${monthLabel}.`}
                     </p>
                     {poolSummary.remainingPool > 0 && (
                       <button
@@ -2257,7 +2219,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 </div>
 
                 {/* Historial de Aportes al FCI */}
-                <div className="super-card rounded-3xl p-5">
+                <div className="super-card rounded-3xl p-4 sm:p-5">
                   <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">
                     Historial de Remanentes Invertidos
                   </h3>
