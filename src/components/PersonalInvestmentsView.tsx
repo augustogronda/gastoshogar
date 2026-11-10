@@ -22,10 +22,12 @@ import {
   refreshSharedInvestmentsAction,
   savePersonalInvestmentAction,
   saveSharedInvestmentAction,
+  fetchFciQuoteAction,
 } from "@/app/actions";
 import {
   HydratedInvestment,
   PortfolioSummary,
+  CafciFundQuote,
 } from "@/lib/investments-service";
 import { triggerHaptic } from "@/lib/haptics";
 
@@ -115,10 +117,17 @@ export function PersonalInvestmentsView({
 
   // Estado para edición rápida inline de cualquier activo
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
+  const [quickValuationMode, setQuickValuationMode] = useState<"total" | "units">(
+    "total"
+  );
   const [quickQuantity, setQuickQuantity] = useState<string>("");
   const [quickManualPrice, setQuickManualPrice] = useState<string>("");
   const [quickBuyPrice, setQuickBuyPrice] = useState<string>("");
   const [quickNotes, setQuickNotes] = useState<string>("");
+  const [quickFciQuote, setQuickFciQuote] = useState<
+    (CafciFundQuote & { recommendedVcp?: number }) | null
+  >(null);
+  const [isLoadingQuickFci, setIsLoadingQuickFci] = useState(false);
   const [isSavingQuick, setIsSavingQuick] = useState(false);
 
   React.useEffect(() => {
@@ -151,7 +160,15 @@ export function PersonalInvestmentsView({
       setQuickEditId(null);
       return;
     }
+    const isDirect =
+      (inv.assetType === "FCI" ||
+        inv.assetType === "PLAZO_FIJO" ||
+        inv.assetType === "ON" ||
+        inv.assetType === "OTRO") &&
+      inv.quantity === 1;
+
     setQuickEditId(inv.id);
+    setQuickValuationMode(isDirect ? "total" : "units");
     setQuickQuantity(String(inv.quantity));
     setQuickManualPrice(
       inv.manualPrice
@@ -160,6 +177,29 @@ export function PersonalInvestmentsView({
     );
     setQuickBuyPrice(inv.buyPrice ? String(inv.buyPrice) : "");
     setQuickNotes(inv.notes || "");
+    setQuickFciQuote(null);
+  };
+
+  const handleFetchQuickFciQuote = async (inv: HydratedInvestment) => {
+    triggerHaptic(8);
+    setIsLoadingQuickFci(true);
+    try {
+      const refPrice = parseFloat(quickManualPrice.replace(",", ".")) || inv.manualPrice;
+      const quote = await fetchFciQuoteAction(inv.name || inv.ticker, refPrice);
+      if (quote) {
+        setQuickFciQuote(quote);
+        setQuickValuationMode("units");
+        setQuickManualPrice(String(quote.recommendedVcp || quote.vcpUnit));
+      } else {
+        alert(
+          "No se encontró cotización automática en CAFCI para ese nombre. Podés editar el nombre del fondo con el buscador (botón lápiz)."
+        );
+      }
+    } catch (err) {
+      console.error("Error fetching quick FCI quote:", err);
+    } finally {
+      setIsLoadingQuickFci(false);
+    }
   };
 
   const handleSaveQuickEdit = async (inv: HydratedInvestment) => {
@@ -168,7 +208,7 @@ export function PersonalInvestmentsView({
         inv.assetType === "PLAZO_FIJO" ||
         inv.assetType === "ON" ||
         inv.assetType === "OTRO") &&
-      inv.quantity === 1;
+      quickValuationMode === "total";
 
     const newQty = isDirectBalance
       ? 1
@@ -558,7 +598,102 @@ export function PersonalInvestmentsView({
                   {/* Panel de Actualización Rápida Inline */}
                   {isQuickEditing && (
                     <div className="p-3 rounded-xl bg-zinc-900/95 border border-indigo-500/30 space-y-2.5 animate-fade-in">
-                      {isDirectBalance ? (
+                      {/* Si es FCI, permitir alternar entre Cuotapartes + VCP y Saldo Total + botón de VCP oficial */}
+                      {inv.assetType === "FCI" && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/[0.08]">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  triggerHaptic(6);
+                                  setQuickValuationMode("units");
+                                }}
+                                className={`px-2 py-1 rounded-md text-[10px] font-bold transition ${
+                                  quickValuationMode === "units"
+                                    ? "bg-emerald-600 text-white"
+                                    : "text-zinc-400"
+                                }`}
+                              >
+                                Por Cuotaparte
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  triggerHaptic(6);
+                                  setQuickValuationMode("total");
+                                  setQuickQuantity("1");
+                                }}
+                                className={`px-2 py-1 rounded-md text-[10px] font-bold transition ${
+                                  quickValuationMode === "total"
+                                    ? "bg-emerald-600 text-white"
+                                    : "text-zinc-400"
+                                }`}
+                              >
+                                Saldo Total
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleFetchQuickFciQuote(inv)}
+                              disabled={isLoadingQuickFci}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/35 text-emerald-300 text-[10px] font-bold flex items-center gap-1 active:scale-95 transition disabled:opacity-50"
+                            >
+                              <RefreshCw
+                                className={`w-3 h-3 ${
+                                  isLoadingQuickFci ? "animate-spin" : ""
+                                }`}
+                              />
+                              <span>
+                                {isLoadingQuickFci
+                                  ? "Buscando..."
+                                  : "VCP Oficial CAFCI"}
+                              </span>
+                            </button>
+                          </div>
+
+                          {quickFciQuote && quickFciQuote.vcpUnit > 0 && (
+                            <div className="flex items-center justify-between gap-1.5 p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/25 text-[10px]">
+                              <span className="text-emerald-300 truncate">
+                                CAFCI ({quickFciQuote.date}):
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setQuickValuationMode("units");
+                                    setQuickManualPrice(
+                                      String(quickFciQuote.vcpUnit)
+                                    );
+                                  }}
+                                  className="px-2 py-0.5 rounded bg-emerald-500/25 text-white font-mono font-bold hover:bg-emerald-500/40"
+                                >
+                                  Unit: ${quickFciQuote.vcpUnit}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setQuickValuationMode("units");
+                                    setQuickManualPrice(
+                                      String(quickFciQuote.vcpPer1000)
+                                    );
+                                  }}
+                                  className="px-2 py-0.5 rounded bg-white/[0.08] text-zinc-200 font-mono font-bold hover:bg-white/[0.15]"
+                                >
+                                  c/1000: ${quickFciQuote.vcpPer1000}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {(inv.assetType === "FCI" ||
+                        inv.assetType === "PLAZO_FIJO" ||
+                        inv.assetType === "ON" ||
+                        inv.assetType === "OTRO") &&
+                      quickValuationMode === "total" ? (
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="text-[10px] text-zinc-400 block mb-1">
@@ -592,7 +727,9 @@ export function PersonalInvestmentsView({
                         <div className="grid grid-cols-3 gap-2">
                           <div>
                             <label className="text-[10px] text-zinc-400 block mb-1">
-                              Cantidad
+                              {inv.assetType === "FCI"
+                                ? "Cuotapartes"
+                                : "Cantidad"}
                             </label>
                             <input
                               type="number"
@@ -604,7 +741,9 @@ export function PersonalInvestmentsView({
                           </div>
                           <div>
                             <label className="text-[10px] text-zinc-400 block mb-1">
-                              P. Compra
+                              {inv.assetType === "FCI"
+                                ? "VCP Compra"
+                                : "P. Compra"}
                             </label>
                             <input
                               type="number"
@@ -616,8 +755,10 @@ export function PersonalInvestmentsView({
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] text-zinc-400 block mb-1">
-                              P. Actual
+                            <label className="text-[10px] text-emerald-300 font-semibold block mb-1">
+                              {inv.assetType === "FCI"
+                                ? "Valor Cuotaparte"
+                                : "P. Actual"}
                             </label>
                             <input
                               type="number"
@@ -627,7 +768,7 @@ export function PersonalInvestmentsView({
                                 setQuickManualPrice(e.target.value)
                               }
                               disabled={inv.hasLiveQuote}
-                              className="w-full bg-black/50 border border-white/[0.15] rounded-lg px-2 py-1.5 text-xs font-mono text-white disabled:opacity-50 focus:outline-none focus:border-indigo-500"
+                              className="w-full bg-black/50 border border-emerald-500/40 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-white disabled:opacity-50 focus:outline-none focus:border-emerald-400"
                             />
                           </div>
                         </div>

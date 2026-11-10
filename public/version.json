@@ -1,7 +1,7 @@
 {
-  "version": "1.26.1",
-  "build": 2026111002,
-  "releasedAt": "2026-11-10T21:28:00Z",
-  "title": "Rediseño Mobile de Inversiones Compartidas y Modales",
-  "description": "Optimización completa de la vista de Inversiones en celulares: navegación simplificada en 2 pestañas (Portafolio y Remanente FCI), botones concisos siempre visibles, tarjetas en 2 filas sin recortes y modales con createPortal y pie fijo (Guardar/Cancelar siempre a la vista)."
+  "version": "1.26.2",
+  "build": 2026111003,
+  "releasedAt": "2026-11-10T21:45:00Z",
+  "title": "Buscador Oficial de Fondos Comunes (CAFCI) y Valor de Cuotaparte",
+  "description": "Buscador en vivo del padrón oficial de Fondos Comunes de Inversión (CAFCI) por nombre o banco/broker para evitar errores de tipeo, con actualización automática o manual del Valor de la Cuotaparte (VCP Unitario y c/1.000) tanto en modales como en las tarjetas del portafolio."
 }

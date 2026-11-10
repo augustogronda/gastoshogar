@@ -9,16 +9,20 @@ import {
   Check,
   PiggyBank,
   AlertCircle,
+  RefreshCw,
 } from "./ui/icons";
 import {
   savePersonalInvestmentAction,
   saveSharedInvestmentAction,
   searchMarketTickersAction,
   fetchMarketQuoteAction,
+  searchFciFundsAction,
+  fetchFciQuoteAction,
 } from "@/app/actions";
 import {
   POPULAR_ARGENTINA_ASSETS,
   POPULAR_ARGENTINA_FCIS,
+  CafciFundQuote,
 } from "@/lib/investments-service";
 import { triggerHaptic } from "@/lib/haptics";
 
@@ -59,12 +63,22 @@ export function PersonalInvestmentModal({
     "ALL" | "CEDEAR" | "ACCION" | "BONO" | "CRYPTO"
   >("ALL");
 
-  // Para FCI / Plazo Fijo / Manual: permitir cargar por "Saldo Total" (quantity = 1) o por "Cuotapartes"
+  // Para FCI / Plazo Fijo / Manual: permitir cargar por "Cuotapartes" o por "Saldo Total" (quantity = 1)
   const [valuationMode, setValuationMode] = useState<"total" | "units">("total");
 
+  // Buscador de Bolsa (CEDEARs / Acciones)
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Array<any>>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  // Buscador de Fondos Comunes (CAFCI)
+  const [fciSearchQuery, setFciSearchQuery] = useState("");
+  const [fciSearchResults, setFciSearchResults] = useState<CafciFundQuote[]>([]);
+  const [isSearchingFci, setIsSearchingFci] = useState(false);
+  const [fciLiveQuote, setFciLiveQuote] = useState<
+    (CafciFundQuote & { recommendedVcp?: number }) | null
+  >(null);
+  const [isLoadingFciQuote, setIsLoadingFciQuote] = useState(false);
 
   // Form state
   const [ticker, setTicker] = useState("");
@@ -113,11 +127,18 @@ export function PersonalInvestmentModal({
         isManualType && investmentToEdit.quantity === 1 ? "total" : "units"
       );
       setErrorMsg(null);
+      setFciSearchQuery("");
+      setFciSearchResults([]);
+      setFciLiveQuote(null);
 
       if (investmentToEdit.manualPrice) {
         setPreviewPrice(investmentToEdit.manualPrice);
       } else if (!isManualType) {
         fetchQuoteForTicker(investmentToEdit.ticker);
+      }
+
+      if (investmentToEdit.assetType === "FCI") {
+        lookupFciQuote(investmentToEdit.name, investmentToEdit.manualPrice, false);
       }
     } else {
       const initialType = defaultAssetType || "CEDEAR";
@@ -134,12 +155,15 @@ export function PersonalInvestmentModal({
       setErrorMsg(null);
       setSearchQuery("");
       setSearchResults([]);
+      setFciSearchQuery("");
+      setFciSearchResults([]);
+      setFciLiveQuote(null);
       setActiveMode(startInManual ? "manual" : "search");
       setValuationMode(startInManual ? "total" : "units");
     }
   }, [investmentToEdit, isOpen, defaultAssetType]);
 
-  // Debounced search
+  // Debounced search de Bolsa (CEDEARs / Acciones)
   useEffect(() => {
     if (activeMode !== "search" || !searchQuery.trim()) {
       setSearchResults([]);
@@ -156,10 +180,32 @@ export function PersonalInvestmentModal({
       } finally {
         setIsSearching(false);
       }
-    }, 320);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [searchQuery, activeMode]);
+
+  // Debounced search de Fondos Comunes (CAFCI)
+  useEffect(() => {
+    if (activeMode !== "manual" || assetType !== "FCI" || !fciSearchQuery.trim()) {
+      setFciSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingFci(true);
+      try {
+        const res = await searchFciFundsAction(fciSearchQuery.trim());
+        setFciSearchResults(res);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearchingFci(false);
+      }
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [fciSearchQuery, activeMode, assetType]);
 
   const fetchQuoteForTicker = async (sym: string) => {
     if (!sym || sym.startsWith("FCI-") || sym.startsWith("PF-")) return;
@@ -174,6 +220,29 @@ export function PersonalInvestmentModal({
       console.error(err);
     } finally {
       setIsLoadingQuote(false);
+    }
+  };
+
+  const lookupFciQuote = async (
+    fundNameOrTicker: string,
+    refPrice?: number | null,
+    applyToInput = true
+  ) => {
+    if (!fundNameOrTicker.trim()) return;
+    setIsLoadingFciQuote(true);
+    try {
+      const quote = await fetchFciQuoteAction(fundNameOrTicker.trim(), refPrice);
+      if (quote) {
+        setFciLiveQuote(quote);
+        if (applyToInput && quote.vcpUnit > 0) {
+          setValuationMode("units");
+          setManualPrice(String(quote.recommendedVcp || quote.vcpUnit));
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching FCI quote:", err);
+    } finally {
+      setIsLoadingFciQuote(false);
     }
   };
 
@@ -201,15 +270,31 @@ export function PersonalInvestmentModal({
 
     if (item.assetType === "FCI") {
       setActiveMode("manual");
-      setValuationMode("total");
-      setQuantity("1");
       setPreviewPrice(null);
+      lookupFciQuote(item.name, null, false);
     } else {
       setValuationMode("units");
       if (quantity === "1" && !investmentToEdit) {
         setQuantity("");
       }
       fetchQuoteForTicker(item.ticker);
+    }
+  };
+
+  const handleSelectCafciFund = (fund: CafciFundQuote) => {
+    triggerHaptic(8);
+    setTicker(fund.ticker);
+    setName(fund.name);
+    setAssetType("FCI");
+    setCurrency(fund.currency);
+    setNotes(fund.broker);
+    setFciLiveQuote(fund);
+    setFciSearchQuery("");
+    setFciSearchResults([]);
+
+    // Si tiene VCP en vivo y el usuario está en modo Cuotapartes, cargamos el VCP automáticamente
+    if (fund.vcpUnit > 0 && valuationMode === "units") {
+      setManualPrice(String(fund.vcpUnit));
     }
   };
 
@@ -223,6 +308,7 @@ export function PersonalInvestmentModal({
     if (!quantity || quantity === "0") {
       setQuantity("1");
     }
+    lookupFciQuote(fci.name, null, valuationMode === "units");
   };
 
   const generateAutoTicker = (rawName: string, type: string) => {
@@ -269,7 +355,11 @@ export function PersonalInvestmentModal({
     }
 
     if (isNaN(cleanQuantity) || cleanQuantity <= 0) {
-      setErrorMsg("Ingresá una cantidad válida.");
+      setErrorMsg(
+        assetType === "FCI" && valuationMode === "units"
+          ? "Ingresá la cantidad de cuotapartes."
+          : "Ingresá una cantidad válida."
+      );
       return;
     }
 
@@ -278,7 +368,11 @@ export function PersonalInvestmentModal({
       (!cleanManualPrice || cleanManualPrice <= 0) &&
       (!cleanBuyPrice || cleanBuyPrice <= 0)
     ) {
-      setErrorMsg("Ingresá el saldo o valor actual de la inversión.");
+      setErrorMsg(
+        valuationMode === "units"
+          ? "Ingresá el valor actual de la cuotaparte."
+          : "Ingresá el saldo actual de la inversión."
+      );
       return;
     }
 
@@ -456,7 +550,7 @@ export function PersonalInvestmentModal({
             </div>
           )}
 
-          {/* MODO 1: BÚSQUEDA AUTOMÁTICA */}
+          {/* MODO 1: BÚSQUEDA AUTOMÁTICA DE BOLSA */}
           {activeMode === "search" && (
             <div className="space-y-2">
               <div className="relative">
@@ -506,7 +600,7 @@ export function PersonalInvestmentModal({
                 </div>
               )}
 
-              {/* Atajos rápidos en tira horizontal deslizable (no ocupa alto en mobile) */}
+              {/* Atajos rápidos en tira horizontal deslizable */}
               {!searchQuery && (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
@@ -562,7 +656,7 @@ export function PersonalInvestmentModal({
             </div>
           )}
 
-          {/* MODO 2: FCI / PLAZO FIJO / MANUAL */}
+          {/* MODO 2: FCI (CON BUSCADOR OFICIAL CAFCI) / PLAZO FIJO / MANUAL */}
           {activeMode === "manual" && (
             <div className="space-y-2.5 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl p-3">
               {/* Selector de instrumento en fila deslizable */}
@@ -592,38 +686,101 @@ export function PersonalInvestmentModal({
                 ))}
               </div>
 
-              {/* Tira horizontal deslizable de FCIs Populares */}
+              {/* BUSCADOR OFICIAL DE FONDOS COMUNES (CAFCI) */}
               {assetType === "FCI" && (
-                <div>
-                  <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block mb-1">
-                    Elegir Fondo Común rápido (deslizá →):
-                  </span>
-                  <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                    {POPULAR_ARGENTINA_FCIS.map((fci) => {
-                      const isSelected =
-                        ticker === fci.ticker || name === fci.name;
-                      return (
-                        <button
-                          key={fci.ticker}
-                          type="button"
-                          onClick={() => handleSelectFciPreset(fci)}
-                          className={`px-2.5 py-1.5 rounded-xl border shrink-0 transition active:scale-95 flex items-center gap-1.5 ${
-                            isSelected
-                              ? "bg-emerald-500/30 border-emerald-400 text-white"
-                              : "bg-zinc-900/90 border-white/[0.08] text-zinc-200"
-                          }`}
-                        >
-                          <PiggyBank className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span className="text-xs font-semibold">
-                            {fci.name.split(" (")[0]}
-                          </span>
-                          <span className="text-[10px] text-emerald-300/80">
-                            • {fci.broker}
-                          </span>
-                        </button>
-                      );
-                    })}
+                <div className="space-y-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={fciSearchQuery}
+                      onChange={(e) => setFciSearchQuery(e.target.value)}
+                      placeholder="Buscar FCI o Banco (ej: Fima, Balanz, Galicia, Santander, Cocos)..."
+                      className="w-full bg-zinc-950/90 border border-emerald-500/35 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-400 focus:outline-none focus:border-emerald-400 transition"
+                    />
+                    <Search className="w-4 h-4 text-emerald-400 absolute left-3 top-2" />
+                    {isSearchingFci && (
+                      <span className="text-[10px] text-emerald-300 absolute right-3 top-2.5 animate-pulse">
+                        Buscando CAFCI...
+                      </span>
+                    )}
                   </div>
+
+                  {/* Resultados en vivo del padrón CAFCI con Valor de Cuotaparte */}
+                  {fciSearchResults.length > 0 && (
+                    <div className="bg-zinc-950 border border-emerald-500/30 rounded-2xl p-1.5 max-h-48 overflow-y-auto space-y-1 shadow-2xl">
+                      {fciSearchResults.map((fund) => (
+                        <button
+                          key={`${fund.name}_${fund.ticker}`}
+                          type="button"
+                          onClick={() => handleSelectCafciFund(fund)}
+                          className="w-full text-left p-2 rounded-xl hover:bg-emerald-500/15 active:scale-[0.99] transition flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-bold text-xs text-white block truncate">
+                              {fund.name}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <span className="text-[10px] font-semibold text-emerald-300">
+                                {fund.broker}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/[0.08] text-zinc-300">
+                                {fund.category}
+                              </span>
+                            </div>
+                          </div>
+                          {fund.vcpUnit > 0 && (
+                            <div className="text-right shrink-0">
+                              <span className="text-[10px] text-zinc-400 block">
+                                Cuotaparte
+                              </span>
+                              <span className="text-xs font-mono font-bold text-emerald-400">
+                                {fund.currency === "USD" ? "u$s" : "$"}
+                                {fund.vcpUnit.toLocaleString("es-AR", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 4,
+                                })}
+                              </span>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tira horizontal deslizable de FCIs Populares cuando no está escribiendo */}
+                  {!fciSearchQuery && (
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-300/90 uppercase tracking-wider block mb-1">
+                        O elegí un Fondo rápido (deslizá →):
+                      </span>
+                      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                        {POPULAR_ARGENTINA_FCIS.map((fci) => {
+                          const isSelected =
+                            ticker === fci.ticker || name === fci.name;
+                          return (
+                            <button
+                              key={fci.ticker}
+                              type="button"
+                              onClick={() => handleSelectFciPreset(fci)}
+                              className={`px-2.5 py-1.5 rounded-xl border shrink-0 transition active:scale-95 flex items-center gap-1.5 ${
+                                isSelected
+                                  ? "bg-emerald-500/30 border-emerald-400 text-white"
+                                  : "bg-zinc-900/90 border-white/[0.08] text-zinc-200"
+                              }`}
+                            >
+                              <PiggyBank className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span className="text-xs font-semibold">
+                                {fci.name.split(" (")[0]}
+                              </span>
+                              <span className="text-[10px] text-emerald-300/80">
+                                • {fci.broker}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -634,7 +791,9 @@ export function PersonalInvestmentModal({
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
                 <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
-                  {assetType === "FCI" ? "Nombre del Fondo Común" : "Nombre del Activo"}
+                  {assetType === "FCI"
+                    ? "Nombre Oficial del Fondo Común"
+                    : "Nombre del Activo"}
                 </label>
                 <input
                   type="text"
@@ -653,7 +812,7 @@ export function PersonalInvestmentModal({
                   }}
                   placeholder={
                     assetType === "FCI"
-                      ? "Ej: Fima Premium (Galicia)"
+                      ? "Ej: Fima Premium - Clase A"
                       : "Ej: Apple Inc. (CEDEAR)"
                   }
                   required
@@ -675,6 +834,104 @@ export function PersonalInvestmentModal({
                 </select>
               </div>
             </div>
+
+            {/* Tarjeta de Valor de Cuotaparte Oficial (CAFCI) para FCI */}
+            {assetType === "FCI" && (
+              <div className="p-2.5 rounded-xl bg-emerald-950/35 border border-emerald-500/25 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block">
+                      Valor de Cuotaparte Oficial (CAFCI)
+                    </span>
+                    {fciLiveQuote && fciLiveQuote.vcpUnit > 0 ? (
+                      <span className="text-[10px] text-zinc-400 block truncate">
+                        {fciLiveQuote.name} ({fciLiveQuote.date})
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-zinc-400 block">
+                        Buscá el fondo arriba o consultá su última cuotaparte
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic(6);
+                      const ref =
+                        parseFloat(manualPrice.replace(",", ".")) || null;
+                      lookupFciQuote(name || ticker, ref, true);
+                    }}
+                    disabled={isLoadingFciQuote || (!name.trim() && !ticker.trim())}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-200 text-[10px] font-bold flex items-center gap-1 shrink-0 active:scale-95 transition disabled:opacity-40"
+                  >
+                    <RefreshCw
+                      className={`w-3 h-3 ${
+                        isLoadingFciQuote ? "animate-spin" : ""
+                      }`}
+                    />
+                    <span>
+                      {isLoadingFciQuote ? "Consultando..." : "Actualizar VCP"}
+                    </span>
+                  </button>
+                </div>
+
+                {fciLiveQuote && fciLiveQuote.vcpUnit > 0 && (
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic(6);
+                        setValuationMode("units");
+                        setManualPrice(String(fciLiveQuote.vcpUnit));
+                      }}
+                      className={`p-1.5 rounded-lg border text-left transition active:scale-95 ${
+                        valuationMode === "units" &&
+                        Number(manualPrice) === fciLiveQuote.vcpUnit
+                          ? "bg-emerald-500/30 border-emerald-400 text-white"
+                          : "bg-black/40 border-white/[0.08] text-zinc-300 hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <span className="text-[9px] text-emerald-300 font-semibold block">
+                        Usar VCP Unitario (1 cuot.)
+                      </span>
+                      <span className="text-xs font-mono font-bold text-white">
+                        {fciLiveQuote.currency === "USD" ? "u$s " : "$"}
+                        {fciLiveQuote.vcpUnit.toLocaleString("es-AR", {
+                          minimumFractionDigits: 4,
+                          maximumFractionDigits: 6,
+                        })}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic(6);
+                        setValuationMode("units");
+                        setManualPrice(String(fciLiveQuote.vcpPer1000));
+                      }}
+                      className={`p-1.5 rounded-lg border text-left transition active:scale-95 ${
+                        valuationMode === "units" &&
+                        Number(manualPrice) === fciLiveQuote.vcpPer1000
+                          ? "bg-emerald-500/30 border-emerald-400 text-white"
+                          : "bg-black/40 border-white/[0.08] text-zinc-300 hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <span className="text-[9px] text-emerald-300 font-semibold block">
+                        Usar VCP c/1.000 cuot.
+                      </span>
+                      <span className="text-xs font-mono font-bold text-white">
+                        {fciLiveQuote.currency === "USD" ? "u$s " : "$"}
+                        {fciLiveQuote.vcpPer1000.toLocaleString("es-AR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 4,
+                        })}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeMode === "search" && (
               <div className="grid grid-cols-2 gap-2">
@@ -753,6 +1010,26 @@ export function PersonalInvestmentModal({
                 type="button"
                 onClick={() => {
                   triggerHaptic(6);
+                  setValuationMode("units");
+                  if (quantity === "1" && !investmentToEdit) {
+                    setQuantity("");
+                  }
+                  if (fciLiveQuote && fciLiveQuote.vcpUnit > 0) {
+                    setManualPrice(String(fciLiveQuote.vcpUnit));
+                  }
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold transition ${
+                  valuationMode === "units"
+                    ? "bg-emerald-600/30 text-emerald-200 border border-emerald-500/40"
+                    : "text-zinc-400"
+                }`}
+              >
+                Por Cuotapartes + VCP
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(6);
                   if (valuationMode === "units") {
                     const q = parseFloat(quantity.replace(",", ".")) || 1;
                     const mp = parseFloat(manualPrice.replace(",", ".")) || 0;
@@ -774,20 +1051,6 @@ export function PersonalInvestmentModal({
                 }`}
               >
                 Por Saldo Total ($)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic(6);
-                  setValuationMode("units");
-                }}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold transition ${
-                  valuationMode === "units"
-                    ? "bg-white/[0.12] text-white"
-                    : "text-zinc-400"
-                }`}
-              >
-                Por Cuotapartes / Nominales
               </button>
             </div>
           )}
@@ -829,14 +1092,16 @@ export function PersonalInvestmentModal({
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block mb-1">
-                    {assetType === "FCI" ? "Cuotapartes" : "Cantidad (Nominales)"}
+                    {assetType === "FCI"
+                      ? "Cant. Cuotapartes"
+                      : "Cantidad (Nominales)"}
                   </label>
                   <input
                     type="number"
                     step="any"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    placeholder="Ej: 10"
+                    placeholder={assetType === "FCI" ? "Ej: 1250.45" : "Ej: 10"}
                     required
                     className="w-full bg-zinc-900 border border-white/[0.1] rounded-xl px-3 py-2.5 text-sm font-mono font-bold text-white focus:outline-none focus:border-indigo-500"
                   />
@@ -844,7 +1109,9 @@ export function PersonalInvestmentModal({
 
                 <div>
                   <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block mb-1">
-                    Precio Compra (Opc.)
+                    {assetType === "FCI"
+                      ? "VCP Compra (Opc.)"
+                      : "Precio Compra (Opc.)"}
                   </label>
                   <input
                     type="number"
@@ -859,8 +1126,12 @@ export function PersonalInvestmentModal({
 
               {(activeMode === "manual" || assetType === "FCI" || !previewPrice) && (
                 <div>
-                  <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block mb-1">
-                    Precio Unitario Actual (Manual)
+                  <label className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider block mb-1">
+                    {assetType === "FCI"
+                      ? `Valor de la Cuotaparte Actual (${
+                          currency === "USD" ? "u$s" : "$"
+                        })`
+                      : "Precio Unitario Actual (Manual)"}
                   </label>
                   <input
                     type="number"
@@ -868,7 +1139,7 @@ export function PersonalInvestmentModal({
                     value={manualPrice}
                     onChange={(e) => setManualPrice(e.target.value)}
                     placeholder="Valor actual por unidad / cuotaparte"
-                    className="w-full bg-zinc-900 border border-white/[0.1] rounded-xl px-3 py-2 text-sm font-mono font-bold text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-zinc-900 border border-emerald-500/40 rounded-xl px-3 py-2 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-400"
                   />
                 </div>
               )}

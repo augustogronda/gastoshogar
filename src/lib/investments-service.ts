@@ -20,11 +20,25 @@ export interface ExchangeRates {
   updatedAt: string;
 }
 
+export interface CafciFundQuote {
+  ticker: string;
+  name: string;
+  broker: string;
+  category: string;
+  currency: "ARS" | "USD";
+  vcpUnit: number; // Valor de 1 cuotaparte (vcp / 1000)
+  vcpPer1000: number; // Valor cada 1.000 cuotapartes (informado por CAFCI)
+  date: string;
+  patrimonio?: number;
+}
+
 // Caché en memoria para evitar llamadas redundantes repetidas
 let cachedRates: { rates: ExchangeRates; timestamp: number } | null = null;
+let cachedCafciCatalog: { funds: CafciFundQuote[]; timestamp: number } | null = null;
 const quoteCache = new Map<string, { quote: MarketQuote; timestamp: number }>();
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
+const CAFCI_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
 
 export const POPULAR_ARGENTINA_FCIS = [
   {
@@ -387,6 +401,289 @@ export async function searchTickers(query: string) {
   }
 
   return results.slice(0, 10);
+}
+
+function normalizeSearchText(str: string): string {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
+}
+
+function inferFciBroker(fundName: string): string {
+  const n = fundName.toUpperCase();
+  if (n.startsWith("FIMA ")) return "Banco Galicia";
+  if (n.startsWith("SUPER ") || n.startsWith("SUPERFONDO")) return "Santander";
+  if (n.startsWith("FBA ")) return "BBVA";
+  if (n.startsWith("BALANZ")) return "Balanz";
+  if (n.startsWith("COCOS")) return "Cocos Capital";
+  if (n.startsWith("DELTA")) return "Delta / Personal Pay";
+  if (n.startsWith("PREMIER")) return "Supervielle / IOL";
+  if (n.startsWith("PIONERO")) return "Banco Macro";
+  if (n.startsWith("PELLEGRINI")) return "Banco Nación";
+  if (n.startsWith("1822 RAICES") || n.startsWith("RAICES")) return "Banco Provincia";
+  if (n.startsWith("SBS")) return "SBS";
+  if (n.startsWith("ADCAP")) return "Adcap / IOL";
+  if (n.startsWith("COMPASS")) return "Compass";
+  if (n.startsWith("SCHRODER")) return "Schroders";
+  if (n.startsWith("GALILEO")) return "Galileo";
+  if (n.startsWith("MEGAQM") || n.startsWith("QUINQUELA")) return "MegaQM";
+  if (n.startsWith("CONSULTATIO")) return "Consultatio";
+  if (n.startsWith("COHEN")) return "Cohen";
+  if (n.startsWith("ALLARIA")) return "Allaria";
+  if (n.startsWith("IAM ") || n.includes("MERCADO FONDO")) return "Bind / Mercado Pago";
+  if (n.startsWith("ST ") || n.startsWith("TORONTO")) return "Banza / ST";
+  if (n.startsWith("UALA") || n.startsWith("UILO")) return "Ualá";
+  if (n.startsWith("HF ")) return "HSBC / Galicia Más";
+  if (n.startsWith("ICBC") || n.startsWith("ALPHA")) return "ICBC";
+  if (n.startsWith("LOMBARD")) return "Banco Patagonia";
+  return "CAFCI Argentina";
+}
+
+function buildFciTicker(fundName: string): string {
+  const clean = fundName
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 12);
+  return `FCI-${clean || "FONDO"}`;
+}
+
+/**
+ * Obtiene el padrón completo de Fondos Comunes de Inversión (CAFCI) desde ArgentinaDatos API
+ * Incluye valor de cuotaparte oficial (VCP) de Mercado de Dinero, Renta Fija, Renta Mixta y Renta Variable
+ */
+export async function getCafciCatalog(): Promise<CafciFundQuote[]> {
+  const now = Date.now();
+  if (cachedCafciCatalog && now - cachedCafciCatalog.timestamp < CAFCI_CACHE_TTL_MS) {
+    return cachedCafciCatalog.funds;
+  }
+
+  const endpoints = [
+    { key: "mercadoDinero", label: "Money Market" },
+    { key: "rentaFija", label: "Renta Fija" },
+    { key: "rentaMixta", label: "Renta Mixta" },
+    { key: "rentaVariable", label: "Renta Variable" },
+  ];
+
+  try {
+    const responses = await Promise.allSettled(
+      endpoints.map(async (ep) => {
+        const res = await fetch(
+          `https://api.argentinadatos.com/v1/finanzas/fci/${ep.key}/ultimo`,
+          {
+            next: { revalidate: 1800 },
+            signal: AbortSignal.timeout(2800),
+          }
+        );
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data)
+          ? data.map((item: any) => ({ ...item, _category: ep.label }))
+          : [];
+      })
+    );
+
+    const fundsMap = new Map<string, CafciFundQuote>();
+
+    for (const r of responses) {
+      if (r.status !== "fulfilled") continue;
+      for (const item of r.value) {
+        const rawName = typeof item.fondo === "string" ? item.fondo.trim() : "";
+        const vcpRaw = Number(item.vcp);
+        if (!rawName || !vcpRaw || isNaN(vcpRaw) || vcpRaw <= 0) continue;
+
+        const isUsd = /DOLAR|DÓLAR|USD|U\$S/i.test(rawName);
+        const vcpUnit = Number((vcpRaw / 1000).toFixed(6));
+        const vcpPer1000 = Number(vcpRaw.toFixed(4));
+
+        fundsMap.set(rawName.toUpperCase(), {
+          ticker: buildFciTicker(rawName),
+          name: rawName,
+          broker: inferFciBroker(rawName),
+          category: item._category || "FCI",
+          currency: isUsd ? "USD" : "ARS",
+          vcpUnit,
+          vcpPer1000,
+          date: item.fecha || new Date().toISOString().slice(0, 10),
+          patrimonio: Number(item.patrimonio) || undefined,
+        });
+      }
+    }
+
+    const catalog = Array.from(fundsMap.values());
+    if (catalog.length > 0) {
+      cachedCafciCatalog = { funds: catalog, timestamp: now };
+      return catalog;
+    }
+  } catch (err) {
+    console.warn("Error fetching CAFCI catalog from ArgentinaDatos:", err);
+  }
+
+  return [];
+}
+
+/**
+ * Busca Fondos Comunes de Inversión por nombre de fondo, banco o sociedad gerente
+ * y devuelve su último Valor de Cuotaparte (VCP) oficial.
+ */
+export async function searchFciFunds(query: string): Promise<CafciFundQuote[]> {
+  const catalog = await getCafciCatalog();
+  const qNorm = normalizeSearchText(query);
+
+  // Si no hay búsqueda escrita, devolver una selección curada de los principales FCIs con VCP en vivo
+  if (!qNorm) {
+    const popularResults: CafciFundQuote[] = [];
+    for (const preset of POPULAR_ARGENTINA_FCIS) {
+      const basePresetName = normalizeSearchText(preset.name.split("(")[0]);
+      const match = catalog.find(
+        (c) =>
+          normalizeSearchText(c.name).includes(basePresetName) &&
+          (c.name.includes("Clase A") || !c.name.includes("Clase"))
+      ) || catalog.find((c) => normalizeSearchText(c.name).includes(basePresetName));
+
+      if (match) {
+        popularResults.push({
+          ...match,
+          ticker: preset.ticker,
+          broker: preset.broker,
+        });
+      } else {
+        popularResults.push({
+          ticker: preset.ticker,
+          name: preset.name,
+          broker: preset.broker,
+          category: "FCI Popular",
+          currency: preset.defaultCurrency as "ARS" | "USD",
+          vcpUnit: 0,
+          vcpPer1000: 0,
+          date: "",
+        });
+      }
+    }
+    return popularResults;
+  }
+
+  const tokens = qNorm.split(/\s+/).filter(Boolean);
+
+  const scored: Array<{ fund: CafciFundQuote; score: number }> = [];
+
+  for (const fund of catalog) {
+    const haystack = normalizeSearchText(
+      `${fund.name} ${fund.broker} ${fund.category}`
+    );
+
+    const allMatch = tokens.every((t) => haystack.includes(t));
+    if (!allMatch) continue;
+
+    let score = 0;
+    const normName = normalizeSearchText(fund.name);
+    if (normName.startsWith(tokens[0])) score += 30;
+    if (fund.name.includes("Clase A")) score += 20; // Clase minorista individuo más habitual
+    if (fund.name.includes("Clase B")) score += 10;
+    if (fund.category === "Money Market") score += 8;
+
+    scored.push({ fund, score });
+  }
+
+  // También revisar presets populares por si el usuario buscó "Mercado Pago", "Personal Pay" o "Uala"
+  for (const preset of POPULAR_ARGENTINA_FCIS) {
+    const presetHaystack = normalizeSearchText(`${preset.name} ${preset.broker}`);
+    if (tokens.every((t) => presetHaystack.includes(t))) {
+      const alreadyIncluded = scored.some(
+        (s) => normalizeSearchText(s.fund.name) === normalizeSearchText(preset.name)
+      );
+      if (!alreadyIncluded) {
+        const basePresetName = normalizeSearchText(preset.name.split("(")[0]);
+        const liveMatch = catalog.find((c) =>
+          normalizeSearchText(c.name).includes(basePresetName)
+        );
+        scored.push({
+          fund: {
+            ticker: preset.ticker,
+            name: liveMatch ? liveMatch.name : preset.name,
+            broker: preset.broker,
+            category: liveMatch ? liveMatch.category : "FCI",
+            currency: preset.defaultCurrency as "ARS" | "USD",
+            vcpUnit: liveMatch ? liveMatch.vcpUnit : 0,
+            vcpPer1000: liveMatch ? liveMatch.vcpPer1000 : 0,
+            date: liveMatch ? liveMatch.date : "",
+          },
+          score: 50,
+        });
+      }
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score || a.fund.name.localeCompare(b.fund.name));
+  return scored.slice(0, 20).map((s) => s.fund);
+}
+
+/**
+ * Obtiene el último Valor de Cuotaparte (VCP) oficial para un FCI por su nombre o ticker
+ */
+export async function fetchFciQuote(
+  nameOrTicker: string,
+  referencePrice?: number | null
+): Promise<(CafciFundQuote & { recommendedVcp: number }) | null> {
+  const catalog = await getCafciCatalog();
+  if (catalog.length === 0) return null;
+
+  const cleanInput = normalizeSearchText(nameOrTicker);
+  if (!cleanInput) return null;
+
+  // 1. Verificar si corresponde a algún preset popular por ticker
+  const preset = POPULAR_ARGENTINA_FCIS.find(
+    (p) => normalizeSearchText(p.ticker) === cleanInput
+  );
+  const targetName = preset
+    ? normalizeSearchText(preset.name.split("(")[0])
+    : normalizeSearchText(nameOrTicker.split("(")[0]);
+
+  // 2. Buscar coincidencia exacta primero, o coincidencia de Clase A / general
+  let match =
+    catalog.find((c) => normalizeSearchText(c.name) === cleanInput) ||
+    catalog.find((c) => normalizeSearchText(c.name) === targetName) ||
+    catalog.find(
+      (c) =>
+        normalizeSearchText(c.name).includes(targetName) &&
+        c.name.includes("Clase A")
+    ) ||
+    catalog.find((c) => normalizeSearchText(c.name).includes(targetName));
+
+  if (!match) {
+    // Buscar por palabras clave principales
+    const words = targetName
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !["FCI", "FONDO", "CLASE", "PESOS"].includes(w));
+    if (words.length > 0) {
+      match =
+        catalog.find(
+          (c) =>
+            words.every((w) => normalizeSearchText(c.name).includes(w)) &&
+            c.name.includes("Clase A")
+        ) ||
+        catalog.find((c) =>
+          words.every((w) => normalizeSearchText(c.name).includes(w))
+        );
+    }
+  }
+
+  if (!match) return null;
+
+  // Determinar si el usuario usa VCP unitario (ej. 86.80) o VCP cada 1.000 cuotapartes (ej. 86802.60)
+  let recommendedVcp = match.vcpUnit;
+  if (typeof referencePrice === "number" && referencePrice > 0) {
+    const diffUnit = Math.abs(referencePrice - match.vcpUnit) / Math.max(1, match.vcpUnit);
+    const diff1000 =
+      Math.abs(referencePrice - match.vcpPer1000) / Math.max(1, match.vcpPer1000);
+    recommendedVcp = diff1000 < diffUnit ? match.vcpPer1000 : match.vcpUnit;
+  }
+
+  return {
+    ...match,
+    recommendedVcp,
+  };
 }
 
 export interface HydratedInvestment {

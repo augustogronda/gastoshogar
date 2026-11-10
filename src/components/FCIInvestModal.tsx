@@ -14,14 +14,21 @@ import {
   Wallet,
   Tag,
   AlertCircle,
+  Search,
+  RefreshCw,
 } from "./ui/icons";
 import {
   transferSurplusToFCIAction,
   updateFCIValueAction,
   createFCIWithdrawalAction,
   deleteFCIWithdrawalAction,
+  searchFciFundsAction,
+  fetchFciQuoteAction,
 } from "@/app/actions";
-import { POPULAR_ARGENTINA_FCIS } from "@/lib/investments-service";
+import {
+  POPULAR_ARGENTINA_FCIS,
+  CafciFundQuote,
+} from "@/lib/investments-service";
 import { triggerHaptic } from "@/lib/haptics";
 
 export interface FCIWithdrawalItem {
@@ -68,6 +75,12 @@ export function FCIInvestModal({
   const [fundNameInput, setFundNameInput] = useState<string>(
     fundName || "FCI Ahorro Pareja"
   );
+  const [fciSearchQuery, setFciSearchQuery] = useState<string>("");
+  const [fciSearchResults, setFciSearchResults] = useState<CafciFundQuote[]>([]);
+  const [isSearchingFci, setIsSearchingFci] = useState<boolean>(false);
+  const [cuotapartesInput, setCuotapartesInput] = useState<string>("");
+  const [vcpInput, setVcpInput] = useState<string>("");
+  const [isLoadingVcp, setIsLoadingVcp] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -84,9 +97,30 @@ export function FCIInvestModal({
     if (isOpen) {
       setNewValueInput(currentFundValue ? currentFundValue.toString() : "0");
       setFundNameInput(fundName || "FCI Ahorro Pareja");
+      setFciSearchQuery("");
+      setFciSearchResults([]);
       setErrorMsg(null);
     }
   }, [isOpen, currentFundValue, fundName]);
+
+  useEffect(() => {
+    if (!isUpdatingValue || !fciSearchQuery.trim()) {
+      setFciSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearchingFci(true);
+      try {
+        const res = await searchFciFundsAction(fciSearchQuery.trim());
+        setFciSearchResults(res);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearchingFci(false);
+      }
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [fciSearchQuery, isUpdatingValue]);
 
   if (!isOpen || !mounted) return null;
 
@@ -259,15 +293,74 @@ export function FCIInvestModal({
               <div className="mt-3.5 pt-3 border-t border-emerald-500/20 space-y-3 animate-fade-in">
                 <div>
                   <label className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block mb-1">
-                    ¿En qué Fondo Común o Banco está?
+                    Buscador Oficial de Fondo Común (CAFCI)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Buscar FCI o Banco (ej: Fima, Balanz, Galicia, Santander)..."
+                      value={fciSearchQuery}
+                      onChange={(e) => setFciSearchQuery(e.target.value)}
+                      className="w-full bg-black/60 border border-emerald-500/35 rounded-xl pl-8 pr-3 py-2 text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <Search className="w-3.5 h-3.5 text-emerald-400 absolute left-2.5 top-2.5" />
+                    {isSearchingFci && (
+                      <span className="text-[10px] text-emerald-300 absolute right-3 top-2.5 animate-pulse">
+                        Buscando...
+                      </span>
+                    )}
+                  </div>
+
+                  {fciSearchResults.length > 0 && (
+                    <div className="mt-1.5 bg-zinc-950 border border-emerald-500/30 rounded-xl p-1 max-h-40 overflow-y-auto space-y-1 shadow-xl">
+                      {fciSearchResults.map((f) => (
+                        <button
+                          key={`${f.name}_${f.ticker}`}
+                          type="button"
+                          onClick={() => {
+                            triggerHaptic(6);
+                            setFundNameInput(`${f.name} (${f.broker})`);
+                            if (f.vcpUnit > 0) {
+                              setVcpInput(String(f.vcpUnit));
+                              const qty = parseFloat(cuotapartesInput.replace(",", "."));
+                              if (qty > 0) {
+                                setNewValueInput(String(Math.round(qty * f.vcpUnit)));
+                              }
+                            }
+                            setFciSearchQuery("");
+                            setFciSearchResults([]);
+                          }}
+                          className="w-full text-left p-2 rounded-lg hover:bg-emerald-500/15 flex items-center justify-between gap-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-bold text-white block truncate">
+                              {f.name}
+                            </span>
+                            <span className="text-[10px] text-emerald-300">
+                              {f.broker} • {f.category}
+                            </span>
+                          </div>
+                          {f.vcpUnit > 0 && (
+                            <span className="text-[11px] font-mono font-bold text-emerald-400 shrink-0">
+                              VCP ${f.vcpUnit}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mt-2 mb-1">
+                    Nombre seleccionado
                   </label>
                   <input
                     type="text"
-                    placeholder="Ej: Fima Premium (Galicia), Balanz..."
+                    placeholder="Ej: Fima Premium - Clase A (Banco Galicia)"
                     value={fundNameInput}
                     onChange={(e) => setFundNameInput(e.target.value)}
                     className="w-full bg-black/50 border border-white/[0.14] rounded-xl px-3 py-2 text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
+
                   {/* Tira horizontal deslizable de FCIs */}
                   <div className="flex gap-1.5 overflow-x-auto no-scrollbar mt-2 pb-1">
                     {POPULAR_ARGENTINA_FCIS.map((fci) => {
@@ -277,9 +370,13 @@ export function FCIInvestModal({
                         <button
                           key={fci.ticker}
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             triggerHaptic(6);
                             setFundNameInput(label);
+                            const q = await fetchFciQuoteAction(fci.name);
+                            if (q && q.vcpUnit > 0) {
+                              setVcpInput(String(q.vcpUnit));
+                            }
                           }}
                           className={`text-[11px] px-2.5 py-1 rounded-lg border shrink-0 transition active:scale-95 ${
                             isSelected
@@ -294,9 +391,86 @@ export function FCIInvestModal({
                   </div>
                 </div>
 
+                {/* Calculadora opcional por Cuotapartes x Valor de Cuotaparte */}
+                <div className="p-2.5 rounded-xl bg-black/35 border border-emerald-500/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">
+                      Calcular por Cuotapartes (Opcional)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        triggerHaptic(6);
+                        setIsLoadingVcp(true);
+                        try {
+                          const q = await fetchFciQuoteAction(fundNameInput);
+                          if (q && q.vcpUnit > 0) {
+                            setVcpInput(String(q.vcpUnit));
+                            const qty = parseFloat(cuotapartesInput.replace(",", "."));
+                            if (qty > 0) {
+                              setNewValueInput(String(Math.round(qty * q.vcpUnit)));
+                            }
+                          }
+                        } finally {
+                          setIsLoadingVcp(false);
+                        }
+                      }}
+                      disabled={isLoadingVcp}
+                      className="text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-1 rounded-lg flex items-center gap-1 active:scale-95"
+                    >
+                      <RefreshCw
+                        className={`w-3 h-3 ${isLoadingVcp ? "animate-spin" : ""}`}
+                      />
+                      <span>Traer VCP Oficial</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-zinc-400 block mb-0.5">
+                        Cant. Cuotapartes
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="Ej: 15420"
+                        value={cuotapartesInput}
+                        onChange={(e) => {
+                          setCuotapartesInput(e.target.value);
+                          const qty = parseFloat(e.target.value.replace(",", "."));
+                          const vcp = parseFloat(vcpInput.replace(",", "."));
+                          if (qty > 0 && vcp > 0) {
+                            setNewValueInput(String(Math.round(qty * vcp)));
+                          }
+                        }}
+                        className="w-full bg-black/50 border border-white/[0.12] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-zinc-400 block mb-0.5">
+                        Valor Cuotaparte ($)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="VCP ($)"
+                        value={vcpInput}
+                        onChange={(e) => {
+                          setVcpInput(e.target.value);
+                          const qty = parseFloat(cuotapartesInput.replace(",", "."));
+                          const vcp = parseFloat(e.target.value.replace(",", "."));
+                          if (qty > 0 && vcp > 0) {
+                            setNewValueInput(String(Math.round(qty * vcp)));
+                          }
+                        }}
+                        className="w-full bg-black/50 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-emerald-300"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block mb-1">
-                    Saldo Actualizado ($)
+                    Saldo Total Actualizado ($)
                   </label>
                   <div className="flex gap-2">
                     <input

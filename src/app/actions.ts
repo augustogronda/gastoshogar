@@ -12,6 +12,8 @@ import {
   hydrateInvestments,
   searchTickers,
   fetchTickerQuote,
+  searchFciFunds,
+  fetchFciQuote,
   getExchangeRates,
   POPULAR_ARGENTINA_ASSETS,
   invalidatePortfolioCache,
@@ -2568,6 +2570,27 @@ export async function fetchMarketQuoteAction(ticker: string) {
     return await fetchTickerQuote(ticker);
   } catch (err) {
     console.error(`Error fetching quote for ${ticker}:`, err);
+    return null;
+  }
+}
+
+export async function searchFciFundsAction(query: string) {
+  try {
+    return await searchFciFunds(query);
+  } catch (err) {
+    console.error("Error searching FCI funds:", err);
+    return [];
+  }
+}
+
+export async function fetchFciQuoteAction(
+  nameOrTicker: string,
+  referencePrice?: number | null
+) {
+  try {
+    return await fetchFciQuote(nameOrTicker, referencePrice);
+  } catch (err) {
+    console.error(`Error fetching FCI quote for ${nameOrTicker}:`, err);
     return null;
   }
 }
