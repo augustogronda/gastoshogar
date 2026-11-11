@@ -1163,8 +1163,8 @@ export function DesktopDashboard({
                             <span className="text-xs font-bold text-white font-mono block">
                               ${Math.round(userA?.committedAmount || 0).toLocaleString("es-AR")}
                             </span>
-                            <span className="text-[10px] text-blue-300 font-mono block">
-                              Aporte cuota: {Math.round(userA?.fciQuotaSharePct || 50)}%
+                            <span className="text-[10px] text-zinc-400 font-mono block">
+                              Aporte al mes
                             </span>
                           </div>
                         </div>
@@ -1188,8 +1188,8 @@ export function DesktopDashboard({
                             <span className="text-xs font-bold text-white font-mono block">
                               ${Math.round(userB?.committedAmount || 0).toLocaleString("es-AR")}
                             </span>
-                            <span className="text-[10px] text-rose-300 font-mono block">
-                              Aporte cuota: {Math.round(userB?.fciQuotaSharePct || 50)}%
+                            <span className="text-[10px] text-zinc-400 font-mono block">
+                              Aporte al mes
                             </span>
                           </div>
                         </div>
@@ -1466,18 +1466,18 @@ export function DesktopDashboard({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
                         <span className="text-xs font-bold text-zinc-300 block mb-1">
-                          Participación de {nameA}
+                          Fondo Compartido de la Pareja
                         </span>
-                        <span className="text-lg font-mono font-bold text-white">
-                          {Math.round(userA?.fciQuotaSharePct || 50)}%
-                        </span>
+                        <p className="text-xs text-zinc-400 leading-relaxed">
+                          Fondo 100% indiviso destinado a proyectos y metas del hogar.
+                        </p>
                       </div>
                       <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
                         <span className="text-xs font-bold text-zinc-300 block mb-1">
-                          Participación de {nameB}
+                          Excedente de {monthLabel}
                         </span>
-                        <span className="text-lg font-mono font-bold text-white">
-                          {Math.round(userB?.fciQuotaSharePct || 50)}%
+                        <span className="text-lg font-mono font-bold text-emerald-400">
+                          ${Math.round(Math.max(0, poolSummary.remainingPool)).toLocaleString("es-AR")}
                         </span>
                       </div>
                     </div>

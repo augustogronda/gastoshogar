@@ -2564,8 +2564,6 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         currentFundValue={investmentFund?.currentValue || 0}
         surplusAmount={poolSummary.remainingPool}
         isAlreadyTransferred={!!period.investmentTransfer}
-        userABalance={{ name: userA.name, quotaPct: userA.fciQuotaSharePct }}
-        userBBalance={{ name: userB.name, quotaPct: userB.fciQuotaSharePct }}
         withdrawals={investmentFund?.withdrawals || []}
       />
 

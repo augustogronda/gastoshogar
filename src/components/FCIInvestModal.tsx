@@ -48,8 +48,8 @@ interface FCIInvestModalProps {
   currentFundValue: number;
   surplusAmount: number;
   isAlreadyTransferred: boolean;
-  userABalance: { name: string; quotaPct: number };
-  userBBalance: { name: string; quotaPct: number };
+  userABalance?: { name: string; quotaPct: number };
+  userBBalance?: { name: string; quotaPct: number };
   withdrawals?: FCIWithdrawalItem[];
 }
 
@@ -123,9 +123,6 @@ export function FCIInvestModal({
   }, [fciSearchQuery, isUpdatingValue]);
 
   if (!isOpen || !mounted) return null;
-
-  const quotaA = Math.round(surplusAmount * (userABalance.quotaPct / 100));
-  const quotaB = Math.round(surplusAmount * (userBBalance.quotaPct / 100));
 
   const handleTransfer = async () => {
     if (!fundId || surplusAmount <= 0) return;
@@ -550,23 +547,10 @@ export function FCIInvestModal({
                 </div>
 
                 {surplusAmount > 0 ? (
-                  <div className="space-y-1.5 border-t border-white/[0.06] pt-2.5">
-                    <div className="text-[11px] text-zinc-300 flex items-center gap-1.5 mb-1">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span>Proporción según aportes al Fondo Común:</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-zinc-200 font-mono tabular-nums">
-                      <span className="font-sans">{userABalance.name} ({Math.round(userABalance.quotaPct)}%):</span>
-                      <span className="font-bold text-white">
-                        ${quotaA.toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs text-zinc-200 font-mono tabular-nums">
-                      <span className="font-sans">{userBBalance.name} ({Math.round(userBBalance.quotaPct)}%):</span>
-                      <span className="font-bold text-white">
-                        ${quotaB.toLocaleString("es-AR")}
-                      </span>
-                    </div>
+                  <div className="border-t border-white/[0.06] pt-2.5">
+                    <p className="text-[11px] text-zinc-300 leading-relaxed">
+                      Este excedente pasa a formar parte del fondo de ahorro conjunto de la pareja para futuros proyectos o imprevistos del hogar.
+                    </p>
                   </div>
                 ) : (
                   <p className="text-xs text-zinc-400 italic">

@@ -1052,23 +1052,13 @@ export function IPadDashboard({
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                        <span className="text-xs font-bold text-zinc-300 block mb-1">
-                          Participación de {nameA}
-                        </span>
-                        <span className="text-base font-mono font-bold text-white">
-                          {Math.round(userA?.fciQuotaSharePct || 50)}%
-                        </span>
-                      </div>
-                      <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                        <span className="text-xs font-bold text-zinc-300 block mb-1">
-                          Participación de {nameB}
-                        </span>
-                        <span className="text-base font-mono font-bold text-white">
-                          {Math.round(userB?.fciQuotaSharePct || 50)}%
-                        </span>
-                      </div>
+                    <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+                      <span className="text-xs font-bold text-zinc-300 block mb-1">
+                        Fondo Compartido de la Pareja
+                      </span>
+                      <p className="text-xs text-zinc-400 leading-relaxed">
+                        Fondo conjunto de ahorro para metas e imprevistos del hogar.
+                      </p>
                     </div>
                   </div>
                 )}

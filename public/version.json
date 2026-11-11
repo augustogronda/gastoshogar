@@ -1,7 +1,7 @@
 {
-  "version": "1.27.1",
-  "build": 2026111102,
-  "releasedAt": "2026-11-11T12:22:00Z",
-  "title": "Actualizaciones Silenciosas y Forzadas sin Prompt",
-  "description": "El sistema ahora detecta nuevas versiones y fuerza la actualización de forma automática e inmediata, limpiando caché y Service Worker sin pedir confirmación manual ni botones de 'más tarde'."
+  "version": "1.27.2",
+  "build": 2026111103,
+  "releasedAt": "2026-11-11T12:42:00Z",
+  "title": "Fondo FCI y Remanentes 100% Unificados",
+  "description": "Se eliminó toda distinción de cuotas o participación individual en el remanente FCI e inversiones compartidas, unificándolo como patrimonio conjunto del hogar."
 }
