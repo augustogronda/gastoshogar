@@ -2565,6 +2565,19 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         surplusAmount={poolSummary.remainingPool}
         isAlreadyTransferred={!!period.investmentTransfer}
         withdrawals={investmentFund?.withdrawals || []}
+        onOptimisticUpdateValue={(newVal, newName) => {
+          setDashboardData((prev) => {
+            if (!prev.investmentFund) return prev;
+            return {
+              ...prev,
+              investmentFund: {
+                ...prev.investmentFund,
+                currentValue: newVal,
+                name: newName,
+              },
+            };
+          });
+        }}
       />
 
       {/* Modal de Confirmación de Cierre Mensual */}
@@ -2788,6 +2801,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
         onClose={() => setIsMonthPickerOpen(false)}
         currentYear={currentYear}
         currentMonth={currentMonth}
+        currentStatus={period.status}
         onSelectMonth={switchMonth}
       />
 

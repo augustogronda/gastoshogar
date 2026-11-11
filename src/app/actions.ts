@@ -953,6 +953,27 @@ export async function deleteFCIWithdrawalAction(withdrawalId: string) {
   return { success: true };
 }
 
+export async function getYearPeriodsStatusAction(year: number) {
+  const household = await ensureDefaultHousehold();
+  const periods = await prisma.monthlyPeriod.findMany({
+    where: {
+      householdId: household.id,
+      year,
+    },
+    select: {
+      month: true,
+      status: true,
+    },
+  });
+
+  const statusMap: Record<number, "OPEN" | "CLOSED"> = {};
+  for (const p of periods) {
+    statusMap[p.month] = p.status === "CLOSED" ? "CLOSED" : "OPEN";
+  }
+
+  return statusMap;
+}
+
 export async function closeMonthAction(periodId: string) {
   const period = await prisma.monthlyPeriod.findUnique({
     where: { id: periodId },

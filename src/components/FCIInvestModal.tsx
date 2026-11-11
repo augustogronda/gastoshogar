@@ -51,6 +51,7 @@ interface FCIInvestModalProps {
   userABalance?: { name: string; quotaPct: number };
   userBBalance?: { name: string; quotaPct: number };
   withdrawals?: FCIWithdrawalItem[];
+  onOptimisticUpdateValue?: (newVal: number, newName: string) => void;
 }
 
 export function FCIInvestModal({
@@ -65,6 +66,7 @@ export function FCIInvestModal({
   userABalance,
   userBBalance,
   withdrawals = [],
+  onOptimisticUpdateValue,
 }: FCIInvestModalProps) {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<"INVEST" | "WITHDRAW">("INVEST");
@@ -143,17 +145,20 @@ export function FCIInvestModal({
   const handleSaveValue = async () => {
     const val = parseFloat(newValueInput.replace(",", ".")) || 0;
     const cleanName = fundNameInput.trim() || "FCI Ahorro Pareja";
-    setIsSubmitting(true);
-    setErrorMsg(null);
+    
+    // Impacto visual optimista inmediato (0ms de latencia)
+    triggerHaptic(15);
+    setIsUpdatingValue(false);
+    if (onOptimisticUpdateValue) {
+      onOptimisticUpdateValue(val, cleanName);
+    }
+
+    // Conciliación con la base de datos en segundo plano
     try {
       await updateFCIValueAction(fundId || "", val, cleanName);
-      triggerHaptic(15);
-      setIsUpdatingValue(false);
     } catch (err: unknown) {
       console.error(err);
       setErrorMsg(err instanceof Error ? err.message : "Error al actualizar datos del FCI");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

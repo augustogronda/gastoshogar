@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, X, Calendar } from "./ui/icons";
+import React, { useState, useEffect } from "react";
+import { ChevronLeft, ChevronRight, X, Calendar, Lock, Unlock } from "./ui/icons";
 import { triggerHaptic } from "@/lib/haptics";
+import { getYearPeriodsStatusAction } from "@/app/actions";
 
 interface MonthPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentYear: number;
   currentMonth: number; // 1 - 12
+  currentStatus?: string;
   onSelectMonth: (year: number, month: number) => void;
 }
 
@@ -32,15 +34,46 @@ export function MonthPickerModal({
   onClose,
   currentYear,
   currentMonth,
+  currentStatus,
   onSelectMonth,
 }: MonthPickerModalProps) {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-
-  if (!isOpen) return null;
+  const [yearStatuses, setYearStatuses] = useState<Record<number, "OPEN" | "CLOSED">>({});
 
   const now = new Date();
   const realCurrentYear = now.getFullYear();
   const realCurrentMonth = now.getMonth() + 1;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedYear(currentYear);
+  }, [isOpen, currentYear]);
+
+  // Cargar estados de los meses del año seleccionado
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+    getYearPeriodsStatusAction(selectedYear)
+      .then((map) => {
+        if (isMounted) {
+          // Si el año consultado es el actual abierto, asegurar coherencia con currentStatus si vino provisto
+          if (selectedYear === currentYear && currentStatus) {
+            map[currentMonth] = currentStatus === "CLOSED" ? "CLOSED" : "OPEN";
+          }
+          setYearStatuses(map);
+        }
+      })
+      .catch((err) => {
+        console.warn("No se pudo cargar estado de meses para el año:", err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, selectedYear, currentYear, currentMonth, currentStatus]);
+
+  if (!isOpen) return null;
 
   const handleSelect = (monthNum: number) => {
     triggerHaptic(10);
@@ -108,6 +141,9 @@ export function MonthPickerModal({
           {MONTHS.map((m) => {
             const isSelected = selectedYear === currentYear && m.num === currentMonth;
             const isRealNow = selectedYear === realCurrentYear && m.num === realCurrentMonth;
+            const status = yearStatuses[m.num]; // "OPEN" | "CLOSED" | undefined
+            const isClosed = status === "CLOSED";
+            const isOpenStatus = status === "OPEN";
 
             return (
               <button
@@ -117,29 +153,83 @@ export function MonthPickerModal({
                 className={`relative py-3 px-2 rounded-2xl flex flex-col items-center justify-center transition-all duration-150 active:scale-95 ${
                   isSelected
                     ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-bold shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/50"
-                    : "bg-white/[0.04] hover:bg-white/[0.09] text-zinc-300 hover:text-white border border-white/[0.05]"
+                    : isClosed
+                    ? "bg-amber-500/[0.06] hover:bg-amber-500/[0.12] text-zinc-300 hover:text-white border border-amber-500/25"
+                    : isOpenStatus
+                    ? "bg-emerald-500/[0.06] hover:bg-emerald-500/[0.12] text-zinc-200 hover:text-white border border-emerald-500/25"
+                    : "bg-white/[0.04] hover:bg-white/[0.09] text-zinc-400 hover:text-zinc-200 border border-white/[0.05]"
                 }`}
               >
+                {/* Badge/Dot de Estado: Cerrado (Candado) o Abierto (Punto verde / candado abierto) */}
+                <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+                  {isClosed ? (
+                    <span
+                      className={`inline-flex items-center justify-center w-4 h-4 rounded-full ${
+                        isSelected
+                          ? "bg-amber-400 text-zinc-950"
+                          : "bg-amber-500/20 text-amber-300 border border-amber-400/30"
+                      }`}
+                      title="Mes cerrado"
+                    >
+                      <Lock className="w-2.5 h-2.5 stroke-[2.5]" />
+                    </span>
+                  ) : isOpenStatus ? (
+                    <span
+                      className={`inline-flex items-center justify-center w-4 h-4 rounded-full ${
+                        isSelected
+                          ? "bg-emerald-300 text-zinc-950"
+                          : "bg-emerald-500/20 text-emerald-300 border border-emerald-400/30"
+                      }`}
+                      title="Mes abierto en curso"
+                    >
+                      <Unlock className="w-2.5 h-2.5 stroke-[2.5]" />
+                    </span>
+                  ) : null}
+                </div>
+
                 {/* Indicador de Mes Real Actual */}
                 {isRealNow && (
                   <span
                     className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${
-                      isSelected ? "bg-white" : "bg-emerald-400"
+                      isSelected ? "bg-white" : "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.8)]"
                     }`}
-                    title="Mes actual"
+                    title="Mes calendario actual"
                   />
                 )}
+
                 <span className="text-sm font-bold tracking-tight">{m.short}</span>
                 <span
-                  className={`text-[10px] ${
-                    isSelected ? "text-white/80" : "text-zinc-500"
+                  className={`text-[10px] mt-0.5 font-medium ${
+                    isSelected
+                      ? "text-white/80"
+                      : isClosed
+                      ? "text-amber-300/80"
+                      : isOpenStatus
+                      ? "text-emerald-300/80"
+                      : "text-zinc-500"
                   }`}
                 >
-                  {m.full}
+                  {isClosed ? "Cerrado" : isOpenStatus ? "Abierto" : m.full}
                 </span>
               </button>
             );
           })}
+        </div>
+
+        {/* Leyenda sutil de estados */}
+        <div className="flex items-center justify-center gap-4 py-2 border-t border-white/[0.06] text-[10px] text-zinc-400 font-medium">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.6)]" />
+            <span>Abierto</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.6)]" />
+            <span>Cerrado</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+            <span>Mes actual</span>
+          </div>
         </div>
 
         {/* Footer: Atajo rápido a Mes Actual */}

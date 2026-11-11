@@ -221,37 +221,67 @@ export function PersonalInvestmentsView({
       : null;
 
     setIsSavingQuick(true);
+
+    const isManualAsset =
+      inv.assetType === "FCI" ||
+      inv.assetType === "PLAZO_FIJO" ||
+      inv.assetType === "ON" ||
+      inv.assetType === "OTRO" ||
+      !inv.hasLiveQuote;
+
+    const payload = {
+      id: inv.id,
+      ticker: inv.ticker,
+      name: inv.name,
+      assetType: inv.assetType,
+      quantity: newQty,
+      buyPrice: newBuy,
+      currency: inv.currency,
+      manualPrice: isManualAsset ? newManual : inv.manualPrice,
+      notes: quickNotes.trim() || null,
+    };
+
+    // Actualización optimista inmediata en pantalla (0ms)
+    const effectivePrice = isManualAsset ? (newManual ?? inv.currentPrice) : inv.currentPrice;
+    const optimisticValuationArs = inv.currency === "USD"
+      ? newQty * effectivePrice * (summary?.rates?.mep || 1530)
+      : newQty * effectivePrice;
+    const optimisticCostArs = newBuy
+      ? (inv.currency === "USD" ? newQty * newBuy * (summary?.rates?.mep || 1530) : newQty * newBuy)
+      : 0;
+
+    setInvestments((prev) =>
+      prev.map((item) =>
+        item.id === inv.id
+          ? {
+              ...item,
+              quantity: newQty,
+              buyPrice: newBuy,
+              manualPrice: isManualAsset ? newManual : item.manualPrice,
+              currentPrice: effectivePrice,
+              totalValuationArs: optimisticValuationArs,
+              totalValuationUsd: (summary?.rates?.mep || 1530) > 0 ? optimisticValuationArs / (summary?.rates?.mep || 1530) : 0,
+              totalCostArs: optimisticCostArs,
+              notes: quickNotes.trim() || null,
+            }
+          : item
+      )
+    );
+
+    triggerHaptic("success");
+    setQuickEditId(null);
+
+    // Conciliación asíncrona en segundo plano
     try {
-      const isManualAsset =
-        inv.assetType === "FCI" ||
-        inv.assetType === "PLAZO_FIJO" ||
-        inv.assetType === "ON" ||
-        inv.assetType === "OTRO" ||
-        !inv.hasLiveQuote;
-
-      const payload = {
-        id: inv.id,
-        ticker: inv.ticker,
-        name: inv.name,
-        assetType: inv.assetType,
-        quantity: newQty,
-        buyPrice: newBuy,
-        currency: inv.currency,
-        manualPrice: isManualAsset ? newManual : inv.manualPrice,
-        notes: quickNotes.trim() || null,
-      };
-
       if (householdId) {
         await saveSharedInvestmentAction({ ...payload, householdId });
       } else if (userId) {
         await savePersonalInvestmentAction({ ...payload, userId });
       }
-
-      triggerHaptic("success");
-      setQuickEditId(null);
-      await handleRefresh();
+      handleRefresh().catch(() => {});
     } catch (err) {
       alert(err instanceof Error ? err.message : "Error al actualizar");
+      handleRefresh().catch(() => {});
     } finally {
       setIsSavingQuick(false);
     }

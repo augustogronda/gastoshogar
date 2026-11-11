@@ -1,6 +1,6 @@
 {
   "name": "gastoshogar",
-  "version": "1.27.2",
+  "version": "1.27.4",
   "private": true,
   "scripts": {
     "dev": "next dev",

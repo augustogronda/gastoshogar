@@ -1,7 +1,7 @@
 {
-  "version": "1.27.2",
-  "build": 2026111103,
-  "releasedAt": "2026-11-11T12:42:00Z",
-  "title": "Fondo FCI y Remanentes 100% Unificados",
-  "description": "Se eliminó toda distinción de cuotas o participación individual en el remanente FCI e inversiones compartidas, unificándolo como patrimonio conjunto del hogar."
+  "version": "1.27.4",
+  "build": 2026111105,
+  "releasedAt": "2026-11-11T12:47:00Z",
+  "title": "Calendario con Estados Abierto/Cerrado e Impacto Visual Inmediato (0ms)",
+  "description": "Distinción visual clara en el selector de meses entre períodos abiertos (esmeralda) y cerrados (ámbar con candado), más actualización optimista al instante al editar saldos de FCI o inversiones antes de conciliar en segundo plano."
 }
