@@ -66,8 +66,8 @@ export function AppUpdateChecker() {
       if (hasNewerVersion) {
         setUpdateInfo(remote);
         setShowToast(true);
-        // Desactivar cuenta regresiva automática para evitar recargas disruptivas mientras el usuario interactúa
-        setCountdown(null);
+        // Forzar actualización inmediata sin preguntar
+        handleApplyUpdateDirect(remote);
       } else if (isManual) {
         alert(`¡La app ya está al día con la última versión (v${remote.version})!`);
       }
@@ -120,15 +120,13 @@ export function AppUpdateChecker() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const handleApplyUpdate = async () => {
+  const handleApplyUpdateDirect = async (remote: VersionInfo) => {
     setIsUpdating(true);
     setCountdown(null);
 
     try {
-      if (updateInfo) {
-        localStorage.setItem("app_build", String(updateInfo.build));
-        localStorage.setItem("app_version", updateInfo.version);
-      }
+      localStorage.setItem("app_build", String(remote.build));
+      localStorage.setItem("app_version", remote.version);
 
       // Limpiar cachés de datos en localStorage para hidratar todo fresco
       localStorage.removeItem("gastoshogar_cached_dashboard_v2");
@@ -146,9 +144,9 @@ export function AppUpdateChecker() {
         await Promise.all(cacheNames.map((name) => window.caches.delete(name)));
       }
 
-      // Recargar con cache-busting para que el navegador descargue el nuevo código
+      // Recargar con cache-busting para que el navegador descargue el nuevo código de inmediato
       const cleanUrl = new URL(window.location.href);
-      cleanUrl.searchParams.set("_v", String(updateInfo?.build || Date.now()));
+      cleanUrl.searchParams.set("_v", String(remote.build || Date.now()));
       window.location.replace(cleanUrl.toString());
     } catch (err) {
       console.error("Error al actualizar la app:", err);
@@ -156,76 +154,39 @@ export function AppUpdateChecker() {
     }
   };
 
+  const handleApplyUpdate = async () => {
+    if (updateInfo) {
+      await handleApplyUpdateDirect(updateInfo);
+    } else {
+      window.location.reload();
+    }
+  };
+
   if (!showToast || !updateInfo) return null;
 
   return (
-    <div className="fixed top-3 left-3 right-3 z-50 max-w-md mx-auto animate-bounce-subtle">
+    <div className="fixed top-3 left-3 right-3 z-50 max-w-md mx-auto animate-bounce-subtle pointer-events-none">
       <div className="super-card rounded-2xl p-4 shadow-2xl border border-indigo-500/40 bg-zinc-950/95 backdrop-blur-xl relative overflow-hidden">
         {/* Glow de fondo */}
         <div className="absolute -top-10 -right-10 w-28 h-28 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
-              <Sparkles className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white tracking-tight">
-                  Nueva versión disponible
-                </span>
-                <span className="text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  v{updateInfo.version}
-                </span>
-              </div>
-              <p className="text-[11px] text-zinc-300 mt-0.5 font-medium line-clamp-1">
-                {updateInfo.title || "Mejoras y nuevas funciones"}
-              </p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+            <RefreshCw className="w-5 h-5 animate-spin" />
           </div>
-
-          <button
-            onClick={() => {
-              setShowToast(false);
-              setCountdown(null);
-            }}
-            className="p-1 rounded-lg text-zinc-400 hover:text-white transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {updateInfo.description && (
-          <p className="text-[11px] text-zinc-400 mt-2 leading-relaxed bg-white/[0.03] p-2 rounded-xl border border-white/[0.05]">
-            {updateInfo.description}
-          </p>
-        )}
-
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            onClick={handleApplyUpdate}
-            disabled={isUpdating}
-            className="flex-1 py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-1.5 transition disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isUpdating ? "animate-spin" : ""}`} />
-            <span>
-              {isUpdating
-                ? "Cargando nueva versión..."
-                : countdown !== null
-                ? `Actualizar ahora (${countdown}s)`
-                : "Actualizar ahora"}
-            </span>
-          </button>
-
-          <button
-            onClick={() => {
-              setShowToast(false);
-              setCountdown(null);
-            }}
-            className="py-2 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-xs font-medium text-zinc-400 hover:text-zinc-200 transition"
-          >
-            Más tarde
-          </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-white tracking-tight">
+                Actualizando aplicación...
+              </span>
+              <span className="text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                v{updateInfo.version}
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-300 mt-0.5 font-medium">
+              Instalando nueva versión y limpiando caché automáticamente.
+            </p>
+          </div>
         </div>
       </div>
     </div>
