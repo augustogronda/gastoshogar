@@ -31,6 +31,46 @@ import {
 
 let categoriesBackfilled = false;
 
+function buildSkipTag(year: number, month: number): string {
+  return `[SKIP:${year}-${String(month).padStart(2, "0")}]`;
+}
+
+function hasSkipMonthTag(notes: string | null | undefined, year: number, month: number): boolean {
+  if (!notes) return false;
+  return notes.includes(buildSkipTag(year, month));
+}
+
+function addSkipMonthTag(notes: string | null | undefined, year: number, month: number): string {
+  const tag = buildSkipTag(year, month);
+  if (!notes) return tag;
+  if (notes.includes(tag)) return notes;
+  return `${notes} ${tag}`.trim();
+}
+
+function removeSkipMonthTag(notes: string | null | undefined, year: number, month: number): string | null {
+  if (!notes) return null;
+  const tag = buildSkipTag(year, month);
+  const cleaned = notes.split(tag).join("").replace(/\s+/g, " ").trim();
+  return cleaned || null;
+}
+
+async function markRecurringSkippedForPeriod(recurringExpenseId: string, periodId: string) {
+  try {
+    const [rec, period] = await Promise.all([
+      prisma.recurringExpense.findUnique({ where: { id: recurringExpenseId } }),
+      prisma.monthlyPeriod.findUnique({ where: { id: periodId } }),
+    ]);
+    if (rec && period) {
+      await prisma.recurringExpense.update({
+        where: { id: rec.id },
+        data: { notes: addSkipMonthTag(rec.notes, period.year, period.month) },
+      });
+    }
+  } catch (err) {
+    console.warn("No se pudo marcar cuota como omitida para el período:", err);
+  }
+}
+
 export async function getDashboardData(targetYear?: number, targetMonth?: number) {
   const cookieStore = await cookies();
   const loggedUserId = cookieStore.get("auth_user_id")?.value;
@@ -124,7 +164,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
   });
 
   const recurringExpensesPromise = prisma.recurringExpense.findMany({
-    where: { householdId: household.id, isActive: true },
+    where: { householdId: household.id },
     include: { paidBy: true, category: true },
     orderBy: { createdAt: "desc" },
   });
@@ -237,6 +277,71 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     });
   }
 
+  // Auto-archivar planes vencidos y auto-sumar cuotas activas del mes al período abierto
+  const realYear = now.getFullYear();
+  const realMonth = now.getMonth() + 1;
+
+  for (const rec of recurringExpenses) {
+    // 1. Si el plan de cuotas ya superó su última cuota respecto al mes calendario actual, archivarlo automáticamente
+    if (rec.isActive && rec.totalInstallments) {
+      const realMonthsElapsed = (realYear - rec.startYear) * 12 + (realMonth - rec.startMonth);
+      const realInstallmentNumber = realMonthsElapsed + 1;
+      if (realInstallmentNumber > rec.totalInstallments) {
+        try {
+          await prisma.recurringExpense.update({
+            where: { id: rec.id },
+            data: { isActive: false },
+          });
+          rec.isActive = false;
+        } catch (err) {
+          console.warn("No se pudo auto-archivar plan finalizado:", err);
+        }
+      }
+    }
+
+    // 2. Si el período consultado está ABIERTO, auto-imputar las cuotas activas que tocan este mes
+    if (period.status !== "CLOSED" && rec.isActive) {
+      const monthsElapsed = (year - rec.startYear) * 12 + (month - rec.startMonth);
+      const installmentNumber = monthsElapsed + 1;
+      const isApplicable =
+        monthsElapsed >= 0 &&
+        (!rec.totalInstallments || installmentNumber <= rec.totalInstallments);
+
+      const alreadyInPeriod = period.expenses.some((e) => e.recurringExpenseId === rec.id);
+      const skippedThisMonth = hasSkipMonthTag(rec.notes, year, month);
+
+      if (isApplicable && !alreadyInPeriod && !skippedThisMonth) {
+        const fullTitle = rec.totalInstallments
+          ? `${rec.title} (Cuota ${installmentNumber}/${rec.totalInstallments})`
+          : rec.title;
+
+        try {
+          const autoCreated = await prisma.expense.create({
+            data: {
+              title: fullTitle,
+              amount: rec.installmentAmount,
+              paidById: rec.paidById,
+              categoryId: rec.categoryId,
+              periodId: period.id,
+              isFromPoolFund: rec.isFromPoolFund,
+              recurringExpenseId: rec.id,
+              installmentNumber: rec.totalInstallments ? installmentNumber : null,
+              totalInstallments: rec.totalInstallments,
+              date: new Date(),
+            },
+            include: {
+              paidBy: true,
+              category: true,
+            },
+          });
+          period.expenses.unshift(autoCreated);
+        } catch (err) {
+          console.warn("Error al auto-imputar cuota del mes:", err);
+        }
+      }
+    }
+  }
+
   // Agrupar gastos por pagador
   const outOfPocketByUser: Record<string, number> = {};
   let poolFundExpenses = 0;
@@ -284,7 +389,11 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
   const activeInstallmentsWithStatus = recurringExpenses.map((rec) => {
     const monthsElapsed = (year - rec.startYear) * 12 + (month - rec.startMonth);
     const installmentNumber = monthsElapsed + 1;
+    const isCompleted = Boolean(
+      rec.totalInstallments && installmentNumber > rec.totalInstallments
+    );
     const isApplicableThisMonth =
+      rec.isActive &&
       monthsElapsed >= 0 &&
       (!rec.totalInstallments || installmentNumber <= rec.totalInstallments);
 
@@ -295,6 +404,7 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
     return {
       ...rec,
       installmentNumber,
+      isCompleted,
       isApplicableThisMonth,
       alreadyApplied: !!alreadyAppliedExpense,
       appliedExpenseId: alreadyAppliedExpense?.id,
@@ -495,6 +605,9 @@ export async function deleteExpenseAction(expenseId: string) {
     });
 
     if (shared) {
+      if (shared.recurringExpenseId) {
+        await markRecurringSkippedForPeriod(shared.recurringExpenseId, shared.periodId);
+      }
       await prisma.expense.delete({
         where: { id: expenseId },
       });
@@ -1054,6 +1167,123 @@ export async function createRecurringExpenseAction(data: {
   return { success: true };
 }
 
+export async function updateRecurringExpenseAction(data: {
+  id: string;
+  title: string;
+  installmentAmount: number;
+  totalInstallments?: number | null;
+  startYear: number;
+  startMonth: number;
+  paidById: string;
+  categoryId: string;
+  isFromPoolFund?: boolean;
+  notes?: string;
+}) {
+  if (!data.id || !data.title.trim() || data.installmentAmount <= 0) {
+    throw new Error("Datos de cuota o gasto fijo inválidos.");
+  }
+
+  const existing = await prisma.recurringExpense.findUnique({
+    where: { id: data.id },
+  });
+  if (!existing) {
+    throw new Error("Plan no encontrado.");
+  }
+
+  // Preservar etiquetas [SKIP:YYYY-MM] previas en las notas
+  const skipTags = (existing.notes || "").match(/\[SKIP:\d{4}-\d{2}\]/g) || [];
+  const cleanUserNotes = (data.notes !== undefined ? data.notes : existing.notes || "")
+    .replace(/\[SKIP:\d{4}-\d{2}\]/g, "")
+    .trim();
+  const mergedNotes = [cleanUserNotes, ...skipTags].filter(Boolean).join(" ").trim() || null;
+
+  const now = new Date();
+  const realMonthsElapsed =
+    (now.getFullYear() - data.startYear) * 12 + (now.getMonth() + 1 - data.startMonth);
+  const realInstallmentNumber = realMonthsElapsed + 1;
+  const shouldBeActive =
+    !data.totalInstallments || realInstallmentNumber <= data.totalInstallments
+      ? true
+      : existing.isActive;
+
+  await prisma.recurringExpense.update({
+    where: { id: data.id },
+    data: {
+      title: data.title.trim(),
+      installmentAmount: data.installmentAmount,
+      totalInstallments: data.totalInstallments || null,
+      startYear: data.startYear,
+      startMonth: data.startMonth,
+      paidById: data.paidById,
+      categoryId: data.categoryId,
+      isFromPoolFund: data.isFromPoolFund ?? existing.isFromPoolFund,
+      notes: mergedNotes,
+      isActive: shouldBeActive,
+    },
+  });
+
+  // Actualizar los gastos ya auto-imputados en períodos ABIERTOS para que reflejen el nuevo monto/datos de inmediato
+  const openLinkedExpenses = await prisma.expense.findMany({
+    where: {
+      recurringExpenseId: data.id,
+      period: { status: "OPEN" },
+    },
+    include: { period: true },
+  });
+
+  for (const exp of openLinkedExpenses) {
+    const monthsElapsed =
+      (exp.period.year - data.startYear) * 12 + (exp.period.month - data.startMonth);
+    const installmentNumber = monthsElapsed + 1;
+    const stillApplicable =
+      monthsElapsed >= 0 &&
+      (!data.totalInstallments || installmentNumber <= data.totalInstallments);
+
+    if (stillApplicable) {
+      const fullTitle = data.totalInstallments
+        ? `${data.title.trim()} (Cuota ${installmentNumber}/${data.totalInstallments})`
+        : data.title.trim();
+
+      await prisma.expense.update({
+        where: { id: exp.id },
+        data: {
+          title: fullTitle,
+          amount: data.installmentAmount,
+          paidById: data.paidById,
+          categoryId: data.categoryId,
+          isFromPoolFund: data.isFromPoolFund ?? exp.isFromPoolFund,
+          installmentNumber: data.totalInstallments ? installmentNumber : null,
+          totalInstallments: data.totalInstallments || null,
+        },
+      });
+    } else {
+      await prisma.expense.delete({
+        where: { id: exp.id },
+      });
+    }
+  }
+
+  await touchCategory(data.categoryId);
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function toggleArchiveRecurringExpenseAction(data: {
+  id: string;
+  isActive: boolean;
+}) {
+  if (!data.id) throw new Error("ID requerido");
+
+  await prisma.recurringExpense.update({
+    where: { id: data.id },
+    data: { isActive: data.isActive },
+  });
+
+  revalidatePath("/");
+  return { success: true };
+}
+
 export async function deleteRecurringExpenseAction(id: string) {
   await prisma.recurringExpense.delete({
     where: { id },
@@ -1073,6 +1303,18 @@ export async function applyRecurringExpenseToMonthAction(data: {
   installmentNumber?: number;
   totalInstallments?: number | null;
 }) {
+  const [rec, period] = await Promise.all([
+    prisma.recurringExpense.findUnique({ where: { id: data.recurringId } }),
+    prisma.monthlyPeriod.findUnique({ where: { id: data.periodId } }),
+  ]);
+
+  if (rec && period && hasSkipMonthTag(rec.notes, period.year, period.month)) {
+    await prisma.recurringExpense.update({
+      where: { id: rec.id },
+      data: { notes: removeSkipMonthTag(rec.notes, period.year, period.month) },
+    });
+  }
+
   const fullTitle = data.totalInstallments
     ? `${data.title} (Cuota ${data.installmentNumber}/${data.totalInstallments})`
     : data.title;
@@ -1109,7 +1351,19 @@ export async function applyAllRecurringExpensesAction(
     totalInstallments?: number | null;
   }>
 ) {
+  const period = await prisma.monthlyPeriod.findUnique({ where: { id: periodId } });
+
   for (const item of items) {
+    if (period) {
+      const rec = await prisma.recurringExpense.findUnique({ where: { id: item.recurringId } });
+      if (rec && hasSkipMonthTag(rec.notes, period.year, period.month)) {
+        await prisma.recurringExpense.update({
+          where: { id: rec.id },
+          data: { notes: removeSkipMonthTag(rec.notes, period.year, period.month) },
+        });
+      }
+    }
+
     const fullTitle = item.totalInstallments
       ? `${item.title} (Cuota ${item.installmentNumber}/${item.totalInstallments})`
       : item.title;
@@ -1135,9 +1389,19 @@ export async function applyAllRecurringExpensesAction(
 }
 
 export async function unapplyRecurringExpenseAction(expenseId: string) {
-  await prisma.expense.delete({
+  const existing = await prisma.expense.findUnique({
     where: { id: expenseId },
   });
+
+  if (existing) {
+    if (existing.recurringExpenseId) {
+      await markRecurringSkippedForPeriod(existing.recurringExpenseId, existing.periodId);
+    }
+    await prisma.expense.delete({
+      where: { id: expenseId },
+    });
+  }
+
   revalidatePath("/");
   return { success: true };
 }
@@ -1805,6 +2069,9 @@ export async function deletePersonalExpenseAction(expenseId: string) {
     });
 
     if (shared) {
+      if (shared.recurringExpenseId) {
+        await markRecurringSkippedForPeriod(shared.recurringExpenseId, shared.periodId);
+      }
       await prisma.expense.delete({
         where: { id: expenseId },
       });
@@ -2098,8 +2365,14 @@ export async function batchDeleteExpensesAction(data: {
       // Shared / Hogar
       const sharedExpenses = await prisma.expense.findMany({
         where: { id: { in: ids } },
-        select: { categoryId: true },
+        select: { categoryId: true, recurringExpenseId: true, periodId: true },
       });
+
+      for (const s of sharedExpenses) {
+        if (s.recurringExpenseId) {
+          await markRecurringSkippedForPeriod(s.recurringExpenseId, s.periodId);
+        }
+      }
 
       const deleted = await prisma.expense.deleteMany({
         where: { id: { in: ids } },

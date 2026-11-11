@@ -65,6 +65,8 @@ import {
   Clock,
   Tablet,
   Monitor,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 
 export const CATEGORY_ICON_OPTIONS = [
@@ -301,4 +303,6 @@ export {
   Clock,
   Tablet,
   Monitor,
+  Archive,
+  ArchiveRestore,
 };

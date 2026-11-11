@@ -81,6 +81,7 @@ interface ExpenseItem {
   category: { id: string; name: string; icon?: string | null; color?: string | null };
   isFromPoolFund: boolean;
   notes?: string | null;
+  recurringExpenseId?: string | null;
   installmentNumber?: number | null;
   totalInstallments?: number | null;
 }

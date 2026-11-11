@@ -14,9 +14,16 @@ import {
   Layers,
   AlertCircle,
   TrendingUp,
+  Edit3,
+  Archive,
+  ArchiveRestore,
+  ChevronDown,
+  ChevronUp,
 } from "./ui/icons";
 import {
   createRecurringExpenseAction,
+  updateRecurringExpenseAction,
+  toggleArchiveRecurringExpenseAction,
   deleteRecurringExpenseAction,
   applyRecurringExpenseToMonthAction,
   applyAllRecurringExpensesAction,
@@ -48,6 +55,8 @@ interface RecurringItem {
   isFromPoolFund: boolean;
   categoryId: string;
   category: { id: string; name: string };
+  isActive?: boolean;
+  isCompleted?: boolean;
   installmentNumber: number;
   isApplicableThisMonth: boolean;
   alreadyApplied: boolean;
@@ -90,6 +99,8 @@ export function InstallmentsManagerView({
 }: InstallmentsManagerViewProps) {
   const { toast, showToast } = useToast();
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [editingItem, setEditingItem] = useState<RecurringItem | null>(null);
+  const [showArchivedSection, setShowArchivedSection] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "installments" | "fixed">("all");
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
@@ -107,6 +118,48 @@ export function InstallmentsManagerView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [isBatchApplying, setIsBatchApplying] = useState(false);
+
+  const openCreateModal = () => {
+    setEditingItem(null);
+    setTitle("");
+    setIsInstallmentPlan(true);
+    setCalculationMode("per_installment");
+    setRawAmountInput("");
+    setSelectedPresetInstallments("6");
+    setCustomInstallments("");
+    setStartYearInput(currentYear);
+    setStartMonthInput(currentMonth);
+    setSelectedPayerId(users[0]?.id || "");
+    setSelectedCategoryId(categories[0]?.id || "");
+    setIsAddingNew(true);
+  };
+
+  const openEditModal = (item: RecurringItem) => {
+    setEditingItem(item);
+    setTitle(item.title);
+    const hasCuotas = Boolean(item.totalInstallments && item.totalInstallments > 0);
+    setIsInstallmentPlan(hasCuotas);
+    setCalculationMode("per_installment");
+    setRawAmountInput(String(Math.round(item.installmentAmount * 100) / 100));
+    if (hasCuotas) {
+      const totalStr = String(item.totalInstallments);
+      if (["3", "6", "9", "12", "18"].includes(totalStr)) {
+        setSelectedPresetInstallments(totalStr);
+        setCustomInstallments("");
+      } else {
+        setSelectedPresetInstallments("custom");
+        setCustomInstallments(totalStr);
+      }
+    } else {
+      setSelectedPresetInstallments("6");
+      setCustomInstallments("");
+    }
+    setStartYearInput(item.startYear);
+    setStartMonthInput(item.startMonth);
+    setSelectedPayerId(item.paidById);
+    setSelectedCategoryId(item.categoryId);
+    setIsAddingNew(true);
+  };
 
   const effectiveTotalInstallments = isInstallmentPlan
     ? selectedPresetInstallments === "custom"
@@ -132,28 +185,65 @@ export function InstallmentsManagerView({
 
     setIsSubmitting(true);
     try {
-      await createRecurringExpenseAction({
-        title: title.trim(),
-        installmentAmount: calculatedInstallmentAmount,
-        totalInstallments: effectiveTotalInstallments,
-        startYear: startYearInput,
-        startMonth: startMonthInput,
-        paidById: selectedPayerId,
-        categoryId: selectedCategoryId,
-        isFromPoolFund: false,
-      });
+      if (editingItem) {
+        await updateRecurringExpenseAction({
+          id: editingItem.id,
+          title: title.trim(),
+          installmentAmount: calculatedInstallmentAmount,
+          totalInstallments: effectiveTotalInstallments,
+          startYear: startYearInput,
+          startMonth: startMonthInput,
+          paidById: selectedPayerId,
+          categoryId: selectedCategoryId,
+          isFromPoolFund: editingItem.isFromPoolFund ?? false,
+        });
+        showToast("✓ Plan actualizado y sincronizado con el mes");
+      } else {
+        await createRecurringExpenseAction({
+          title: title.trim(),
+          installmentAmount: calculatedInstallmentAmount,
+          totalInstallments: effectiveTotalInstallments,
+          startYear: startYearInput,
+          startMonth: startMonthInput,
+          paidById: selectedPayerId,
+          categoryId: selectedCategoryId,
+          isFromPoolFund: false,
+        });
+        showToast("✓ Plan creado y sumado automáticamente al mes");
+      }
 
       // Reset form
       setTitle("");
       setRawAmountInput("");
       setCustomInstallments("");
+      setEditingItem(null);
       setIsAddingNew(false);
-      showToast("✓ Plan de cuotas / fijo creado");
     } catch (err) {
       console.error(err);
       showToast("Error al guardar la cuota/gasto recurrente", "error");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleArchive = async (item: RecurringItem, targetActive: boolean) => {
+    setActionLoadingId(item.id);
+    try {
+      await toggleArchiveRecurringExpenseAction({
+        id: item.id,
+        isActive: targetActive,
+      });
+      showToast(
+        targetActive
+          ? `✓ "${item.title}" reactivado`
+          : `✓ "${item.title}" archivado`,
+        "info"
+      );
+    } catch (err) {
+      console.error(err);
+      showToast("Error al actualizar estado del plan", "error");
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -240,6 +330,12 @@ export function InstallmentsManagerView({
   };
 
   const applicableThisMonth = recurringExpenses.filter((r) => r.isApplicableThisMonth);
+  const activeRegisteredPlans = recurringExpenses.filter(
+    (r) => r.isActive !== false && !r.isCompleted
+  );
+  const archivedOrCompletedPlans = recurringExpenses.filter(
+    (r) => r.isActive === false || r.isCompleted
+  );
 
   // Totales del mes
   const totalDueThisMonth = applicableThisMonth.reduce(
@@ -302,7 +398,7 @@ export function InstallmentsManagerView({
             Compromisos en {monthName} {currentYear}
           </span>
           <button
-            onClick={() => setIsAddingNew(true)}
+            onClick={openCreateModal}
             className="flex items-center gap-1.5 bg-[#635BFF] hover:bg-[#533AFD] text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-md active:scale-95 transition border border-indigo-400/25"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -330,7 +426,7 @@ export function InstallmentsManagerView({
             >
               {pendingCount > 0
                 ? `$${Math.round(pendingThisMonth).toLocaleString("es-AR")}`
-                : "100% Imputado"}
+                : "⚡ Auto-sumadas al mes"}
             </span>
           </div>
         </div>
@@ -407,15 +503,20 @@ export function InstallmentsManagerView({
             <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
               <div>
                 <h3 className="text-base font-bold text-white tracking-tight">
-                  Nueva Compra o Gasto Fijo
+                  {editingItem ? "Editar Cuota o Gasto Fijo" : "Nueva Compra o Gasto Fijo"}
                 </h3>
                 <span className="text-xs text-zinc-400">
-                  Seguimiento automático mes a mes
+                  {editingItem
+                    ? "Se actualizará también el gasto del mes abierto"
+                    : "Se suma sola cada mes con indicador de cuota"}
                 </span>
               </div>
               <button
                 type="button"
-                onClick={() => setIsAddingNew(false)}
+                onClick={() => {
+                  setEditingItem(null);
+                  setIsAddingNew(false);
+                }}
                 className="p-1.5 rounded-full text-zinc-400 hover:text-white bg-white/[0.05]"
               >
                 <X className="w-4 h-4" />
@@ -590,7 +691,7 @@ export function InstallmentsManagerView({
                   onChange={(e) => setStartYearInput(parseInt(e.target.value))}
                   className="w-full bg-zinc-900 border border-white/[0.14] rounded-xl px-3 py-2.5 text-white text-xs font-bold font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center"
                 >
-                  {[currentYear - 1, currentYear, currentYear + 1].map((yr) => (
+                  {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map((yr) => (
                     <option key={yr} value={yr} className="bg-zinc-900 text-white">
                       {yr}
                     </option>
@@ -662,7 +763,11 @@ export function InstallmentsManagerView({
               disabled={isSubmitting}
               className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-600/30 active:scale-[0.98] transition border border-indigo-400/20"
             >
-              {isSubmitting ? "Guardando..." : "Guardar y Comenzar Seguimiento"}
+              {isSubmitting
+                ? "Guardando..."
+                : editingItem
+                ? "Guardar Cambios"
+                : "Guardar y Sumar al Mes"}
             </button>
           </form>
         </div>
@@ -730,7 +835,7 @@ export function InstallmentsManagerView({
               </p>
             </div>
             <button
-              onClick={() => setIsAddingNew(true)}
+              onClick={openCreateModal}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md active:scale-95 transition border border-indigo-400/20"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -820,17 +925,35 @@ export function InstallmentsManagerView({
                   )}
 
                   {/* Fila de Acción e Imputación: limpia, sin líneas pegadas */}
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-zinc-400 font-medium">
-                      {item.alreadyApplied ? "Cargado al presupuesto del mes" : "Pendiente de cargar"}
-                    </span>
+                  <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(item)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-[11px] font-semibold text-zinc-300 hover:text-white border border-white/[0.08] transition active:scale-95"
+                        title="Editar cuota o gasto fijo"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleArchive(item, false)}
+                        disabled={actionLoadingId === item.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-amber-500/15 text-[11px] font-semibold text-zinc-400 hover:text-amber-300 border border-white/[0.08] transition active:scale-95"
+                        title="Archivar plan"
+                      >
+                        <Archive className="w-3 h-3" />
+                        <span>Archivar</span>
+                      </button>
+                    </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 ml-auto">
                       {item.alreadyApplied ? (
                         <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/30">
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-300 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/30">
                             <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                            Imputada al mes
+                            Sumada al mes
                           </span>
                           <button
                             type="button"
@@ -838,7 +961,7 @@ export function InstallmentsManagerView({
                             disabled={actionLoadingId === item.id}
                             className="text-xs text-zinc-400 hover:text-rose-400 transition ml-1 underline underline-offset-2"
                           >
-                            Deshacer
+                            Omitir mes
                           </button>
                         </div>
                       ) : (
@@ -861,25 +984,30 @@ export function InstallmentsManagerView({
         )}
       </div>
 
-      {/* 4. Listado General de Cuotas y Planes Activos (Stripe Cards) */}
+      {/* 4. Listado General de Planes Activos en Curso */}
       <div className="super-card rounded-3xl p-5 shadow-lg space-y-3">
-        <h3 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
-          Todos los Planes Activos Registrados ({recurringExpenses.length})
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
+            Planes Activos en Curso ({activeRegisteredPlans.length})
+          </h3>
+          <span className="text-[10px] text-indigo-300/90 font-medium">
+            Se auto-suman cada mes
+          </span>
+        </div>
 
-        {recurringExpenses.length === 0 ? (
-          <p className="text-xs text-zinc-400 italic py-1">No hay planes registrados todavía.</p>
+        {activeRegisteredPlans.length === 0 ? (
+          <p className="text-xs text-zinc-400 italic py-1">No hay planes activos en curso.</p>
         ) : (
           <div className="space-y-2.5">
-            {recurringExpenses.map((r) => {
+            {activeRegisteredPlans.map((r) => {
               const isAugusto = r.paidBy?.name?.toLowerCase().includes("augusto");
 
               return (
                 <div
                   key={r.id}
-                  className="bg-[#151d30]/60 hover:bg-[#151d30] border border-white/[0.07] rounded-2xl p-3.5 flex items-center justify-between transition group"
+                  className="bg-[#151d30]/60 hover:bg-[#151d30] border border-white/[0.07] rounded-2xl p-3.5 flex items-center justify-between transition group gap-2"
                 >
-                  <div className="space-y-1 min-w-0 pr-2">
+                  <div className="space-y-1 min-w-0 pr-1 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-zinc-100 font-bold text-xs truncate">{r.title}</span>
                       <span
@@ -898,19 +1026,130 @@ export function InstallmentsManagerView({
                       {MONTH_NAMES[r.startMonth - 1]} {r.startYear}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleDelete(r.id)}
-                    className="p-2 text-zinc-400 hover:text-rose-400 active:scale-90 transition rounded-xl hover:bg-rose-500/10 shrink-0"
-                    title="Eliminar cuota"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => openEditModal(r)}
+                      className="p-2 text-zinc-400 hover:text-indigo-300 active:scale-90 transition rounded-xl hover:bg-indigo-500/10"
+                      title="Editar plan"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleToggleArchive(r, false)}
+                      disabled={actionLoadingId === r.id}
+                      className="p-2 text-zinc-400 hover:text-amber-300 active:scale-90 transition rounded-xl hover:bg-amber-500/10"
+                      title="Archivar plan"
+                    >
+                      <Archive className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(r.id)}
+                      className="p-2 text-zinc-400 hover:text-rose-400 active:scale-90 transition rounded-xl hover:bg-rose-500/10"
+                      title="Eliminar plan definitivamente"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* 5. Sección Colapsable: Planes Archivados y Finalizados */}
+      {archivedOrCompletedPlans.length > 0 && (
+        <div className="super-card rounded-3xl p-4 shadow-lg space-y-3 border border-white/[0.06]">
+          <button
+            type="button"
+            onClick={() => setShowArchivedSection((prev) => !prev)}
+            className="w-full flex items-center justify-between text-left py-1"
+          >
+            <div className="flex items-center gap-2">
+              <Archive className="w-4 h-4 text-zinc-400" />
+              <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
+                Planes Archivados y Finalizados ({archivedOrCompletedPlans.length})
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-zinc-400">
+              <span>{showArchivedSection ? "Ocultar" : "Ver historial"}</span>
+              {showArchivedSection ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </div>
+          </button>
+
+          {showArchivedSection && (
+            <div className="space-y-2.5 pt-2 border-t border-white/[0.06]">
+              {archivedOrCompletedPlans.map((r) => {
+                const isAugusto = r.paidBy?.name?.toLowerCase().includes("augusto");
+
+                return (
+                  <div
+                    key={r.id}
+                    className="bg-black/30 border border-white/[0.06] rounded-2xl p-3.5 flex items-center justify-between transition opacity-80 hover:opacity-100 gap-2"
+                  >
+                    <div className="space-y-1 min-w-0 pr-1 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-zinc-300 font-bold text-xs truncate line-through decoration-zinc-500">
+                          {r.title}
+                        </span>
+                        <span
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                            isAugusto
+                              ? "bg-blue-500/10 text-blue-300/80 border-blue-400/20"
+                              : "bg-rose-500/10 text-rose-300/80 border-rose-400/20"
+                          }`}
+                        >
+                          {r.paidBy.name}
+                        </span>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-white/10 shrink-0">
+                          {r.isCompleted
+                            ? `✓ Finalizado (${r.totalInstallments}/${r.totalInstallments})`
+                            : "Archivado"}
+                        </span>
+                      </div>
+                      <p className="text-zinc-500 text-[11px] font-mono tabular-nums">
+                        ${Math.round(r.installmentAmount).toLocaleString("es-AR")}/mes •{" "}
+                        {r.totalInstallments ? `${r.totalInstallments} cuotas` : "Mensual fijo"} • Desde{" "}
+                        {MONTH_NAMES[r.startMonth - 1]} {r.startYear}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => openEditModal(r)}
+                        className="p-2 text-zinc-400 hover:text-indigo-300 active:scale-90 transition rounded-xl hover:bg-indigo-500/10"
+                        title="Editar plan"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      {!r.isCompleted && (
+                        <button
+                          onClick={() => handleToggleArchive(r, true)}
+                          disabled={actionLoadingId === r.id}
+                          className="p-2 text-zinc-400 hover:text-emerald-300 active:scale-90 transition rounded-xl hover:bg-emerald-500/10"
+                          title="Reactivar plan"
+                        >
+                          <ArchiveRestore className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(r.id)}
+                        className="p-2 text-zinc-400 hover:text-rose-400 active:scale-90 transition rounded-xl hover:bg-rose-500/10"
+                        title="Eliminar definitivamente"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

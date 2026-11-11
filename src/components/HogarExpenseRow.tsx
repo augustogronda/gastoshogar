@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CategoryIcon, Edit3, Copy, Check } from "./ui/icons";
+import { CategoryIcon, Edit3, Copy, Check, CreditCard, Repeat } from "./ui/icons";
 import { useLongPress } from "@/lib/use-long-press";
 import { triggerHaptic } from "@/lib/haptics";
 
@@ -19,6 +19,7 @@ export interface HogarExpenseItem {
   category: { id: string; name: string; icon?: string | null; color?: string | null };
   isFromPoolFund?: boolean;
   notes?: string | null;
+  recurringExpenseId?: string | null;
   installmentNumber?: number | null;
   totalInstallments?: number | null;
 }
@@ -49,6 +50,12 @@ export function HogarExpenseRow({
   const dateObj = new Date(exp.date);
   const dateStr = `${dateObj.getDate()} ${SHORT_MONTHS[dateObj.getMonth()] || ""}`;
   const isAugusto = exp.paidBy?.name?.toLowerCase().includes("augusto");
+  const hasInstallments = Boolean(exp.installmentNumber && exp.totalInstallments);
+  const isFromRecurringPlan = Boolean(exp.recurringExpenseId);
+  const isInstallmentOrRecurring = hasInstallments || isFromRecurringPlan;
+  const displayTitle = hasInstallments
+    ? exp.title.replace(/\s*\(Cuota\s+\d+\s*\/\s*\d+\)\s*$/i, "").trim() || exp.title
+    : exp.title;
 
   const longPressHandlers = useLongPress({
     onLongPress: () => {
@@ -85,6 +92,8 @@ export function HogarExpenseRow({
       } ${
         isSelectionMode && isSelected
           ? "ring-2 ring-blue-500/70 bg-blue-500/[0.09] border-blue-500/40"
+          : isInstallmentOrRecurring
+          ? "border-l-2 border-l-indigo-500/80 bg-indigo-950/[0.12]"
           : ""
       }`}
       style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
@@ -101,13 +110,44 @@ export function HogarExpenseRow({
             {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
           </div>
         )}
-        <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center text-zinc-300 shadow-sm shrink-0">
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0 relative ${
+            isInstallmentOrRecurring
+              ? "bg-indigo-500/15 border border-indigo-400/35 text-indigo-300"
+              : "bg-zinc-800/80 border border-white/[0.08] text-zinc-300"
+          }`}
+        >
           <CategoryIcon name={exp.category.name} className="w-5 h-5" />
+          {isInstallmentOrRecurring && (
+            <span
+              className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-indigo-600 border border-zinc-950 flex items-center justify-center shadow-sm"
+              title={hasInstallments ? `Cuota ${exp.installmentNumber}/${exp.totalInstallments}` : "Gasto fijo mensual"}
+            >
+              {hasInstallments ? (
+                <CreditCard className="w-2.5 h-2.5 text-white stroke-[2.5]" />
+              ) : (
+                <Repeat className="w-2.5 h-2.5 text-white stroke-[2.5]" />
+              )}
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
-          <span className="text-[15px] font-semibold text-white block group-hover:text-blue-300 transition-colors truncate tracking-[-0.015em]">
-            {exp.title}
-          </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[15px] font-semibold text-white group-hover:text-blue-300 transition-colors truncate tracking-[-0.015em]">
+              {displayTitle}
+            </span>
+            {hasInstallments ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono tabular-nums bg-indigo-500/20 text-indigo-200 border border-indigo-400/35 shrink-0">
+                <CreditCard className="w-2.5 h-2.5 text-indigo-300 shrink-0" />
+                <span>Cuota {exp.installmentNumber}/{exp.totalInstallments}</span>
+              </span>
+            ) : isFromRecurringPlan ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/20 text-violet-200 border border-violet-400/35 shrink-0">
+                <Repeat className="w-2.5 h-2.5 text-violet-300 shrink-0" />
+                <span>Fijo mensual</span>
+              </span>
+            ) : null}
+          </div>
           <div className="flex items-center gap-1.5 mt-0.5 text-xs text-zinc-300 font-medium min-w-0 flex-wrap sm:flex-nowrap">
             <span className="shrink-0">{dateStr}</span>
             <span className="shrink-0">•</span>
