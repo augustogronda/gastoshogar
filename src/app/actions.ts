@@ -220,6 +220,11 @@ export async function getDashboardData(targetYear?: number, targetMonth?: number
 
   let period = existingPeriod;
 
+  // Si estamos en Noviembre 2026 (mes de inicio de uso oficial), limpiar períodos vacíos previos
+  if (year === 2026 && month === 11) {
+    cleanEmptyPastPeriodsAction().catch(() => {});
+  }
+
   if (!period) {
     // Buscar si el mes anterior tenía sueldos cargados para heredarlos por defecto
     const prevMonth = month === 1 ? 12 : month - 1;
@@ -953,8 +958,103 @@ export async function deleteFCIWithdrawalAction(withdrawalId: string) {
   return { success: true };
 }
 
+export async function cleanEmptyPastPeriodsAction() {
+  const household = await ensureDefaultHousehold();
+
+  // 1. Buscar períodos compartidos del hogar anteriores a Noviembre 2026 sin gastos ni transferencias ni retiros
+  const emptyPeriods = await prisma.monthlyPeriod.findMany({
+    where: {
+      householdId: household.id,
+      OR: [
+        { year: { lt: 2026 } },
+        { year: 2026, month: { lt: 11 } },
+      ],
+      expenses: { none: {} },
+      fciWithdrawals: { none: {} },
+      investmentTransfer: null,
+    },
+    select: {
+      id: true,
+      year: true,
+      month: true,
+    },
+  });
+
+  for (const p of emptyPeriods) {
+    await prisma.income.deleteMany({ where: { periodId: p.id } });
+    await prisma.monthlyPeriod.delete({ where: { id: p.id } });
+  }
+
+  // 2. Buscar registros personales de ingreso anteriores a Noviembre 2026 sin gastos personales
+  const pastPersonalIncomes = await prisma.personalIncome.findMany({
+    where: {
+      OR: [
+        { year: { lt: 2026 } },
+        { year: 2026, month: { lt: 11 } },
+      ],
+    },
+    select: {
+      id: true,
+      userId: true,
+      year: true,
+      month: true,
+    },
+  });
+
+  for (const pi of pastPersonalIncomes) {
+    const expensesCount = await prisma.personalExpense.count({
+      where: { userId: pi.userId, year: pi.year, month: pi.month },
+    });
+    if (expensesCount === 0) {
+      await prisma.personalIncome.delete({ where: { id: pi.id } });
+    }
+  }
+
+  // 3. Asegurar que Noviembre 2026 arranque sin saldo arrastrado ficticio de cierres accidentales previos
+  const novPeriod = await prisma.monthlyPeriod.findUnique({
+    where: {
+      householdId_year_month: {
+        householdId: household.id,
+        year: 2026,
+        month: 11,
+      },
+    },
+  });
+  if (novPeriod && novPeriod.carriedOverBalance > 0) {
+    const hasPriorRealExpenses = await prisma.monthlyPeriod.findFirst({
+      where: {
+        householdId: household.id,
+        OR: [
+          { year: { lt: 2026 } },
+          { year: 2026, month: { lt: 11 } },
+        ],
+        expenses: { some: {} },
+      },
+    });
+    if (!hasPriorRealExpenses) {
+      await prisma.monthlyPeriod.update({
+        where: { id: novPeriod.id },
+        data: { carriedOverBalance: 0 },
+      });
+    }
+  }
+
+  revalidatePath("/");
+  return { success: true, count: emptyPeriods.length };
+}
+
 export async function getYearPeriodsStatusAction(year: number) {
   const household = await ensureDefaultHousehold();
+
+  // Limpieza proactiva de períodos fantasmas anteriores a Noviembre 2026 que no tienen gastos reales
+  if (year <= 2026) {
+    try {
+      await cleanEmptyPastPeriodsAction();
+    } catch (cleanErr) {
+      console.warn("Limpieza de períodos vacíos omitida:", cleanErr);
+    }
+  }
+
   const periods = await prisma.monthlyPeriod.findMany({
     where: {
       householdId: household.id,
@@ -963,11 +1063,18 @@ export async function getYearPeriodsStatusAction(year: number) {
     select: {
       month: true,
       status: true,
+      expenses: { select: { id: true } },
     },
   });
 
   const statusMap: Record<number, "OPEN" | "CLOSED"> = {};
   for (const p of periods) {
+    // Si es un período previo a Noviembre 2026 y no tiene gastos, no computarlo como abierto
+    if (year < 2026 || (year === 2026 && p.month < 11)) {
+      if (p.expenses.length === 0) {
+        continue;
+      }
+    }
     statusMap[p.month] = p.status === "CLOSED" ? "CLOSED" : "OPEN";
   }
 

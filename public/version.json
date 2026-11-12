@@ -1,7 +1,7 @@
 {
-  "version": "1.27.4",
-  "build": 2026111105,
-  "releasedAt": "2026-11-11T12:47:00Z",
-  "title": "Calendario con Estados Abierto/Cerrado e Impacto Visual Inmediato (0ms)",
-  "description": "Distinción visual clara en el selector de meses entre períodos abiertos (esmeralda) y cerrados (ámbar con candado), más actualización optimista al instante al editar saldos de FCI o inversiones antes de conciliar en segundo plano."
+  "version": "1.27.5",
+  "build": 2026111201,
+  "releasedAt": "2026-11-12T02:48:00Z",
+  "title": "Arranque limpio desde Noviembre y reseteo de meses vacíos previos",
+  "description": "Limpieza automática de períodos vacíos anteriores a Noviembre 2026 para que vuelvan a estado 'Sin datos' y Noviembre arranque limpio desde $0."
 }

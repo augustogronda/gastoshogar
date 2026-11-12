@@ -57,9 +57,11 @@ export function MonthPickerModal({
     getYearPeriodsStatusAction(selectedYear)
       .then((map) => {
         if (isMounted) {
-          // Si el año consultado es el actual abierto, asegurar coherencia con currentStatus si vino provisto
+          // Si el año consultado es el actual abierto, asegurar coherencia con currentStatus si vino provisto (excepto meses previos vacíos)
           if (selectedYear === currentYear && currentStatus) {
-            map[currentMonth] = currentStatus === "CLOSED" ? "CLOSED" : "OPEN";
+            if (!(selectedYear < 2026 || (selectedYear === 2026 && currentMonth < 11))) {
+              map[currentMonth] = currentStatus === "CLOSED" ? "CLOSED" : "OPEN";
+            }
           }
           setYearStatuses(map);
         }
