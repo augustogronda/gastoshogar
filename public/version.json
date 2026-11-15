@@ -1,7 +1,7 @@
 {
-  "version": "1.27.5",
-  "build": 2026111201,
-  "releasedAt": "2026-11-12T02:48:00Z",
-  "title": "Arranque limpio desde Noviembre y reseteo de meses vacíos previos",
-  "description": "Limpieza automática de períodos vacíos anteriores a Noviembre 2026 para que vuelvan a estado 'Sin datos' y Noviembre arranque limpio desde $0."
+  "version": "1.28.0",
+  "build": 2026111501,
+  "releasedAt": "2026-11-15T23:18:00Z",
+  "title": "Bolsas de Dinero y Objetivos para Inversiones en Pareja",
+  "description": "Dividí tus inversiones compartidas en distintas bolsas (Fondo de Emergencia, Inversiones, Fondo para Auto, Vacaciones, etc.), con metas configurables, filtros rápidos y todas las opciones de inversión disponibles en cada bolsa."
 }

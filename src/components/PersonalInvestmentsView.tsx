@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   TrendingUp,
   Plus,
@@ -13,8 +13,14 @@ import {
   PieChart,
   Check,
   Building2,
+  Target,
+  Sparkles,
+  Settings2,
+  MoveRight,
+  ChevronRight,
 } from "lucide-react";
 import { PersonalInvestmentModal } from "./PersonalInvestmentModal";
+import { PocketManagerModal } from "./PocketManagerModal";
 import {
   deletePersonalInvestmentAction,
   deleteSharedInvestmentAction,
@@ -29,6 +35,15 @@ import {
   PortfolioSummary,
   CafciFundQuote,
 } from "@/lib/investments-service";
+import {
+  InvestmentPocket,
+  DEFAULT_POCKETS,
+  FALLBACK_POCKET,
+  POCKET_COLOR_MAP,
+  extractPocketFromNotes,
+  injectPocketIntoNotes,
+  resolveAllPockets,
+} from "@/lib/investment-pockets";
 import { triggerHaptic } from "@/lib/haptics";
 
 interface PersonalInvestmentsViewProps {
@@ -115,6 +130,12 @@ export function PersonalInvestmentsView({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Estado para Bolsas de Dinero / Pockets
+  const [customPockets, setCustomPockets] = useState<InvestmentPocket[]>([]);
+  const [selectedPocketId, setSelectedPocketId] = useState<string | "ALL">("ALL");
+  const [isPocketModalOpen, setIsPocketModalOpen] = useState(false);
+  const [pocketToEdit, setPocketToEdit] = useState<InvestmentPocket | null>(null);
+
   // Estado para edición rápida inline de cualquier activo
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [quickValuationMode, setQuickValuationMode] = useState<"total" | "units">(
@@ -124,16 +145,66 @@ export function PersonalInvestmentsView({
   const [quickManualPrice, setQuickManualPrice] = useState<string>("");
   const [quickBuyPrice, setQuickBuyPrice] = useState<string>("");
   const [quickNotes, setQuickNotes] = useState<string>("");
+  const [quickPocketId, setQuickPocketId] = useState<string>("inversiones");
   const [quickFciQuote, setQuickFciQuote] = useState<
     (CafciFundQuote & { recommendedVcp?: number }) | null
   >(null);
   const [isLoadingQuickFci, setIsLoadingQuickFci] = useState(false);
   const [isSavingQuick, setIsSavingQuick] = useState(false);
 
+  // Cargar bolsas personalizadas guardadas localmente
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("gastoshogar_shared_pockets");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setCustomPockets(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn("No se pudieron cargar bolsas personalizadas:", e);
+    }
+  }, []);
+
   React.useEffect(() => {
     setInvestments(initialInvestments || []);
     setSummary(initialSummary || null);
   }, [initialInvestments, initialSummary]);
+
+  // Lista consolidada de bolsas disponibles (Predeterminadas + Guardadas + Vivas en BD)
+  const availablePockets = resolveAllPockets(investments, customPockets);
+
+  const handleSavePocket = (newPocket: InvestmentPocket) => {
+    setCustomPockets((prev) => {
+      const idx = prev.findIndex((p) => p.id === newPocket.id);
+      let next: InvestmentPocket[];
+      if (idx >= 0) {
+        next = [...prev];
+        next[idx] = newPocket;
+      } else {
+        next = [...prev, newPocket];
+      }
+      try {
+        localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+    setSelectedPocketId(newPocket.id);
+  };
+
+  const handleDeletePocket = (pocketId: string) => {
+    setCustomPockets((prev) => {
+      const next = prev.filter((p) => p.id !== pocketId);
+      try {
+        localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+    if (selectedPocketId === pocketId) {
+      setSelectedPocketId("ALL");
+    }
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -167,6 +238,8 @@ export function PersonalInvestmentsView({
         inv.assetType === "OTRO") &&
       inv.quantity === 1;
 
+    const { pocket, cleanNotes } = extractPocketFromNotes(inv.notes, availablePockets);
+
     setQuickEditId(inv.id);
     setQuickValuationMode(isDirect ? "total" : "units");
     setQuickQuantity(String(inv.quantity));
@@ -176,7 +249,8 @@ export function PersonalInvestmentsView({
         : String(inv.currentPrice || "")
     );
     setQuickBuyPrice(inv.buyPrice ? String(inv.buyPrice) : "");
-    setQuickNotes(inv.notes || "");
+    setQuickNotes(cleanNotes);
+    setQuickPocketId(pocket.id);
     setQuickFciQuote(null);
   };
 
@@ -229,6 +303,10 @@ export function PersonalInvestmentsView({
       inv.assetType === "OTRO" ||
       !inv.hasLiveQuote;
 
+    const selPocket =
+      availablePockets.find((p) => p.id === quickPocketId) || FALLBACK_POCKET;
+    const finalNotes = injectPocketIntoNotes(quickNotes.trim() || null, selPocket);
+
     const payload = {
       id: inv.id,
       ticker: inv.ticker,
@@ -238,7 +316,7 @@ export function PersonalInvestmentsView({
       buyPrice: newBuy,
       currency: inv.currency,
       manualPrice: isManualAsset ? newManual : inv.manualPrice,
-      notes: quickNotes.trim() || null,
+      notes: finalNotes || null,
     };
 
     // Actualización optimista inmediata en pantalla (0ms)
@@ -262,7 +340,7 @@ export function PersonalInvestmentsView({
               totalValuationArs: optimisticValuationArs,
               totalValuationUsd: (summary?.rates?.mep || 1530) > 0 ? optimisticValuationArs / (summary?.rates?.mep || 1530) : 0,
               totalCostArs: optimisticCostArs,
-              notes: quickNotes.trim() || null,
+              notes: finalNotes || null,
             }
           : item
       )
@@ -284,6 +362,43 @@ export function PersonalInvestmentsView({
       handleRefresh().catch(() => {});
     } finally {
       setIsSavingQuick(false);
+    }
+  };
+
+  const handleMoveInvestmentToPocket = async (
+    inv: HydratedInvestment,
+    targetPocket: InvestmentPocket
+  ) => {
+    triggerHaptic(8);
+    const { cleanNotes } = extractPocketFromNotes(inv.notes, availablePockets);
+    const newNotes = injectPocketIntoNotes(cleanNotes || null, targetPocket);
+
+    // Actualización optimista inmediata
+    setInvestments((prev) =>
+      prev.map((item) => (item.id === inv.id ? { ...item, notes: newNotes } : item))
+    );
+
+    const payload = {
+      id: inv.id,
+      ticker: inv.ticker,
+      name: inv.name,
+      assetType: inv.assetType,
+      quantity: inv.quantity,
+      buyPrice: inv.buyPrice,
+      currency: inv.currency,
+      manualPrice: inv.manualPrice,
+      notes: newNotes,
+    };
+
+    try {
+      if (householdId) {
+        await saveSharedInvestmentAction({ ...payload, householdId });
+      } else if (userId) {
+        await savePersonalInvestmentAction({ ...payload, userId });
+      }
+    } catch (err) {
+      console.error("Error al mover inversión a otra bolsa:", err);
+      handleRefresh().catch(() => {});
     }
   };
 
@@ -312,19 +427,157 @@ export function PersonalInvestmentsView({
   const totalGainLossPct = summary?.totalGainLossPct ?? 0;
   const mepRate = summary?.rates?.mep ?? 1530;
 
+  // Filtrado por Bolsa seleccionada
+  const activePocket =
+    selectedPocketId === "ALL"
+      ? null
+      : availablePockets.find((p) => p.id === selectedPocketId) || null;
+
+  const displayedInvestments = activePocket
+    ? investments.filter(
+        (inv) =>
+          extractPocketFromNotes(inv.notes, availablePockets).pocket.id ===
+          activePocket.id
+      )
+    : investments;
+
+  // Cálculos específicos para la bolsa activa
+  const pocketValuationArs = displayedInvestments.reduce(
+    (acc, i) => acc + (i.totalValuationArs || 0),
+    0
+  );
+  const pocketValuationUsd = mepRate > 0 ? pocketValuationArs / mepRate : 0;
+  const pocketCostArs = displayedInvestments.reduce(
+    (acc, i) => acc + (i.totalCostArs || 0),
+    0
+  );
+  const pocketHasCost = displayedInvestments.some(
+    (i) => typeof i.buyPrice === "number" && i.buyPrice > 0
+  );
+  const pocketGainArs = pocketHasCost ? pocketValuationArs - pocketCostArs : 0;
+  const pocketGainPct =
+    pocketHasCost && pocketCostArs > 0 ? (pocketGainArs / pocketCostArs) * 100 : 0;
+
+  const targetProgress =
+    activePocket && activePocket.targetAmountArs
+      ? Math.min(100, (pocketValuationArs / activePocket.targetAmountArs) * 100)
+      : null;
+
+  const activeColorStyle = activePocket
+    ? POCKET_COLOR_MAP[activePocket.color] || POCKET_COLOR_MAP.indigo
+    : POCKET_COLOR_MAP.indigo;
+
   return (
     <div className="space-y-3.5 animate-fade-in">
-      {/* Tarjeta Principal del Portafolio */}
+      {/* SELECTOR DE BOLSAS DE DINERO (Pills estilo iOS) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic(6);
+            setSelectedPocketId("ALL");
+          }}
+          className={`py-2 px-3 rounded-2xl text-xs font-bold shrink-0 transition flex items-center gap-1.5 active:scale-95 border ${
+            selectedPocketId === "ALL"
+              ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-600/25 border-indigo-400/40"
+              : "bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 border-white/[0.08]"
+          }`}
+        >
+          <span>✨</span>
+          <span>Todas ({investments.length})</span>
+        </button>
+
+        {availablePockets.map((pocket) => {
+          const isSel = selectedPocketId === pocket.id;
+          const pColor = POCKET_COLOR_MAP[pocket.color] || POCKET_COLOR_MAP.indigo;
+          const count = investments.filter(
+            (inv) =>
+              extractPocketFromNotes(inv.notes, availablePockets).pocket.id ===
+              pocket.id
+          ).length;
+
+          return (
+            <button
+              key={pocket.id}
+              type="button"
+              onClick={() => {
+                triggerHaptic(6);
+                setSelectedPocketId(pocket.id);
+              }}
+              className={`py-2 px-3 rounded-2xl text-xs font-bold shrink-0 transition flex items-center gap-1.5 active:scale-95 border ${
+                isSel
+                  ? `${pColor.tabActive} border-white/20 shadow-md`
+                  : "bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 border-white/[0.08]"
+              }`}
+            >
+              <span>{pocket.icon}</span>
+              <span>{pocket.name}</span>
+              {count > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    isSel ? "bg-black/25 text-white" : "bg-white/[0.08] text-zinc-400"
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic(8);
+            setPocketToEdit(null);
+            setIsPocketModalOpen(true);
+          }}
+          className="py-2 px-3 rounded-2xl text-xs font-bold shrink-0 transition flex items-center gap-1 bg-white/[0.04] hover:bg-white/[0.08] text-indigo-300 border border-dashed border-indigo-400/30 active:scale-95"
+          title="Crear nueva bolsa de dinero"
+        >
+          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>Nueva Bolsa</span>
+        </button>
+      </div>
+
+      {/* TARJETA PRINCIPAL (Consolidado General o Bolsa Específica) */}
       <section className="super-card rounded-3xl p-4 sm:p-5 relative overflow-hidden">
+        {/* Cabecera de la Tarjeta */}
         <div className="flex items-center justify-between gap-2 mb-2">
           <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5 truncate">
-            <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="truncate">
-              {title || (householdId ? "Portafolio Hogar" : "Mi Portafolio")} (
-              {investments.length})
-            </span>
+            {activePocket ? (
+              <>
+                <span className="text-base">{activePocket.icon}</span>
+                <span className="truncate text-white font-extrabold">
+                  {activePocket.name} ({displayedInvestments.length})
+                </span>
+              </>
+            ) : (
+              <>
+                <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">
+                  {title || (householdId ? "Portafolio Hogar" : "Mi Portafolio")} (
+                  {investments.length})
+                </span>
+              </>
+            )}
           </span>
           <div className="flex items-center gap-1.5 shrink-0">
+            {activePocket && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(6);
+                  setPocketToEdit(activePocket);
+                  setIsPocketModalOpen(true);
+                }}
+                className="p-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 active:scale-90 transition"
+                title="Editar bolsa y meta"
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.08] text-zinc-300 font-mono font-bold border border-white/[0.1]">
               MEP ${Math.round(mepRate).toLocaleString("es-AR")}
             </span>
@@ -344,48 +597,94 @@ export function PersonalInvestmentsView({
           </div>
         </div>
 
-        {/* Valuación Total */}
+        {/* Valuación (Global o de la Bolsa) */}
         <div className="mt-1">
           <span className="text-[11px] font-medium text-zinc-400 block mb-0.5">
-            Valuación Total Estimada
+            {activePocket
+              ? `Acumulado en ${activePocket.name}`
+              : "Valuación Total Estimada"}
           </span>
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-mono tabular-nums">
-              ${Math.round(totalValuationArs).toLocaleString("es-AR")}
+              $
+              {Math.round(
+                activePocket ? pocketValuationArs : totalValuationArs
+              ).toLocaleString("es-AR")}
             </span>
             <span className="text-xs sm:text-sm font-bold text-zinc-400 font-mono tabular-nums">
-              ≈ u$s {Math.round(totalValuationUsd).toLocaleString("es-AR")}
+              ≈ u$s{" "}
+              {Math.round(
+                activePocket ? pocketValuationUsd : totalValuationUsd
+              ).toLocaleString("es-AR")}
             </span>
           </div>
         </div>
 
-        {/* Rendimiento / P&L Global */}
-        {summary && summary.totalCostArs > 0 && (
+        {/* Barra de Meta si la bolsa tiene un objetivo asignado */}
+        {activePocket && activePocket.targetAmountArs && (
+          <div className="mt-3 pt-2.5 border-t border-white/[0.06] space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-400 flex items-center gap-1 font-medium">
+                <Target className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Meta: ${activePocket.targetAmountArs.toLocaleString("es-AR")}</span>
+              </span>
+              <span className="font-mono font-extrabold text-indigo-300">
+                {targetProgress?.toFixed(1)}% alcanzado
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-zinc-800/80 p-0.5 border border-white/[0.08] overflow-hidden">
+              <div
+                style={{ width: `${Math.min(100, Math.max(3, targetProgress || 0))}%` }}
+                className={`h-full ${activeColorStyle.progressBg} rounded-full transition-all duration-500`}
+              />
+            </div>
+            <div className="text-[10px] text-zinc-400 text-right">
+              {pocketValuationArs >= activePocket.targetAmountArs ? (
+                <span className="text-emerald-400 font-bold">¡Meta alcanzada! 🎉</span>
+              ) : (
+                <span>
+                  Faltan $
+                  {Math.round(
+                    activePocket.targetAmountArs - pocketValuationArs
+                  ).toLocaleString("es-AR")}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Rendimiento / P&L (Global o de la Bolsa) */}
+        {((!activePocket && summary && summary.totalCostArs > 0) ||
+          (activePocket && pocketHasCost)) && (
           <div className="mt-2.5 pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-xs">
             <span className="text-zinc-400 font-medium">Rendimiento:</span>
             <div
               className={`flex items-center gap-1 font-mono font-bold ${
-                totalGainLossArs >= 0 ? "text-emerald-400" : "text-rose-400"
+                (activePocket ? pocketGainArs : totalGainLossArs) >= 0
+                  ? "text-emerald-400"
+                  : "text-rose-400"
               }`}
             >
-              {totalGainLossArs >= 0 ? (
+              {(activePocket ? pocketGainArs : totalGainLossArs) >= 0 ? (
                 <ArrowUpRight className="w-3.5 h-3.5" />
               ) : (
                 <ArrowDownRight className="w-3.5 h-3.5" />
               )}
               <span>
-                {totalGainLossArs >= 0 ? "+" : ""}$
-                {Math.round(totalGainLossArs).toLocaleString("es-AR")}
+                {(activePocket ? pocketGainArs : totalGainLossArs) >= 0 ? "+" : ""}$
+                {Math.round(
+                  activePocket ? pocketGainArs : totalGainLossArs
+                ).toLocaleString("es-AR")}
               </span>
               <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-white/[0.08] ml-1">
-                {totalGainLossArs >= 0 ? "+" : ""}
-                {totalGainLossPct.toFixed(1)}%
+                {(activePocket ? pocketGainArs : totalGainLossArs) >= 0 ? "+" : ""}
+                {(activePocket ? pocketGainPct : totalGainLossPct).toFixed(1)}%
               </span>
             </div>
           </div>
         )}
 
-        {/* 2 Botones Concisos para Mobile (1 sola línea siempre visible) */}
+        {/* 2 Botones Concisos para Mobile */}
         <div className="mt-3.5 pt-3 border-t border-white/[0.06] grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -397,7 +696,9 @@ export function PersonalInvestmentsView({
             className="min-h-[42px] py-2.5 px-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-1.5 active:scale-95 transition"
           >
             <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
-            <span className="truncate">Acción / CEDEAR</span>
+            <span className="truncate">
+              {activePocket ? `+ Acción (${activePocket.name.slice(0, 10)})` : "Acción / CEDEAR"}
+            </span>
           </button>
           <button
             type="button"
@@ -409,20 +710,142 @@ export function PersonalInvestmentsView({
             className="min-h-[42px] py-2.5 px-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-1.5 active:scale-95 transition"
           >
             <PiggyBank className="w-4 h-4 shrink-0" />
-            <span className="truncate">Fondo FCI / PF</span>
+            <span className="truncate">
+              {activePocket ? `+ Fondo (${activePocket.name.slice(0, 10)})` : "Fondo FCI / PF"}
+            </span>
           </button>
         </div>
       </section>
 
+      {/* HUB / RESUMEN DE TODAS LAS BOLSAS (Solo visible en vista "Todas") */}
+      {selectedPocketId === "ALL" && availablePockets.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-indigo-400" />
+              <h2 className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
+                Bolsas de Ahorro e Inversión ({availablePockets.length})
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic(8);
+                setPocketToEdit(null);
+                setIsPocketModalOpen(true);
+              }}
+              className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Nueva</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+            {availablePockets.map((pocket) => {
+              const pColor = POCKET_COLOR_MAP[pocket.color] || POCKET_COLOR_MAP.indigo;
+              const pInvs = investments.filter(
+                (inv) =>
+                  extractPocketFromNotes(inv.notes, availablePockets).pocket.id ===
+                  pocket.id
+              );
+              const pValArs = pInvs.reduce(
+                (acc, i) => acc + (i.totalValuationArs || 0),
+                0
+              );
+              const pValUsd = mepRate > 0 ? pValArs / mepRate : 0;
+              const pPct = totalValuationArs > 0 ? (pValArs / totalValuationArs) * 100 : 0;
+              const pTargetProg = pocket.targetAmountArs
+                ? Math.min(100, (pValArs / pocket.targetAmountArs) * 100)
+                : null;
+
+              return (
+                <div
+                  key={pocket.id}
+                  onClick={() => {
+                    triggerHaptic(6);
+                    setSelectedPocketId(pocket.id);
+                  }}
+                  className="super-card rounded-2xl p-3.5 border border-white/[0.08] hover:border-white/[0.2] transition-all cursor-pointer group space-y-2 active:scale-[0.98]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${pColor.badgeBg} border ${pColor.badgeBorder} shrink-0`}
+                      >
+                        {pocket.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-extrabold text-sm text-white block truncate group-hover:text-indigo-300 transition">
+                          {pocket.name}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 block">
+                          {pInvs.length} {pInvs.length === 1 ? "activo" : "activos"} ·{" "}
+                          <strong className="text-zinc-300">{Math.round(pPct)}%</strong>{" "}
+                          del total
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerHaptic(6);
+                        setPocketToEdit(pocket);
+                        setIsPocketModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.1] transition shrink-0"
+                      title="Editar bolsa"
+                    >
+                      <Settings2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Monto de la bolsa */}
+                  <div className="flex items-baseline justify-between pt-1 border-t border-white/[0.05]">
+                    <span className="text-base font-extrabold text-white font-mono tabular-nums">
+                      ${Math.round(pValArs).toLocaleString("es-AR")}
+                    </span>
+                    <span className="text-[11px] font-bold text-zinc-400 font-mono tabular-nums">
+                      u$s {Math.round(pValUsd).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+
+                  {/* Barra de progreso de la meta */}
+                  {pocket.targetAmountArs && (
+                    <div className="space-y-1 pt-0.5">
+                      <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                        <span>Meta ${pocket.targetAmountArs.toLocaleString("es-AR")}</span>
+                        <span className="font-bold text-zinc-300">
+                          {pTargetProg?.toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-zinc-800/80 overflow-hidden">
+                        <div
+                          style={{ width: `${Math.min(100, Math.max(3, pTargetProg || 0))}%` }}
+                          className={`h-full ${pColor.progressBg} rounded-full`}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Distribución por Tipo de Activo */}
       {summary &&
         summary.assetTypeBreakdown.length > 0 &&
-        totalValuationArs > 0 && (
+        totalValuationArs > 0 &&
+        selectedPocketId === "ALL" && (
           <section className="super-card rounded-2xl p-3.5 space-y-2">
             <div className="flex items-center justify-between text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
               <span className="flex items-center gap-1.5">
                 <PieChart className="w-3.5 h-3.5 text-indigo-400" />
-                Distribución
+                Distribución Global
               </span>
             </div>
 
@@ -470,29 +893,75 @@ export function PersonalInvestmentsView({
       {/* Lista de Posiciones */}
       <section className="space-y-2">
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-            Posiciones ({investments.length})
+          <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span>
+              {activePocket ? `Activos en ${activePocket.name}` : "Posiciones"} (
+              {displayedInvestments.length})
+            </span>
           </h2>
-          <span className="text-[10px] text-zinc-500">
-            Cotizaciones en vivo & manual
-          </span>
+          {activePocket ? (
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic(6);
+                setSelectedPocketId("ALL");
+              }}
+              className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold"
+            >
+              Ver todas las bolsas →
+            </button>
+          ) : (
+            <span className="text-[10px] text-zinc-500">
+              Cotizaciones en vivo & manual
+            </span>
+          )}
         </div>
 
-        {investments.length === 0 ? (
-          <div className="super-card rounded-2xl p-6 text-center">
-            <PiggyBank className="w-8 h-8 text-zinc-600 mx-auto mb-2 opacity-60" />
-            <p className="text-sm font-medium text-zinc-300">
-              {householdId
+        {displayedInvestments.length === 0 ? (
+          <div className="super-card rounded-2xl p-6 text-center space-y-2">
+            <div className="text-3xl mx-auto">
+              {activePocket ? activePocket.icon : "💰"}
+            </div>
+            <p className="text-sm font-semibold text-white">
+              {activePocket
+                ? `Sin inversiones en ${activePocket.name}`
+                : householdId
                 ? "Sin inversiones en el portafolio del hogar"
                 : "Sin inversiones personales registradas"}
             </p>
-            <p className="text-xs text-zinc-500 mt-1 max-w-xs mx-auto">
-              Sumá Fondos Comunes (FCI), CEDEARs, Acciones, Bonos o Cripto con datos actualizables.
+            <p className="text-xs text-zinc-400 max-w-xs mx-auto leading-relaxed">
+              {activePocket
+                ? `Sumá CEDEARs, Fondos Comunes (FCI), Bonos o Plazos Fijos destinados a ${activePocket.name}.`
+                : "Sumá Fondos Comunes (FCI), CEDEARs, Acciones, Bonos o Cripto con datos actualizables."}
             </p>
+            <div className="pt-2 flex justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingInvestment(null);
+                  setDefaultModalAssetType("FCI");
+                  setIsModalOpen(true);
+                }}
+                className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/25 active:scale-95 transition"
+              >
+                + Sumar Fondo FCI / PF
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingInvestment(null);
+                  setDefaultModalAssetType("CEDEAR");
+                  setIsModalOpen(true);
+                }}
+                className="py-2 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/25 active:scale-95 transition"
+              >
+                + Sumar Acción / CEDEAR
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-2.5">
-            {investments.map((inv) => {
+            {displayedInvestments.map((inv) => {
               const badgeStyle = TYPE_COLORS[inv.assetType] || TYPE_COLORS.OTRO;
               const hasPnl =
                 inv.gainLossArs !== null && inv.gainLossPct !== null;
@@ -504,12 +973,19 @@ export function PersonalInvestmentsView({
                   inv.assetType === "OTRO") &&
                 inv.quantity === 1;
 
+              const { pocket: invPocket, cleanNotes } = extractPocketFromNotes(
+                inv.notes,
+                availablePockets
+              );
+              const pocketStyle =
+                POCKET_COLOR_MAP[invPocket.color] || POCKET_COLOR_MAP.indigo;
+
               return (
                 <div
                   key={inv.id}
                   className="super-card-subtle rounded-2xl p-3.5 border border-white/[0.08] space-y-2.5"
                 >
-                  {/* FILA 1: Activo a la izquierda + Valuación Total a la derecha (sin botones apretados) */}
+                  {/* FILA 1: Activo + Badges a la izquierda / Valuación a la derecha */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-9 h-9 rounded-xl bg-zinc-800/80 border border-white/[0.08] flex items-center justify-center font-bold text-[11px] text-white font-mono shrink-0">
@@ -532,7 +1008,17 @@ export function PersonalInvestmentsView({
                           >
                             {badgeStyle.label}
                           </span>
+
+                          {/* BADGE DE BOLSA DE DINERO */}
+                          <span
+                            className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border flex items-center gap-1 ${pocketStyle.badgeBg} ${pocketStyle.badgeText} ${pocketStyle.badgeBorder}`}
+                            title={`Bolsa: ${invPocket.name}`}
+                          >
+                            <span>{invPocket.icon}</span>
+                            <span>{invPocket.name}</span>
+                          </span>
                         </div>
+
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           {inv.assetType !== "FCI" &&
                             inv.assetType !== "PLAZO_FIJO" && (
@@ -540,10 +1026,10 @@ export function PersonalInvestmentsView({
                                 {inv.name}
                               </span>
                             )}
-                          {inv.notes && (
+                          {cleanNotes && (
                             <span className="text-[10px] font-medium text-indigo-300/90 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.2 rounded-md inline-flex items-center gap-1">
                               <Building2 className="w-2.5 h-2.5" />
-                              {inv.notes}
+                              {cleanNotes}
                             </span>
                           )}
                         </div>
@@ -561,7 +1047,7 @@ export function PersonalInvestmentsView({
                     </div>
                   </div>
 
-                  {/* FILA 2: Detalle de Tenencia / P&L + Botones cómodos de Acción */}
+                  {/* FILA 2: Detalle de Tenencia / P&L + Acciones */}
                   <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.06]">
                     <div className="text-[11px] text-zinc-400 min-w-0">
                       {isDirectBalance ? (
@@ -628,9 +1114,41 @@ export function PersonalInvestmentsView({
                   {/* Panel de Actualización Rápida Inline */}
                   {isQuickEditing && (
                     <div className="p-3 rounded-xl bg-zinc-900/95 border border-indigo-500/30 space-y-2.5 animate-fade-in">
+                      {/* Selector de Bolsa Inline */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                          Bolsa de Dinero / Destino
+                        </label>
+                        <div className="flex flex-wrap gap-1">
+                          {availablePockets.map((p) => {
+                            const isSel = quickPocketId === p.id;
+                            const pStyle =
+                              POCKET_COLOR_MAP[p.color] || POCKET_COLOR_MAP.indigo;
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  triggerHaptic(6);
+                                  setQuickPocketId(p.id);
+                                }}
+                                className={`py-1 px-2 rounded-lg text-[10px] font-semibold flex items-center gap-1 border transition ${
+                                  isSel
+                                    ? `${pStyle.badgeBg} ${pStyle.badgeText} ${pStyle.badgeBorder} font-bold ring-1 ring-white/20`
+                                    : "bg-white/[0.03] text-zinc-400 border-white/[0.05]"
+                                }`}
+                              >
+                                <span>{p.icon}</span>
+                                <span>{p.name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       {/* Si es FCI, permitir alternar entre Cuotapartes + VCP y Saldo Total + botón de VCP oficial */}
                       {inv.assetType === "FCI" && (
-                        <div className="space-y-2">
+                        <div className="space-y-2 pt-1">
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/[0.08]">
                               <button
@@ -841,8 +1359,22 @@ export function PersonalInvestmentsView({
         userId={userId}
         householdId={householdId}
         defaultAssetType={defaultModalAssetType}
+        defaultPocketId={selectedPocketId !== "ALL" ? selectedPocketId : undefined}
+        availablePockets={availablePockets}
         investmentToEdit={editingInvestment}
         onSaved={handleRefresh}
+      />
+
+      {/* Modal de Crear / Editar Bolsa de Dinero */}
+      <PocketManagerModal
+        isOpen={isPocketModalOpen}
+        onClose={() => {
+          setIsPocketModalOpen(false);
+          setPocketToEdit(null);
+        }}
+        pocketToEdit={pocketToEdit}
+        onSavePocket={handleSavePocket}
+        onDeletePocket={handleDeletePocket}
       />
     </div>
   );

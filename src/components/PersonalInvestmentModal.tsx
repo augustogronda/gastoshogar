@@ -24,6 +24,14 @@ import {
   POPULAR_ARGENTINA_FCIS,
   CafciFundQuote,
 } from "@/lib/investments-service";
+import {
+  InvestmentPocket,
+  DEFAULT_POCKETS,
+  FALLBACK_POCKET,
+  POCKET_COLOR_MAP,
+  extractPocketFromNotes,
+  injectPocketIntoNotes,
+} from "@/lib/investment-pockets";
 import { triggerHaptic } from "@/lib/haptics";
 
 interface PersonalInvestmentModalProps {
@@ -32,6 +40,8 @@ interface PersonalInvestmentModalProps {
   userId?: string;
   householdId?: string;
   defaultAssetType?: string;
+  defaultPocketId?: string;
+  availablePockets?: InvestmentPocket[];
   investmentToEdit?: {
     id: string;
     ticker: string;
@@ -54,9 +64,18 @@ export function PersonalInvestmentModal({
   userId,
   householdId,
   defaultAssetType,
+  defaultPocketId,
+  availablePockets,
   investmentToEdit,
   onSaved,
 }: PersonalInvestmentModalProps) {
+  const pockets =
+    availablePockets && availablePockets.length > 0
+      ? availablePockets
+      : DEFAULT_POCKETS;
+  const [selectedPocket, setSelectedPocket] =
+    useState<InvestmentPocket>(FALLBACK_POCKET);
+
   const [mounted, setMounted] = useState(false);
   const [activeMode, setActiveMode] = useState<"search" | "manual">("search");
   const [popularFilter, setPopularFilter] = useState<
@@ -121,7 +140,12 @@ export function PersonalInvestmentModal({
       setManualPrice(
         investmentToEdit.manualPrice ? String(investmentToEdit.manualPrice) : ""
       );
-      setNotes(investmentToEdit.notes || "");
+      const { pocket: extractedPocket, cleanNotes } = extractPocketFromNotes(
+        investmentToEdit.notes,
+        pockets
+      );
+      setSelectedPocket(extractedPocket);
+      setNotes(cleanNotes);
       setActiveMode(isManualType ? "manual" : "search");
       setValuationMode(
         isManualType && investmentToEdit.quantity === 1 ? "total" : "units"
@@ -143,6 +167,11 @@ export function PersonalInvestmentModal({
     } else {
       const initialType = defaultAssetType || "CEDEAR";
       const startInManual = MANUAL_ASSET_TYPES.includes(initialType);
+      const initialPocket =
+        (defaultPocketId && pockets.find((p) => p.id === defaultPocketId)) ||
+        pockets[0] ||
+        FALLBACK_POCKET;
+      setSelectedPocket(initialPocket);
       setTicker("");
       setName("");
       setAssetType(initialType);
@@ -383,6 +412,7 @@ export function PersonalInvestmentModal({
 
     setIsSubmitting(true);
     try {
+      const finalNotes = injectPocketIntoNotes(notes.trim() || null, selectedPocket);
       const payload = {
         id: investmentToEdit?.id,
         ticker: cleanTicker,
@@ -392,7 +422,7 @@ export function PersonalInvestmentModal({
         buyPrice: cleanBuyPrice,
         currency,
         manualPrice: finalManualPrice,
-        notes: notes.trim() || null,
+        notes: finalNotes || null,
       };
 
       if (householdId) {
@@ -1145,6 +1175,42 @@ export function PersonalInvestmentModal({
               )}
             </div>
           )}
+
+          {/* Selector de Bolsa de Dinero / Objetivo */}
+          <div className="space-y-1.5 p-3 rounded-2xl bg-zinc-900/60 border border-white/[0.08]">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider block">
+                Bolsa de Dinero / Destino
+              </label>
+              <span className="text-[10px] text-zinc-500 font-medium">
+                Objetivo en pareja
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {pockets.map((p) => {
+                const isSelected = selectedPocket.id === p.id;
+                const pColor = POCKET_COLOR_MAP[p.color] || POCKET_COLOR_MAP.indigo;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic(6);
+                      setSelectedPocket(p);
+                    }}
+                    className={`py-1.5 px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 border ${
+                      isSelected
+                        ? `${pColor.badgeBg} ${pColor.badgeText} ${pColor.badgeBorder} ring-1 ring-white/30 font-bold shadow-sm`
+                        : "bg-white/[0.03] text-zinc-400 border-white/[0.06] hover:bg-white/[0.08] hover:text-white"
+                    }`}
+                  >
+                    <span>{p.icon}</span>
+                    <span>{p.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Banco / Broker */}
           <div>
