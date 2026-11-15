@@ -696,9 +696,7 @@ export function PersonalInvestmentsView({
             className="min-h-[42px] py-2.5 px-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-1.5 active:scale-95 transition"
           >
             <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
-            <span className="truncate">
-              {activePocket ? `+ Acción (${activePocket.name.slice(0, 10)})` : "Acción / CEDEAR"}
-            </span>
+            <span className="truncate">Acción / CEDEAR</span>
           </button>
           <button
             type="button"
@@ -710,9 +708,7 @@ export function PersonalInvestmentsView({
             className="min-h-[42px] py-2.5 px-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-1.5 active:scale-95 transition"
           >
             <PiggyBank className="w-4 h-4 shrink-0" />
-            <span className="truncate">
-              {activePocket ? `+ Fondo (${activePocket.name.slice(0, 10)})` : "Fondo FCI / PF"}
-            </span>
+            <span className="truncate">Fondo FCI / PF</span>
           </button>
         </div>
       </section>
@@ -931,33 +927,9 @@ export function PersonalInvestmentsView({
             </p>
             <p className="text-xs text-zinc-400 max-w-xs mx-auto leading-relaxed">
               {activePocket
-                ? `Sumá CEDEARs, Fondos Comunes (FCI), Bonos o Plazos Fijos destinados a ${activePocket.name}.`
-                : "Sumá Fondos Comunes (FCI), CEDEARs, Acciones, Bonos o Cripto con datos actualizables."}
+                ? `Usá los botones de arriba para sumar CEDEARs, Fondos Comunes (FCI), Bonos o Plazos Fijos para este objetivo.`
+                : "Usá los botones de arriba para sumar Fondos Comunes (FCI), CEDEARs, Acciones, Bonos o Cripto."}
             </p>
-            <div className="pt-2 flex justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingInvestment(null);
-                  setDefaultModalAssetType("FCI");
-                  setIsModalOpen(true);
-                }}
-                className="py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/25 active:scale-95 transition"
-              >
-                + Sumar Fondo FCI / PF
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingInvestment(null);
-                  setDefaultModalAssetType("CEDEAR");
-                  setIsModalOpen(true);
-                }}
-                className="py-2 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/25 active:scale-95 transition"
-              >
-                + Sumar Acción / CEDEAR
-              </button>
-            </div>
           </div>
         ) : (
           <div className="space-y-2.5">

@@ -2092,41 +2092,15 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
             )}
 
-            {/* VISTA 1: PORTAFOLIO HOGAR (igual de limpio que Personal + acceso directo al FCI de remanentes) */}
+            {/* VISTA 1: PORTAFOLIO HOGAR (Bolsas de Dinero + Activos) */}
             {appConfig.features.enableSharedInvestmentsPortfolio &&
             sharedInvestmentsTab === "portfolio" ? (
-              <>
-                <PersonalInvestmentsView
-                  householdId={household.id}
-                  title="Portafolio Hogar"
-                  investments={sharedInvestments}
-                  summary={sharedInvestmentsSummary}
-                />
-
-                {/* Barra compacta del FCI de Remanentes para acceso rápido sin saturar la pantalla */}
-                <div className="super-card rounded-2xl p-3.5 border border-emerald-500/20 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                      <PiggyBank className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block truncate">
-                        {investmentFund?.name || "FCI Remanentes Pareja"}
-                      </span>
-                      <span className="text-base font-extrabold text-white font-mono tabular-nums block">
-                        ${Math.round(investmentFund?.currentValue || 0).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsFCIModalOpen(true)}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0 active:scale-95 transition shadow-md shadow-emerald-600/20"
-                  >
-                    Gestionar FCI
-                  </button>
-                </div>
-              </>
+              <PersonalInvestmentsView
+                householdId={household.id}
+                title="Portafolio Hogar"
+                investments={sharedInvestments}
+                summary={sharedInvestmentsSummary}
+              />
             ) : (
               /* VISTA 2: FONDO COMÚN DE REMANENTES MENSUALES */
               <>
