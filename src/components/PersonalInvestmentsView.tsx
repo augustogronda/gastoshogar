@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { PersonalInvestmentModal } from "./PersonalInvestmentModal";
 import { PocketManagerModal } from "./PocketManagerModal";
+import { SetTargetModal } from "./SetTargetModal";
 import {
   deletePersonalInvestmentAction,
   deleteSharedInvestmentAction,
@@ -136,6 +137,10 @@ export function PersonalInvestmentsView({
   const [isPocketModalOpen, setIsPocketModalOpen] = useState(false);
   const [pocketToEdit, setPocketToEdit] = useState<InvestmentPocket | null>(null);
 
+  // Estado para modal dedicado a fijar objetivo/meta
+  const [isSetTargetModalOpen, setIsSetTargetModalOpen] = useState(false);
+  const [pocketForTarget, setPocketForTarget] = useState<InvestmentPocket | null>(null);
+
   // Estado para edición rápida inline de cualquier activo
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [quickValuationMode, setQuickValuationMode] = useState<"total" | "units">(
@@ -203,6 +208,72 @@ export function PersonalInvestmentsView({
     });
     if (selectedPocketId === pocketId) {
       setSelectedPocketId("ALL");
+    }
+  };
+
+  const handleSaveTarget = async (pocketId: string, targetAmountArs?: number) => {
+    const existing =
+      availablePockets.find((p) => p.id === pocketId) || FALLBACK_POCKET;
+    const updatedPocket: InvestmentPocket = {
+      ...existing,
+      targetAmountArs,
+    };
+
+    setCustomPockets((prev) => {
+      const idx = prev.findIndex((p) => p.id === pocketId);
+      let next: InvestmentPocket[];
+      if (idx >= 0) {
+        next = [...prev];
+        next[idx] = updatedPocket;
+      } else {
+        next = [...prev, updatedPocket];
+      }
+      try {
+        localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    // Si hay activos en esta bolsa, sincronizar meta en la base de datos para persistencia en servidor
+    const pInvs = investments.filter(
+      (inv) =>
+        extractPocketFromNotes(inv.notes, availablePockets).pocket.id === pocketId
+    );
+
+    if (pInvs.length > 0) {
+      const firstInv = pInvs[0];
+      const { cleanNotes } = extractPocketFromNotes(
+        firstInv.notes,
+        availablePockets
+      );
+      const newNotes = injectPocketIntoNotes(cleanNotes || null, updatedPocket);
+
+      setInvestments((prev) =>
+        prev.map((item) =>
+          item.id === firstInv.id ? { ...item, notes: newNotes } : item
+        )
+      );
+
+      try {
+        const payload = {
+          id: firstInv.id,
+          ticker: firstInv.ticker,
+          name: firstInv.name,
+          assetType: firstInv.assetType,
+          quantity: firstInv.quantity,
+          buyPrice: firstInv.buyPrice,
+          currency: firstInv.currency,
+          manualPrice: firstInv.manualPrice,
+          notes: newNotes,
+        };
+        if (householdId) {
+          await saveSharedInvestmentAction({ ...payload, householdId });
+        } else if (userId) {
+          await savePersonalInvestmentAction({ ...payload, userId });
+        }
+      } catch (e) {
+        console.error("Error sincronizando objetivo:", e);
+      }
     }
   };
 
@@ -620,38 +691,85 @@ export function PersonalInvestmentsView({
           </div>
         </div>
 
-        {/* Barra de Meta si la bolsa tiene un objetivo asignado */}
-        {activePocket && activePocket.targetAmountArs && (
-          <div className="mt-3 pt-2.5 border-t border-white/[0.06] space-y-1.5">
+        {/* Sección de Meta / Objetivo de la Bolsa Activa */}
+        {activePocket && activePocket.targetAmountArs ? (
+          <div className="mt-3 pt-2.5 border-t border-white/[0.06] space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-400 flex items-center gap-1 font-medium">
-                <Target className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-zinc-300 flex items-center gap-1.5 font-bold">
+                <Target className="w-4 h-4 text-indigo-400" />
                 <span>Meta: ${activePocket.targetAmountArs.toLocaleString("es-AR")}</span>
               </span>
-              <span className="font-mono font-extrabold text-indigo-300">
-                {targetProgress?.toFixed(1)}% alcanzado
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-extrabold text-white text-xs">
+                  {targetProgress?.toFixed(1)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic(6);
+                    setPocketForTarget(activePocket);
+                    setIsSetTargetModalOpen(true);
+                  }}
+                  className="text-[10px] text-indigo-300 hover:text-white font-bold px-2 py-0.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 active:scale-95 transition"
+                >
+                  Editar Meta
+                </button>
+              </div>
             </div>
-            <div className="w-full h-2 rounded-full bg-zinc-800/80 p-0.5 border border-white/[0.08] overflow-hidden">
+            <div className="w-full h-2.5 rounded-full bg-zinc-800/90 p-0.5 border border-white/[0.08] overflow-hidden shadow-inner">
               <div
                 style={{ width: `${Math.min(100, Math.max(3, targetProgress || 0))}%` }}
-                className={`h-full ${activeColorStyle.progressBg} rounded-full transition-all duration-500`}
+                className={`h-full ${activeColorStyle.progressBg} rounded-full transition-all duration-500 shadow-sm`}
               />
             </div>
-            <div className="text-[10px] text-zinc-400 text-right">
-              {pocketValuationArs >= activePocket.targetAmountArs ? (
-                <span className="text-emerald-400 font-bold">¡Meta alcanzada! 🎉</span>
-              ) : (
-                <span>
-                  Faltan $
-                  {Math.round(
-                    activePocket.targetAmountArs - pocketValuationArs
-                  ).toLocaleString("es-AR")}
-                </span>
-              )}
+            <div className="flex items-center justify-between text-[11px] text-zinc-400 font-medium pt-0.5">
+              <span>
+                ${Math.round(pocketValuationArs).toLocaleString("es-AR")} acumulados
+              </span>
+              <span>
+                {pocketValuationArs >= activePocket.targetAmountArs ? (
+                  <strong className="text-emerald-400 font-bold">¡Meta alcanzada! 🎉</strong>
+                ) : (
+                  <span>
+                    Faltan{" "}
+                    <strong className="text-zinc-200">
+                      ${Math.round(activePocket.targetAmountArs - pocketValuationArs).toLocaleString("es-AR")}
+                    </strong>
+                  </span>
+                )}
+              </span>
             </div>
           </div>
-        )}
+        ) : activePocket ? (
+          <div
+            className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-dashed border-white/[0.12] transition-all cursor-pointer group active:scale-[0.99]"
+            onClick={() => {
+              triggerHaptic(6);
+              setPocketForTarget(activePocket);
+              setIsSetTargetModalOpen(true);
+            }}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/30">
+                <Target className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-white block truncate group-hover:text-indigo-300 transition">
+                  Fijar objetivo para {activePocket.name}
+                </span>
+                <span className="text-[10px] text-zinc-400 block truncate">
+                  Establecé una meta en pesos y seguí la barra de progreso
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="py-1.5 px-3 rounded-xl bg-indigo-600 group-hover:bg-indigo-500 text-white text-xs font-bold shrink-0 shadow-md shadow-indigo-600/25 active:scale-95 transition"
+            >
+              + Fijar Meta
+            </button>
+          </div>
+        ) : null}
 
         {/* Rendimiento / P&L (Global o de la Bolsa) */}
         {((!activePocket && summary && summary.totalCostArs > 0) ||
@@ -808,21 +926,51 @@ export function PersonalInvestmentsView({
                     </span>
                   </div>
 
-                  {/* Barra de progreso de la meta */}
-                  {pocket.targetAmountArs && (
-                    <div className="space-y-1 pt-0.5">
+                  {/* Barra de progreso de la meta o botón para fijarla */}
+                  {pocket.targetAmountArs ? (
+                    <div
+                      className="space-y-1 pt-1.5 border-t border-white/[0.05] group/target hover:opacity-90"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerHaptic(6);
+                        setPocketForTarget(pocket);
+                        setIsSetTargetModalOpen(true);
+                      }}
+                      title="Tocar para editar objetivo"
+                    >
                       <div className="flex items-center justify-between text-[10px] text-zinc-400">
-                        <span>Meta ${pocket.targetAmountArs.toLocaleString("es-AR")}</span>
-                        <span className="font-bold text-zinc-300">
+                        <span className="flex items-center gap-1 font-medium group-hover/target:text-indigo-300 transition">
+                          <Target className="w-3 h-3 text-indigo-400" />
+                          Meta ${pocket.targetAmountArs.toLocaleString("es-AR")}
+                        </span>
+                        <span className="font-bold text-white font-mono">
                           {pTargetProg?.toFixed(0)}%
                         </span>
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-zinc-800/80 overflow-hidden">
                         <div
-                          style={{ width: `${Math.min(100, Math.max(3, pTargetProg || 0))}%` }}
-                          className={`h-full ${pColor.progressBg} rounded-full`}
+                          style={{
+                            width: `${Math.min(100, Math.max(3, pTargetProg || 0))}%`,
+                          }}
+                          className={`h-full ${pColor.progressBg} rounded-full transition-all duration-300`}
                         />
                       </div>
+                    </div>
+                  ) : (
+                    <div className="pt-1.5 border-t border-white/[0.05]">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          triggerHaptic(6);
+                          setPocketForTarget(pocket);
+                          setIsSetTargetModalOpen(true);
+                        }}
+                        className="w-full py-1.5 px-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-dashed border-white/[0.12] hover:border-indigo-500/40 text-[10px] font-semibold text-zinc-400 hover:text-indigo-300 flex items-center justify-center gap-1.5 transition active:scale-95"
+                      >
+                        <Target className="w-3 h-3 text-indigo-400" />
+                        <span>Fijar objetivo</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1347,6 +1495,28 @@ export function PersonalInvestmentsView({
         pocketToEdit={pocketToEdit}
         onSavePocket={handleSavePocket}
         onDeletePocket={handleDeletePocket}
+      />
+
+      {/* Modal de Fijar Objetivo / Meta */}
+      <SetTargetModal
+        isOpen={isSetTargetModalOpen}
+        onClose={() => {
+          setIsSetTargetModalOpen(false);
+          setPocketForTarget(null);
+        }}
+        pocket={pocketForTarget}
+        currentAmountArs={
+          pocketForTarget
+            ? investments
+                .filter(
+                  (inv) =>
+                    extractPocketFromNotes(inv.notes, availablePockets).pocket.id ===
+                    pocketForTarget.id
+                )
+                .reduce((acc, i) => acc + (i.totalValuationArs || 0), 0)
+            : 0
+        }
+        onSaveTarget={handleSaveTarget}
       />
     </div>
   );

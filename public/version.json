@@ -1,7 +1,7 @@
 {
-  "version": "1.28.1",
-  "build": 2026111502,
-  "releasedAt": "2026-11-15T23:25:00Z",
-  "title": "Simplificación visual de opciones de inversión y limpieza de botones duplicados",
-  "description": "Eliminación de botones duplicados en el estado vacío de bolsas, corrección de textos redundantes y remoción de tarjetas repetidas para una interfaz ultra limpia."
+  "version": "1.28.2",
+  "build": 2026111503,
+  "releasedAt": "2026-11-15T23:30:00Z",
+  "title": "Metas y barras de progreso para bolsas de inversión",
+  "description": "Fijación rápida de objetivos para cada fondo/bolsa con atajos, barra de progreso interactiva, cálculo del restante en vivo y sincronización."
 }
