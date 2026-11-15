@@ -1,7 +1,7 @@
 {
-  "version": "1.28.2",
-  "build": 2026111503,
-  "releasedAt": "2026-11-15T23:30:00Z",
-  "title": "Metas y barras de progreso para bolsas de inversión",
-  "description": "Fijación rápida de objetivos para cada fondo/bolsa con atajos, barra de progreso interactiva, cálculo del restante en vivo y sincronización."
+  "version": "1.28.3",
+  "build": 2026111504,
+  "releasedAt": "2026-11-15T23:36:00Z",
+  "title": "Ajuste de prioridad y orden de bolsas de inversión",
+  "description": "Permite asignar prioridad #1, #2, #3... a cada fondo y reordenarlos fácilmente con botones subir/bajar sin necesidad de arrastre táctil."
 }

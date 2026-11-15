@@ -40,6 +40,7 @@ export function PocketManagerModal({
   const [icon, setIcon] = useState("💰");
   const [color, setColor] = useState("indigo");
   const [targetAmount, setTargetAmount] = useState("");
+  const [priority, setPriority] = useState<number>(3);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,11 +53,15 @@ export function PocketManagerModal({
       setTargetAmount(
         pocketToEdit.targetAmountArs ? String(pocketToEdit.targetAmountArs) : ""
       );
+      setPriority(
+        typeof pocketToEdit.priority === "number" ? pocketToEdit.priority : 3
+      );
     } else {
       setName("");
       setIcon("💰");
       setColor("indigo");
       setTargetAmount("");
+      setPriority(3);
     }
     setErrorMsg(null);
   }, [isOpen, pocketToEdit]);
@@ -91,6 +96,7 @@ export function PocketManagerModal({
       icon,
       color,
       targetAmountArs: cleanTarget && cleanTarget > 0 ? cleanTarget : undefined,
+      priority,
     };
 
     triggerHaptic("success");
@@ -205,6 +211,64 @@ export function PocketManagerModal({
                   {color === c.key && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Prioridad / Posición en la lista */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center justify-between">
+              <span>Prioridad / Posición</span>
+              <span className="text-[10px] text-zinc-400 font-normal">
+                #1 aparece primero en la app
+              </span>
+            </label>
+            <div className="flex items-center gap-2">
+              <div className="grid grid-cols-5 gap-1 flex-1 p-1 rounded-2xl bg-zinc-900/60 border border-white/[0.06]">
+                {[1, 2, 3, 4, 5].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic(6);
+                      setPriority(val);
+                    }}
+                    className={`py-1.5 rounded-xl text-center transition text-xs font-mono font-bold ${
+                      priority === val
+                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-white/20"
+                        : "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    #{val}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 shrink-0 p-1 rounded-2xl bg-zinc-900/60 border border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic(6);
+                    setPriority((prev) => Math.max(1, prev - 1));
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 flex items-center justify-center font-bold text-sm active:scale-90 transition"
+                  title="Subir prioridad (- número)"
+                >
+                  -
+                </button>
+                <span className="w-7 text-center font-mono font-extrabold text-xs text-white">
+                  #{priority}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic(6);
+                    setPriority((prev) => Math.min(20, prev + 1));
+                  }}
+                  className="w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 flex items-center justify-center font-bold text-sm active:scale-90 transition"
+                  title="Bajar prioridad (+ número)"
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
 

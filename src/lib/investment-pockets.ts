@@ -4,6 +4,7 @@ export interface InvestmentPocket {
   icon: string;
   color: string; // 'emerald' | 'indigo' | 'amber' | 'cyan' | 'purple' | 'rose' | 'blue'
   targetAmountArs?: number;
+  priority?: number; // 1 (Principal / Primero), 2, 3...
 }
 
 export const DEFAULT_POCKETS: InvestmentPocket[] = [
@@ -12,30 +13,35 @@ export const DEFAULT_POCKETS: InvestmentPocket[] = [
     name: "Fondo Emergencia",
     icon: "🛡️",
     color: "emerald",
+    priority: 1,
   },
   {
     id: "inversiones",
     name: "Inversiones",
     icon: "📈",
     color: "indigo",
+    priority: 2,
   },
   {
     id: "fondo-auto",
     name: "Fondo para Auto",
     icon: "🚗",
     color: "amber",
+    priority: 3,
   },
   {
     id: "vacaciones",
     name: "Vacaciones & Viajes",
     icon: "✈️",
     color: "cyan",
+    priority: 4,
   },
   {
     id: "hogar-proyectos",
     name: "Hogar & Proyectos",
     icon: "🏠",
     color: "purple",
+    priority: 5,
   },
 ];
 
@@ -158,7 +164,8 @@ export function extractPocketFromNotes(
     const name = parts[1]?.trim() || pocketId;
     const icon = parts[2]?.trim() || "💰";
     const color = parts[3]?.trim() || "indigo";
-    const target = parts[4] ? parseFloat(parts[4]) || undefined : undefined;
+    const target = parts[4] && parts[4].trim() ? parseFloat(parts[4]) || undefined : undefined;
+    const priority = parts[5] && parts[5].trim() ? parseInt(parts[5], 10) || undefined : undefined;
     return {
       pocket: {
         id: pocketId,
@@ -166,6 +173,7 @@ export function extractPocketFromNotes(
         icon,
         color,
         targetAmountArs: target,
+        priority,
       },
       cleanNotes,
     };
@@ -196,14 +204,20 @@ export function injectPocketIntoNotes(
       p.id === pocket.id &&
       p.name === pocket.name &&
       p.icon === pocket.icon &&
-      !pocket.targetAmountArs
+      p.color === pocket.color &&
+      !pocket.targetAmountArs &&
+      (pocket.priority === undefined || pocket.priority === p.priority)
   );
 
   let tag = `[BOLSA:${pocket.id}]`;
   if (!isDefault) {
-    tag = `[BOLSA:${pocket.id}::${pocket.name}::${pocket.icon}::${pocket.color}${
-      pocket.targetAmountArs ? `::${pocket.targetAmountArs}` : ""
-    }]`;
+    const targetStr = pocket.targetAmountArs ? String(pocket.targetAmountArs) : "";
+    const priorityStr = pocket.priority !== undefined ? String(pocket.priority) : "";
+    if (targetStr || priorityStr) {
+      tag = `[BOLSA:${pocket.id}::${pocket.name}::${pocket.icon}::${pocket.color}::${targetStr}::${priorityStr}]`;
+    } else {
+      tag = `[BOLSA:${pocket.id}::${pocket.name}::${pocket.icon}::${pocket.color}]`;
+    }
   }
 
   if (!clean) return tag;
@@ -211,7 +225,8 @@ export function injectPocketIntoNotes(
 }
 
 /**
- * Agrupa y consolida todas las bolsas presentes en las inversiones más las predeterminadas y personalizadas.
+ * Agrupa y consolida todas las bolsas presentes en las inversiones más las predeterminadas y personalizadas,
+ * ordenadas según la prioridad asignada (Prioridad 1 primero).
  */
 export function resolveAllPockets(
   investments: Array<{ notes?: string | null }>,
@@ -221,21 +236,29 @@ export function resolveAllPockets(
 
   // 1. Cargar las predeterminadas iniciales
   for (const dp of DEFAULT_POCKETS) {
-    map.set(dp.id, dp);
+    map.set(dp.id, { ...dp });
   }
 
   // 2. Cargar las personalizadas del usuario
   for (const cp of customPockets) {
-    map.set(cp.id, cp);
+    const existing = map.get(cp.id);
+    map.set(cp.id, existing ? { ...existing, ...cp } : { ...cp });
   }
 
   // 3. Inspeccionar las inversiones para extraer cualquier bolsa viva en la BD
   for (const inv of investments) {
     if (inv.notes && POCKET_TAG_REGEX.test(inv.notes)) {
       const { pocket } = extractPocketFromNotes(inv.notes, Array.from(map.values()));
-      map.set(pocket.id, pocket);
+      const existing = map.get(pocket.id);
+      map.set(pocket.id, existing ? { ...pocket, ...existing } : pocket);
     }
   }
 
-  return Array.from(map.values());
+  // Ordenar por prioridad ascendente (1, 2, 3...)
+  return Array.from(map.values()).sort((a, b) => {
+    const pA = typeof a.priority === "number" ? a.priority : 999;
+    const pB = typeof b.priority === "number" ? b.priority : 999;
+    if (pA !== pB) return pA - pB;
+    return a.name.localeCompare(b.name, "es");
+  });
 }

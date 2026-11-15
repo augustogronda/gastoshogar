@@ -18,10 +18,12 @@ import {
   Settings2,
   MoveRight,
   ChevronRight,
+  ArrowUpDown,
 } from "lucide-react";
 import { PersonalInvestmentModal } from "./PersonalInvestmentModal";
 import { PocketManagerModal } from "./PocketManagerModal";
 import { SetTargetModal } from "./SetTargetModal";
+import { PocketPriorityModal } from "./PocketPriorityModal";
 import {
   deletePersonalInvestmentAction,
   deleteSharedInvestmentAction,
@@ -140,6 +142,9 @@ export function PersonalInvestmentsView({
   // Estado para modal dedicado a fijar objetivo/meta
   const [isSetTargetModalOpen, setIsSetTargetModalOpen] = useState(false);
   const [pocketForTarget, setPocketForTarget] = useState<InvestmentPocket | null>(null);
+
+  // Estado para modal de reordenar y ajustar prioridades
+  const [isPriorityModalOpen, setIsPriorityModalOpen] = useState(false);
 
   // Estado para edición rápida inline de cualquier activo
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
@@ -273,6 +278,65 @@ export function PersonalInvestmentsView({
         }
       } catch (e) {
         console.error("Error sincronizando objetivo:", e);
+      }
+    }
+  };
+
+  const handleSaveOrder = async (orderedPockets: InvestmentPocket[]) => {
+    // 1. Actualizar estado local
+    setCustomPockets((prev) => {
+      const map = new Map<string, InvestmentPocket>();
+      for (const p of prev) {
+        map.set(p.id, p);
+      }
+      for (const p of orderedPockets) {
+        const existing = map.get(p.id);
+        map.set(p.id, existing ? { ...existing, priority: p.priority } : p);
+      }
+      const next = Array.from(map.values());
+      try {
+        localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    // 2. Sincronizar en DB para persistencia compartida
+    for (const pocket of orderedPockets) {
+      const pInvs = investments.filter(
+        (inv) =>
+          extractPocketFromNotes(inv.notes, availablePockets).pocket.id === pocket.id
+      );
+      if (pInvs.length > 0) {
+        const firstInv = pInvs[0];
+        const { cleanNotes } = extractPocketFromNotes(firstInv.notes, availablePockets);
+        const newNotes = injectPocketIntoNotes(cleanNotes || null, pocket);
+
+        setInvestments((prev) =>
+          prev.map((item) =>
+            item.id === firstInv.id ? { ...item, notes: newNotes } : item
+          )
+        );
+
+        try {
+          const payload = {
+            id: firstInv.id,
+            ticker: firstInv.ticker,
+            name: firstInv.name,
+            assetType: firstInv.assetType,
+            quantity: firstInv.quantity,
+            buyPrice: firstInv.buyPrice,
+            currency: firstInv.currency,
+            manualPrice: firstInv.manualPrice,
+            notes: newNotes,
+          };
+          if (householdId) {
+            saveSharedInvestmentAction({ ...payload, householdId });
+          } else if (userId) {
+            savePersonalInvestmentAction({ ...payload, userId });
+          }
+        } catch (e) {
+          console.error("Error sincronizando prioridad de bolsa:", e);
+        }
       }
     }
   };
@@ -841,18 +905,32 @@ export function PersonalInvestmentsView({
                 Bolsas de Ahorro e Inversión ({availablePockets.length})
               </h2>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic(8);
-                setPocketToEdit(null);
-                setIsPocketModalOpen(true);
-              }}
-              className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Nueva</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(6);
+                  setIsPriorityModalOpen(true);
+                }}
+                className="text-[11px] font-bold text-zinc-300 hover:text-white flex items-center gap-1 transition px-2.5 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] active:scale-95 shadow-sm"
+                title="Ajustar prioridad y orden de los fondos"
+              >
+                <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                <span>Prioridad</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(8);
+                  setPocketToEdit(null);
+                  setIsPocketModalOpen(true);
+                }}
+                className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition px-2 py-1"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Nueva</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
@@ -890,9 +968,19 @@ export function PersonalInvestmentsView({
                         {pocket.icon}
                       </div>
                       <div className="min-w-0">
-                        <span className="font-extrabold text-sm text-white block truncate group-hover:text-indigo-300 transition">
-                          {pocket.name}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-extrabold text-sm text-white block truncate group-hover:text-indigo-300 transition">
+                            {pocket.name}
+                          </span>
+                          {pocket.priority && (
+                            <span
+                              className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-white/[0.06] text-zinc-400 border border-white/[0.06] shrink-0"
+                              title={`Prioridad #${pocket.priority}`}
+                            >
+                              #{pocket.priority}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[10px] text-zinc-400 block">
                           {pInvs.length} {pInvs.length === 1 ? "activo" : "activos"} ·{" "}
                           <strong className="text-zinc-300">{Math.round(pPct)}%</strong>{" "}
@@ -1517,6 +1605,14 @@ export function PersonalInvestmentsView({
             : 0
         }
         onSaveTarget={handleSaveTarget}
+      />
+
+      {/* Modal de Prioridad y Reordenamiento de Bolsas */}
+      <PocketPriorityModal
+        isOpen={isPriorityModalOpen}
+        onClose={() => setIsPriorityModalOpen(false)}
+        pockets={availablePockets}
+        onSaveOrder={handleSaveOrder}
       />
     </div>
   );
