@@ -1,7 +1,7 @@
 {
-  "version": "1.28.5",
-  "build": 2026111602,
-  "releasedAt": "2026-11-16T13:21:00Z",
-  "title": "Calculadora y conversor automático de saldo en pesos a cuotapartes FCI",
-  "description": "Permite calcular cuotapartes exactas a partir del monto en pesos depositado usando el VCP oficial de CAFCI, con opción de revisar y editar antes de guardar."
+  "version": "1.29.0",
+  "build": 2026111603,
+  "releasedAt": "2026-11-16T15:15:00Z",
+  "title": "Gráfica interactiva de evolución de inversiones estilo iOS / Broker",
+  "description": "Visualización continua del patrimonio con curva Bezier fluida, área con gradiente dinámico, scrubber táctil con respuesta háptica y selector multi-temporal y por bolsas de inversión."
 }

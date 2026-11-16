@@ -49,6 +49,7 @@ import {
   resolveAllPockets,
 } from "@/lib/investment-pockets";
 import { triggerHaptic } from "@/lib/haptics";
+import { InvestmentEvolutionChart } from "./InvestmentEvolutionChart";
 
 interface PersonalInvestmentsViewProps {
   userId?: string;
@@ -972,6 +973,14 @@ export function PersonalInvestmentsView({
           </button>
         </div>
       </section>
+
+      {/* GRÁFICA INTERACTIVA DE EVOLUCIÓN ESTILO BROKER / IOS */}
+      <InvestmentEvolutionChart
+        investments={investments}
+        availablePockets={availablePockets}
+        selectedPocketId={selectedPocketId}
+        onSelectPocket={(pocketId) => setSelectedPocketId(pocketId)}
+      />
 
       {/* HUB / RESUMEN DE TODAS LAS BOLSAS (Solo visible en vista "Todas") */}
       {selectedPocketId === "ALL" && availablePockets.length > 0 && (
