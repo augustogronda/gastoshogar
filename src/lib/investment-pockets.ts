@@ -125,12 +125,48 @@ export const POCKET_COLOR_MAP: Record<
 };
 
 export const POCKET_TAG_REGEX = /\[BOLSA:\s*([^\]]+)\]/i;
+export const POCKETS_DATA_REGEX = /\[POCKETS_DATA:\s*([^\]]+)\]/i;
+
+/**
+ * Inserta o actualiza el payload maestro de todas las bolsas en las notas de una inversión.
+ */
+export function injectMasterPocketsData(
+  notes: string | null | undefined,
+  pockets: InvestmentPocket[]
+): string {
+  const clean = notes ? notes.replace(POCKETS_DATA_REGEX, "").trim() : "";
+  const payload = encodeURIComponent(JSON.stringify(pockets));
+  const tag = `[POCKETS_DATA:${payload}]`;
+  if (!clean) return tag;
+  return `${tag} ${clean}`;
+}
+
+/**
+ * Extrae la configuración maestra de bolsas si existe en las notas.
+ */
+export function extractMasterPocketsData(
+  notes: string | null | undefined
+): InvestmentPocket[] | null {
+  if (!notes) return null;
+  const match = notes.match(POCKETS_DATA_REGEX);
+  if (!match) return null;
+  try {
+    const raw = match[1].trim();
+    const parsed = JSON.parse(decodeURIComponent(raw));
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (e) {
+    console.warn("Error parseando POCKETS_DATA de notas:", e);
+  }
+  return null;
+}
 
 /**
  * Extrae la bolsa asignada a partir de las notas de la inversión.
  * Formatos soportados en [BOLSA:...]:
  * - [BOLSA:fondo-emergencia]
- * - [BOLSA:custom-id::Nombre::Icono::Color::MetaOpcional]
+ * - [BOLSA:custom-id::Nombre::Icono::Color::MetaOpcional::Prioridad]
  */
 export function extractPocketFromNotes(
   notes?: string | null,
@@ -141,7 +177,10 @@ export function extractPocketFromNotes(
   }
 
   const match = notes.match(POCKET_TAG_REGEX);
-  const cleanNotes = notes.replace(POCKET_TAG_REGEX, "").trim();
+  const cleanNotes = notes
+    .replace(POCKET_TAG_REGEX, "")
+    .replace(POCKETS_DATA_REGEX, "")
+    .trim();
 
   if (!match) {
     return { pocket: FALLBACK_POCKET, cleanNotes };
@@ -151,21 +190,25 @@ export function extractPocketFromNotes(
   const parts = raw.split("::");
   const pocketId = parts[0]?.trim();
 
-  // 1. Buscar en lista conocida provista
-  const foundKnown = knownPockets.find((p) => p.id === pocketId);
-  if (foundKnown) return { pocket: foundKnown, cleanNotes };
+  // Buscar en lista conocida provista o en defaults como referencia base
+  const known =
+    knownPockets.find((p) => p.id === pocketId) ||
+    DEFAULT_POCKETS.find((p) => p.id === pocketId);
 
-  // 2. Buscar en DEFAULT_POCKETS
-  const foundDefault = DEFAULT_POCKETS.find((p) => p.id === pocketId);
-  if (foundDefault) return { pocket: foundDefault, cleanNotes };
-
-  // 3. Si viene serializado con todos sus campos (custom pocket)
+  // 1. Si viene serializado con todos sus campos (ej: [BOLSA:id::Nombre::Icono::Color::Meta::Prioridad])
   if (parts.length >= 2) {
-    const name = parts[1]?.trim() || pocketId;
-    const icon = parts[2]?.trim() || "💰";
-    const color = parts[3]?.trim() || "indigo";
-    const target = parts[4] && parts[4].trim() ? parseFloat(parts[4]) || undefined : undefined;
-    const priority = parts[5] && parts[5].trim() ? parseInt(parts[5], 10) || undefined : undefined;
+    const name = parts[1]?.trim() || known?.name || pocketId;
+    const icon = parts[2]?.trim() || known?.icon || "💰";
+    const color = parts[3]?.trim() || known?.color || "indigo";
+    const target =
+      parts[4] && parts[4].trim()
+        ? parseFloat(parts[4]) || undefined
+        : known?.targetAmountArs;
+    const priority =
+      parts[5] && parts[5].trim()
+        ? parseInt(parts[5], 10) || undefined
+        : known?.priority;
+
     return {
       pocket: {
         id: pocketId,
@@ -179,7 +222,12 @@ export function extractPocketFromNotes(
     };
   }
 
-  // 4. Fallback con el ID legible
+  // 2. Si solo venía el identificador simple (ej: [BOLSA:fondo-emergencia])
+  if (known) {
+    return { pocket: known, cleanNotes };
+  }
+
+  // 3. Fallback con el ID legible
   return {
     pocket: {
       id: pocketId,
@@ -239,18 +287,33 @@ export function resolveAllPockets(
     map.set(dp.id, { ...dp });
   }
 
-  // 2. Cargar las personalizadas del usuario
+  // 2. Extraer configuración maestra de bolsas si alguna inversión tiene [POCKETS_DATA:...]
+  for (const inv of investments) {
+    if (inv.notes && POCKETS_DATA_REGEX.test(inv.notes)) {
+      const masterList = extractMasterPocketsData(inv.notes);
+      if (masterList && Array.isArray(masterList)) {
+        for (const p of masterList) {
+          if (p && p.id) {
+            const existing = map.get(p.id);
+            map.set(p.id, existing ? { ...existing, ...p } : { ...p });
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Cargar las personalizadas del usuario en este navegador (localStorage)
   for (const cp of customPockets) {
     const existing = map.get(cp.id);
     map.set(cp.id, existing ? { ...existing, ...cp } : { ...cp });
   }
 
-  // 3. Inspeccionar las inversiones para extraer cualquier bolsa viva en la BD
+  // 4. Inspeccionar las notas individuales [BOLSA:...] de cada inversión
   for (const inv of investments) {
     if (inv.notes && POCKET_TAG_REGEX.test(inv.notes)) {
       const { pocket } = extractPocketFromNotes(inv.notes, Array.from(map.values()));
       const existing = map.get(pocket.id);
-      map.set(pocket.id, existing ? { ...pocket, ...existing } : pocket);
+      map.set(pocket.id, existing ? { ...existing, ...pocket } : pocket);
     }
   }
 

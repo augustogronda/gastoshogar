@@ -1,7 +1,7 @@
 {
-  "version": "1.28.3",
-  "build": 2026111504,
-  "releasedAt": "2026-11-15T23:36:00Z",
-  "title": "Ajuste de prioridad y orden de bolsas de inversión",
-  "description": "Permite asignar prioridad #1, #2, #3... a cada fondo y reordenarlos fácilmente con botones subir/bajar sin necesidad de arrastre táctil."
+  "version": "1.28.4",
+  "build": 2026111601,
+  "releasedAt": "2026-11-16T12:56:00Z",
+  "title": "Sincronización multi-dispositivo garantizada de metas y prioridades de fondos",
+  "description": "Corrección en la extracción de metas de notas y adición de sincronización maestra persistida en base de datos para ver metas en PC y móvil instantáneamente."
 }

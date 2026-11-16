@@ -45,6 +45,7 @@ import {
   POCKET_COLOR_MAP,
   extractPocketFromNotes,
   injectPocketIntoNotes,
+  injectMasterPocketsData,
   resolveAllPockets,
 } from "@/lib/investment-pockets";
 import { triggerHaptic } from "@/lib/haptics";
@@ -168,7 +169,7 @@ export function PersonalInvestmentsView({
       const stored = localStorage.getItem("gastoshogar_shared_pockets");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setCustomPockets(parsed);
         }
       }
@@ -185,35 +186,96 @@ export function PersonalInvestmentsView({
   // Lista consolidada de bolsas disponibles (Predeterminadas + Guardadas + Vivas en BD)
   const availablePockets = resolveAllPockets(investments, customPockets);
 
-  const handleSavePocket = (newPocket: InvestmentPocket) => {
-    setCustomPockets((prev) => {
-      const idx = prev.findIndex((p) => p.id === newPocket.id);
-      let next: InvestmentPocket[];
-      if (idx >= 0) {
-        next = [...prev];
-        next[idx] = newPocket;
-      } else {
-        next = [...prev, newPocket];
+  // Si abrimos desde un dispositivo nuevo (ej: PC) donde localStorage está vacío,
+  // pero la BD ya trajo metas u orden personalizado, sincronizar en el localStorage del nuevo dispositivo
+  useEffect(() => {
+    if (customPockets.length === 0 && availablePockets.length > 0) {
+      const hasSyncedCustomization = availablePockets.some(
+        (p) =>
+          typeof p.targetAmountArs === "number" ||
+          typeof p.priority === "number" ||
+          !DEFAULT_POCKETS.some((dp) => dp.id === p.id)
+      );
+      if (hasSyncedCustomization) {
+        setCustomPockets(availablePockets);
+        try {
+          localStorage.setItem(
+            "gastoshogar_shared_pockets",
+            JSON.stringify(availablePockets)
+          );
+        } catch (e) {}
       }
-      try {
-        localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(next));
-      } catch (e) {}
-      return next;
-    });
-    setSelectedPocketId(newPocket.id);
+    }
+  }, [availablePockets, customPockets.length]);
+
+  /**
+   * Sincroniza la lista maestra de bolsas con el servidor guardando el payload en la primera inversión
+   */
+  const syncPocketsToDatabase = async (nextAllPockets: InvestmentPocket[]) => {
+    if (investments.length === 0) return;
+
+    const primaryInv = investments[0];
+    const { cleanNotes: primaryCleanNotes, pocket: primaryPocket } =
+      extractPocketFromNotes(primaryInv.notes, nextAllPockets);
+
+    let newPrimaryNotes = injectPocketIntoNotes(primaryCleanNotes || null, primaryPocket);
+    newPrimaryNotes = injectMasterPocketsData(newPrimaryNotes, nextAllPockets);
+
+    setInvestments((prev) =>
+      prev.map((item) =>
+        item.id === primaryInv.id ? { ...item, notes: newPrimaryNotes } : item
+      )
+    );
+
+    try {
+      const payload = {
+        id: primaryInv.id,
+        ticker: primaryInv.ticker,
+        name: primaryInv.name,
+        assetType: primaryInv.assetType,
+        quantity: primaryInv.quantity,
+        buyPrice: primaryInv.buyPrice,
+        currency: primaryInv.currency,
+        manualPrice: primaryInv.manualPrice,
+        notes: newPrimaryNotes,
+      };
+      if (householdId) {
+        await saveSharedInvestmentAction({ ...payload, householdId });
+      } else if (userId) {
+        await savePersonalInvestmentAction({ ...payload, userId });
+      }
+    } catch (e) {
+      console.error("Error sincronizando bolsas maestras con servidor:", e);
+    }
   };
 
-  const handleDeletePocket = (pocketId: string) => {
-    setCustomPockets((prev) => {
-      const next = prev.filter((p) => p.id !== pocketId);
-      try {
-        localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(next));
-      } catch (e) {}
-      return next;
-    });
+  const handleSavePocket = async (newPocket: InvestmentPocket) => {
+    const updatedList = availablePockets.map((p) =>
+      p.id === newPocket.id ? newPocket : p
+    );
+    if (!updatedList.some((p) => p.id === newPocket.id)) {
+      updatedList.push(newPocket);
+    }
+
+    setCustomPockets(updatedList);
+    try {
+      localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(updatedList));
+    } catch (e) {}
+    setSelectedPocketId(newPocket.id);
+
+    await syncPocketsToDatabase(updatedList);
+  };
+
+  const handleDeletePocket = async (pocketId: string) => {
+    const next = availablePockets.filter((p) => p.id !== pocketId);
+    setCustomPockets(next);
+    try {
+      localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(next));
+    } catch (e) {}
     if (selectedPocketId === pocketId) {
       setSelectedPocketId("ALL");
     }
+    await syncPocketsToDatabase(next);
   };
 
   const handleSaveTarget = async (pocketId: string, targetAmountArs?: number) => {
@@ -224,34 +286,31 @@ export function PersonalInvestmentsView({
       targetAmountArs,
     };
 
-    setCustomPockets((prev) => {
-      const idx = prev.findIndex((p) => p.id === pocketId);
-      let next: InvestmentPocket[];
-      if (idx >= 0) {
-        next = [...prev];
-        next[idx] = updatedPocket;
-      } else {
-        next = [...prev, updatedPocket];
-      }
-      try {
-        localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(next));
-      } catch (e) {}
-      return next;
-    });
+    const nextPockets = availablePockets.map((p) =>
+      p.id === pocketId ? updatedPocket : p
+    );
+    if (!nextPockets.some((p) => p.id === pocketId)) {
+      nextPockets.push(updatedPocket);
+    }
 
-    // Si hay activos en esta bolsa, sincronizar meta en la base de datos para persistencia en servidor
+    setCustomPockets(nextPockets);
+    try {
+      localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(nextPockets));
+    } catch (e) {}
+
+    // 1. Sincronizar en la inversión específica asignada a esta bolsa (si existe)
     const pInvs = investments.filter(
       (inv) =>
-        extractPocketFromNotes(inv.notes, availablePockets).pocket.id === pocketId
+        extractPocketFromNotes(inv.notes, nextPockets).pocket.id === pocketId
     );
 
     if (pInvs.length > 0) {
       const firstInv = pInvs[0];
-      const { cleanNotes } = extractPocketFromNotes(
-        firstInv.notes,
-        availablePockets
-      );
-      const newNotes = injectPocketIntoNotes(cleanNotes || null, updatedPocket);
+      const { cleanNotes } = extractPocketFromNotes(firstInv.notes, nextPockets);
+      let newNotes = injectPocketIntoNotes(cleanNotes || null, updatedPocket);
+      if (investments[0] && investments[0].id === firstInv.id) {
+        newNotes = injectMasterPocketsData(newNotes, nextPockets);
+      }
 
       setInvestments((prev) =>
         prev.map((item) =>
@@ -280,35 +339,32 @@ export function PersonalInvestmentsView({
         console.error("Error sincronizando objetivo:", e);
       }
     }
+
+    // 2. Sincronizar siempre el payload maestro en investments[0]
+    if (investments.length > 0 && (!pInvs.length || pInvs[0].id !== investments[0].id)) {
+      await syncPocketsToDatabase(nextPockets);
+    }
   };
 
   const handleSaveOrder = async (orderedPockets: InvestmentPocket[]) => {
     // 1. Actualizar estado local
-    setCustomPockets((prev) => {
-      const map = new Map<string, InvestmentPocket>();
-      for (const p of prev) {
-        map.set(p.id, p);
-      }
-      for (const p of orderedPockets) {
-        const existing = map.get(p.id);
-        map.set(p.id, existing ? { ...existing, priority: p.priority } : p);
-      }
-      const next = Array.from(map.values());
-      try {
-        localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(next));
-      } catch (e) {}
-      return next;
-    });
+    setCustomPockets(orderedPockets);
+    try {
+      localStorage.setItem("gastoshogar_shared_pockets", JSON.stringify(orderedPockets));
+    } catch (e) {}
 
     // 2. Sincronizar en DB para persistencia compartida
+    await syncPocketsToDatabase(orderedPockets);
+
+    // 3. Actualizar notas de la primera inversión de cada bolsa
     for (const pocket of orderedPockets) {
       const pInvs = investments.filter(
         (inv) =>
-          extractPocketFromNotes(inv.notes, availablePockets).pocket.id === pocket.id
+          extractPocketFromNotes(inv.notes, orderedPockets).pocket.id === pocket.id
       );
-      if (pInvs.length > 0) {
+      if (pInvs.length > 0 && pInvs[0].id !== investments[0]?.id) {
         const firstInv = pInvs[0];
-        const { cleanNotes } = extractPocketFromNotes(firstInv.notes, availablePockets);
+        const { cleanNotes } = extractPocketFromNotes(firstInv.notes, orderedPockets);
         const newNotes = injectPocketIntoNotes(cleanNotes || null, pocket);
 
         setInvestments((prev) =>
