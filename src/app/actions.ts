@@ -1274,7 +1274,7 @@ export async function createRecurringExpenseAction(data: {
 }) {
   const household = await ensureDefaultHousehold();
 
-  await prisma.recurringExpense.create({
+  const created = await prisma.recurringExpense.create({
     data: {
       title: data.title,
       installmentAmount: data.installmentAmount,
@@ -1289,10 +1289,56 @@ export async function createRecurringExpenseAction(data: {
     },
   });
 
+  // Si hay períodos ABIERTOS que coincidan con la vigencia de este plan, auto-imputar de inmediato
+  const openPeriods = await prisma.monthlyPeriod.findMany({
+    where: {
+      householdId: household.id,
+      status: "OPEN",
+    },
+  });
+
+  for (const period of openPeriods) {
+    const monthsElapsed = (period.year - data.startYear) * 12 + (period.month - data.startMonth);
+    const installmentNumber = monthsElapsed + 1;
+    const isApplicable =
+      monthsElapsed >= 0 &&
+      (!data.totalInstallments || installmentNumber <= data.totalInstallments);
+
+    if (isApplicable) {
+      const alreadyInPeriod = await prisma.expense.findFirst({
+        where: {
+          periodId: period.id,
+          recurringExpenseId: created.id,
+        },
+      });
+
+      if (!alreadyInPeriod) {
+        const fullTitle = data.totalInstallments
+          ? `${data.title} (Cuota ${installmentNumber}/${data.totalInstallments})`
+          : data.title;
+
+        await prisma.expense.create({
+          data: {
+            title: fullTitle,
+            amount: data.installmentAmount,
+            paidById: data.paidById,
+            categoryId: data.categoryId,
+            periodId: period.id,
+            isFromPoolFund: data.isFromPoolFund ?? false,
+            recurringExpenseId: created.id,
+            installmentNumber: data.totalInstallments ? installmentNumber : null,
+            totalInstallments: data.totalInstallments || null,
+            date: new Date(),
+          },
+        });
+      }
+    }
+  }
+
   await touchCategory(data.categoryId);
 
   revalidatePath("/");
-  return { success: true };
+  return { success: true, item: created };
 }
 
 export async function updateRecurringExpenseAction(data: {
@@ -2661,7 +2707,7 @@ export async function createPersonalRecurringExpenseAction(data: {
   await touchCategory(data.categoryId);
 
   revalidatePath("/");
-  return { success: true };
+  return { success: true, item: created };
 }
 
 export async function deletePersonalRecurringExpenseAction(id: string) {

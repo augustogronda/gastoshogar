@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { X, CreditCard, Repeat } from "./ui/icons";
 import { createPersonalRecurringExpenseAction } from "@/app/actions";
 import { triggerHaptic } from "@/lib/haptics";
@@ -26,6 +27,7 @@ interface PersonalRecurringModalProps {
   currentMonth: number;
   categories: Category[];
   cards?: CreditCardOption[];
+  onSaved?: () => Promise<void> | void;
 }
 
 export function PersonalRecurringModal({
@@ -37,7 +39,9 @@ export function PersonalRecurringModal({
   currentMonth,
   categories,
   cards = [],
+  onSaved,
 }: PersonalRecurringModalProps) {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [installmentAmount, setInstallmentAmount] = useState("");
   const [isInstallmentPlan, setIsInstallmentPlan] = useState(true);
@@ -78,6 +82,8 @@ export function PersonalRecurringModal({
       setCreditCardId("");
       setNotes("");
       triggerHaptic("success");
+      await onSaved?.();
+      router.refresh();
       onClose();
     } catch (err: unknown) {
       console.error(err);

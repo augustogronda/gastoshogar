@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
@@ -402,6 +402,22 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       }, 450);
     }
   };
+
+  const handleSilentRefresh = useCallback(async () => {
+    try {
+      const freshData = await getDashboardData(currentYear, currentMonth);
+      if (freshData) {
+        setDashboardData(freshData);
+        dataCacheRef.current.set(`${currentYear}-${currentMonth}`, freshData);
+        try {
+          localStorage.setItem("gastoshogar_cached_dashboard_v2", JSON.stringify(freshData));
+        } catch (e) {}
+      }
+      router.refresh();
+    } catch (e) {
+      console.warn("Silent refresh failed:", e);
+    }
+  }, [currentYear, currentMonth, router]);
 
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
@@ -1277,6 +1293,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     isHogarBatchProcessing,
     isHogarBatchDeleteModalOpen,
     setIsHogarBatchDeleteModalOpen,
+    onRefresh: handleSilentRefresh,
   };
 
   return (
@@ -1675,6 +1692,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               externalMenuAction={personalMenuAction}
               onResetExternalMenuAction={() => setPersonalMenuAction(null)}
               onSyncPersonalExpenses={handleSyncPersonalExpenses}
+              onRefresh={handleSilentRefresh}
             />
           )
         ) : (
@@ -2056,6 +2074,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             recurringExpenses={recurringExpenses}
             users={users}
             categories={categories}
+            onRefresh={handleSilentRefresh}
           />
         )}
 

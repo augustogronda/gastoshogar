@@ -106,6 +106,7 @@ export interface DesktopDashboardProps {
   selectedHogarSubtotal?: number;
   onToggleSelectHogarExpense?: (id: string) => void;
   onSelectAllHogarExpenses?: () => void;
+  onRefresh?: () => Promise<void> | void;
 }
 
 export function DesktopDashboard({
@@ -172,6 +173,7 @@ export function DesktopDashboard({
   setSelectedHogarExpenseIds,
   onToggleSelectHogarExpense,
   onSelectAllHogarExpenses,
+  onRefresh,
 }: DesktopDashboardProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
@@ -852,6 +854,7 @@ export function DesktopDashboard({
                 externalMenuAction={personalMenuAction}
                 onResetExternalMenuAction={() => setPersonalMenuAction(null)}
                 onSyncPersonalExpenses={handleSyncPersonalExpenses}
+                onRefresh={onRefresh}
               />
             </div>
           )
@@ -1344,6 +1347,7 @@ export function DesktopDashboard({
                   recurringExpenses={recurringExpenses}
                   users={users}
                   categories={categories}
+                  onRefresh={onRefresh}
                 />
               </div>
             )}

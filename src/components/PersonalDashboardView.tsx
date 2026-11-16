@@ -134,6 +134,7 @@ interface PersonalDashboardViewProps {
   externalMenuAction?: { type: "income" | "expense" | "closeOrReopen"; seq: number } | null;
   onResetExternalMenuAction?: () => void;
   onSyncPersonalExpenses?: (expenses: PersonalExpenseItem[]) => void;
+  onRefresh?: () => Promise<void> | void;
 }
 
 const SHORT_MONTHS = [
@@ -404,6 +405,7 @@ export function PersonalDashboardView({
   externalMenuAction,
   onResetExternalMenuAction,
   onSyncPersonalExpenses,
+  onRefresh,
 }: PersonalDashboardViewProps) {
   const personalTab = activeTab;
   const router = useRouter();
@@ -515,6 +517,8 @@ export function PersonalDashboardView({
       try {
         await deletePersonalRecurringExpenseAction(current.id);
         showToast("✓ Cuota / fijo eliminado");
+        await onRefresh?.();
+        router.refresh();
       } catch (err) {
         showToast("Error al eliminar cuota", "error");
       } finally {
@@ -745,6 +749,8 @@ export function PersonalDashboardView({
         totalInstallments: rec.totalInstallments,
       });
       showToast(`✓ "${rec.title}" imputada al mes`);
+      await onRefresh?.();
+      router.refresh();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Error al imputar cuota", "error");
     } finally {
@@ -757,6 +763,8 @@ export function PersonalDashboardView({
     try {
       await unapplyPersonalRecurringExpenseAction(expenseId);
       showToast("✓ Cuota desmarcada del mes", "info");
+      await onRefresh?.();
+      router.refresh();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Error al desmarcar cuota", "error");
     } finally {
@@ -1681,6 +1689,10 @@ export function PersonalDashboardView({
         onClose={() => {
           setIsRecurringModalOpen(false);
           onResetExternalMenuAction?.();
+        }}
+        onSaved={async () => {
+          await onRefresh?.();
+          router.refresh();
         }}
         userId={currentUser.id}
         userName={currentUser.name}

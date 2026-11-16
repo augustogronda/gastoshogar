@@ -105,6 +105,7 @@ export interface IPadDashboardProps {
   selectedHogarSubtotal?: number;
   onToggleSelectHogarExpense?: (id: string) => void;
   onSelectAllHogarExpenses?: () => void;
+  onRefresh?: () => Promise<void> | void;
 }
 
 export function IPadDashboard({
@@ -171,6 +172,7 @@ export function IPadDashboard({
   setSelectedHogarExpenseIds,
   onToggleSelectHogarExpense,
   onSelectAllHogarExpenses,
+  onRefresh,
 }: IPadDashboardProps) {
   // Cálculo de ratio de aportes entre integrantes
   const nameA = userA?.name || "Augusto";
@@ -551,6 +553,7 @@ export function IPadDashboard({
               externalMenuAction={personalMenuAction}
               onResetExternalMenuAction={() => setPersonalMenuAction(null)}
               onSyncPersonalExpenses={handleSyncPersonalExpenses}
+              onRefresh={onRefresh}
             />
           )
         ) : (
@@ -938,6 +941,7 @@ export function IPadDashboard({
                 recurringExpenses={recurringExpenses}
                 users={users}
                 categories={categories}
+                onRefresh={onRefresh}
               />
             )}
 

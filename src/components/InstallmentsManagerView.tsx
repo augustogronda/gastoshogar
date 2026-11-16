@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   CreditCard,
   Repeat,
@@ -71,6 +72,7 @@ interface InstallmentsManagerViewProps {
   recurringExpenses: RecurringItem[];
   users: HouseholdUser[];
   categories: Category[];
+  onRefresh?: () => Promise<void> | void;
 }
 
 const MONTH_NAMES = [
@@ -96,7 +98,9 @@ export function InstallmentsManagerView({
   recurringExpenses,
   users,
   categories,
+  onRefresh,
 }: InstallmentsManagerViewProps) {
+  const router = useRouter();
   const { toast, showToast } = useToast();
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [editingItem, setEditingItem] = useState<RecurringItem | null>(null);
@@ -218,6 +222,10 @@ export function InstallmentsManagerView({
       setCustomInstallments("");
       setEditingItem(null);
       setIsAddingNew(false);
+
+      // Actualizar automáticamente la vista y el estado global
+      await onRefresh?.();
+      router.refresh();
     } catch (err) {
       console.error(err);
       showToast("Error al guardar la cuota/gasto recurrente", "error");
@@ -239,6 +247,8 @@ export function InstallmentsManagerView({
           : `✓ "${item.title}" archivado`,
         "info"
       );
+      await onRefresh?.();
+      router.refresh();
     } catch (err) {
       console.error(err);
       showToast("Error al actualizar estado del plan", "error");
@@ -262,6 +272,8 @@ export function InstallmentsManagerView({
         totalInstallments: item.totalInstallments,
       });
       showToast(`✓ "${item.title}" imputada al mes`);
+      await onRefresh?.();
+      router.refresh();
     } catch (err) {
       console.error(err);
       showToast("Error al imputar la cuota al mes", "error");
@@ -276,6 +288,8 @@ export function InstallmentsManagerView({
     try {
       await unapplyRecurringExpenseAction(item.appliedExpenseId);
       showToast(`✓ "${item.title}" desmarcada del mes`, "info");
+      await onRefresh?.();
+      router.refresh();
     } catch (err) {
       console.error(err);
       showToast("Error al desimputar la cuota", "error");
@@ -304,6 +318,8 @@ export function InstallmentsManagerView({
         }))
       );
       showToast(`✓ ${pendingItems.length} cuotas imputadas al mes`);
+      await onRefresh?.();
+      router.refresh();
     } catch (err) {
       console.error(err);
       showToast("Error al imputar todas las cuotas", "error");
@@ -323,6 +339,8 @@ export function InstallmentsManagerView({
     try {
       await deleteRecurringExpenseAction(id);
       showToast("✓ Plan eliminado");
+      await onRefresh?.();
+      router.refresh();
     } catch (err) {
       console.error(err);
       showToast("Error al eliminar el plan", "error");

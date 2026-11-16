@@ -1,7 +1,7 @@
 {
-  "version": "1.29.1",
-  "build": 2026111604,
-  "releasedAt": "2026-11-16T18:56:00Z",
-  "title": "Equivalente en USD (Dólar MEP) en la gráfica interactiva de inversiones",
-  "description": "Se integró la cotización MEP y el cálculo en tiempo real del equivalente en dólares tanto en el balance principal como en la variación del período y en el scrubber táctil."
+  "version": "1.29.2",
+  "build": 2026111605,
+  "releasedAt": "2026-11-16T19:12:00Z",
+  "title": "Actualización y visualización automática inmediata al agregar planes de cuotas",
+  "description": "Auto-imputación en períodos abiertos, sincronización reactiva inmediata sin recargar pantalla al crear, editar, archivar o eliminar planes de cuotas en Hogar y Personal."
 }
