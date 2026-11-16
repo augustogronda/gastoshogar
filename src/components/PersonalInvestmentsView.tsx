@@ -449,12 +449,34 @@ export function PersonalInvestmentsView({
     triggerHaptic(8);
     setIsLoadingQuickFci(true);
     try {
-      const refPrice = parseFloat(quickManualPrice.replace(",", ".")) || inv.manualPrice;
-      const quote = await fetchFciQuoteAction(inv.name || inv.ticker, refPrice);
+      const currentAmount =
+        parseFloat(quickManualPrice.replace(",", ".")) ||
+        inv.manualPrice ||
+        inv.totalValuationArs ||
+        0;
+      const quote = await fetchFciQuoteAction(inv.name || inv.ticker, currentAmount);
       if (quote) {
         setQuickFciQuote(quote);
-        setQuickValuationMode("units");
-        setQuickManualPrice(String(quote.recommendedVcp || quote.vcpUnit));
+        const vcp = quote.recommendedVcp || quote.vcpUnit;
+        if (vcp > 0) {
+          // Si el usuario tenía saldo directo (quantity = 1 o modo total),
+          // convertir automáticamente los pesos ingresados a cuotapartes exactas
+          if (quickValuationMode === "total" || inv.quantity === 1) {
+            const deposit = currentAmount > 0 ? currentAmount : (inv.totalValuationArs || 0);
+            if (deposit > 0) {
+              const calcQty = (deposit / vcp).toFixed(4);
+              setQuickQuantity(calcQty);
+              setQuickManualPrice(String(vcp));
+              if (!quickBuyPrice) setQuickBuyPrice(String(vcp));
+              setQuickValuationMode("units");
+            } else {
+              setQuickValuationMode("units");
+              setQuickManualPrice(String(vcp));
+            }
+          } else {
+            setQuickManualPrice(String(vcp));
+          }
+        }
       } else {
         alert(
           "No se encontró cotización automática en CAFCI para ese nombre. Podés editar el nombre del fondo con el buscador (botón lápiz)."
@@ -1315,7 +1337,24 @@ export function PersonalInvestmentsView({
                   <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.06]">
                     <div className="text-[11px] text-zinc-400 min-w-0">
                       {isDirectBalance ? (
-                        <span>Saldo directo</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>Saldo directo</span>
+                          {inv.assetType === "FCI" && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenQuickEdit(inv);
+                                handleFetchQuickFciQuote(inv);
+                              }}
+                              className="text-[10px] font-bold text-emerald-300 hover:text-white px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1 transition active:scale-95 shadow-sm"
+                              title="Calcular cuántas cuotapartes corresponden al monto ingresado"
+                            >
+                              <Sparkles className="w-3 h-3 text-emerald-400" />
+                              <span>Calcular Cuotapartes</span>
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <span className="font-mono text-zinc-300">
                           {inv.quantity.toLocaleString("es-AR")}{" "}
@@ -1466,36 +1505,103 @@ export function PersonalInvestmentsView({
                           </div>
 
                           {quickFciQuote && quickFciQuote.vcpUnit > 0 && (
-                            <div className="flex items-center justify-between gap-1.5 p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/25 text-[10px]">
-                              <span className="text-emerald-300 truncate">
-                                CAFCI ({quickFciQuote.date}):
-                              </span>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setQuickValuationMode("units");
-                                    setQuickManualPrice(
-                                      String(quickFciQuote.vcpUnit)
-                                    );
-                                  }}
-                                  className="px-2 py-0.5 rounded bg-emerald-500/25 text-white font-mono font-bold hover:bg-emerald-500/40"
-                                >
-                                  Unit: ${quickFciQuote.vcpUnit}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setQuickValuationMode("units");
-                                    setQuickManualPrice(
-                                      String(quickFciQuote.vcpPer1000)
-                                    );
-                                  }}
-                                  className="px-2 py-0.5 rounded bg-white/[0.08] text-zinc-200 font-mono font-bold hover:bg-white/[0.15]"
-                                >
-                                  c/1000: ${quickFciQuote.vcpPer1000}
-                                </button>
+                            <div className="space-y-1.5 p-2 rounded-xl bg-emerald-950/40 border border-emerald-500/25 text-[10px]">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <span className="text-emerald-300 font-bold truncate">
+                                  CAFCI ({quickFciQuote.date}):
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      triggerHaptic(6);
+                                      const dep =
+                                        parseFloat(quickManualPrice.replace(",", ".")) ||
+                                        inv.totalValuationArs ||
+                                        0;
+                                      const vcp = quickFciQuote.vcpUnit;
+                                      if (
+                                        (quickValuationMode === "total" || inv.quantity === 1) &&
+                                        dep > 0 &&
+                                        vcp > 0
+                                      ) {
+                                        setQuickQuantity((dep / vcp).toFixed(4));
+                                      }
+                                      setQuickValuationMode("units");
+                                      setQuickManualPrice(String(vcp));
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-emerald-500/25 text-white font-mono font-bold hover:bg-emerald-500/40 transition active:scale-95"
+                                  >
+                                    Unit: ${quickFciQuote.vcpUnit}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      triggerHaptic(6);
+                                      const dep =
+                                        parseFloat(quickManualPrice.replace(",", ".")) ||
+                                        inv.totalValuationArs ||
+                                        0;
+                                      const vcp = quickFciQuote.vcpPer1000;
+                                      if (
+                                        (quickValuationMode === "total" || inv.quantity === 1) &&
+                                        dep > 0 &&
+                                        vcp > 0
+                                      ) {
+                                        setQuickQuantity((dep / vcp).toFixed(4));
+                                      }
+                                      setQuickValuationMode("units");
+                                      setQuickManualPrice(String(vcp));
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-white/[0.08] text-zinc-200 font-mono font-bold hover:bg-white/[0.15] transition active:scale-95"
+                                  >
+                                    c/1000: ${quickFciQuote.vcpPer1000}
+                                  </button>
+                                </div>
                               </div>
+
+                              {/* Cálculo de Cuotapartes en Vivo */}
+                              {(() => {
+                                const vcp = quickFciQuote.recommendedVcp || quickFciQuote.vcpUnit;
+                                const dep =
+                                  quickValuationMode === "total"
+                                    ? parseFloat(quickManualPrice.replace(",", ".")) ||
+                                      inv.totalValuationArs ||
+                                      0
+                                    : (parseFloat(quickQuantity.replace(",", ".")) || 0) * vcp;
+                                const calcQty = dep > 0 && vcp > 0 ? dep / vcp : 0;
+
+                                if (calcQty <= 0) return null;
+
+                                return (
+                                  <div className="pt-1 border-t border-emerald-500/20 flex items-center justify-between gap-2">
+                                    <span className="text-[10px] text-zinc-300 truncate">
+                                      ${Math.round(dep).toLocaleString("es-AR")} ÷ ${vcp} ={" "}
+                                      <strong className="text-emerald-300 font-mono">
+                                        {calcQty.toLocaleString("es-AR", {
+                                          maximumFractionDigits: 4,
+                                        })}{" "}
+                                        cuot.
+                                      </strong>
+                                    </span>
+                                    {quickValuationMode === "total" && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          triggerHaptic(6);
+                                          setQuickValuationMode("units");
+                                          setQuickQuantity(calcQty.toFixed(4));
+                                          setQuickManualPrice(String(vcp));
+                                          if (!quickBuyPrice) setQuickBuyPrice(String(vcp));
+                                        }}
+                                        className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] shrink-0 active:scale-95 transition"
+                                      >
+                                        Aplicar Cuotapartes
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           )}
                         </div>

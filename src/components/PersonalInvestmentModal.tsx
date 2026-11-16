@@ -11,6 +11,7 @@ import {
   AlertCircle,
   RefreshCw,
 } from "./ui/icons";
+import { Sparkles, Calculator } from "lucide-react";
 import {
   savePersonalInvestmentAction,
   saveSharedInvestmentAction,
@@ -99,6 +100,10 @@ export function PersonalInvestmentModal({
   >(null);
   const [isLoadingFciQuote, setIsLoadingFciQuote] = useState(false);
 
+  // Calculadora de Cuotapartes desde monto en pesos
+  const [fciDepositAmount, setFciDepositAmount] = useState<string>("");
+  const [fciCustomVcp, setFciCustomVcp] = useState<string>("");
+
   // Form state
   const [ticker, setTicker] = useState("");
   const [name, setName] = useState("");
@@ -162,7 +167,18 @@ export function PersonalInvestmentModal({
       }
 
       if (investmentToEdit.assetType === "FCI") {
+        if (investmentToEdit.quantity === 1 && investmentToEdit.manualPrice) {
+          setFciDepositAmount(String(investmentToEdit.manualPrice));
+        } else if (investmentToEdit.quantity > 1 && investmentToEdit.manualPrice) {
+          setFciDepositAmount(
+            String(Math.round(investmentToEdit.quantity * investmentToEdit.manualPrice))
+          );
+          setFciCustomVcp(String(investmentToEdit.manualPrice));
+        }
         lookupFciQuote(investmentToEdit.name, investmentToEdit.manualPrice, false);
+      } else {
+        setFciDepositAmount("");
+        setFciCustomVcp("");
       }
     } else {
       const initialType = defaultAssetType || "CEDEAR";
@@ -187,6 +203,8 @@ export function PersonalInvestmentModal({
       setFciSearchQuery("");
       setFciSearchResults([]);
       setFciLiveQuote(null);
+      setFciDepositAmount("");
+      setFciCustomVcp("");
       setActiveMode(startInManual ? "manual" : "search");
       setValuationMode(startInManual ? "total" : "units");
     }
@@ -263,15 +281,46 @@ export function PersonalInvestmentModal({
       const quote = await fetchFciQuoteAction(fundNameOrTicker.trim(), refPrice);
       if (quote) {
         setFciLiveQuote(quote);
-        if (applyToInput && quote.vcpUnit > 0) {
+        const vcp = quote.recommendedVcp || quote.vcpUnit;
+        setFciCustomVcp(String(vcp));
+        if (applyToInput && vcp > 0) {
           setValuationMode("units");
-          setManualPrice(String(quote.recommendedVcp || quote.vcpUnit));
+          setManualPrice(String(vcp));
         }
       }
     } catch (err) {
       console.error("Error fetching FCI quote:", err);
     } finally {
       setIsLoadingFciQuote(false);
+    }
+  };
+
+  // Cálculo en vivo para conversor de monto en pesos a cuotapartes
+  const effectiveFciDeposit =
+    parseFloat(fciDepositAmount.replace(",", ".")) ||
+    (valuationMode === "total" ? parseFloat(manualPrice.replace(",", ".")) : 0) ||
+    parseFloat(buyPrice.replace(",", ".")) ||
+    0;
+
+  const effectiveFciVcp =
+    parseFloat(fciCustomVcp.replace(",", ".")) ||
+    (fciLiveQuote ? fciLiveQuote.recommendedVcp || fciLiveQuote.vcpUnit : 0) ||
+    (valuationMode === "units" ? parseFloat(manualPrice.replace(",", ".")) : 0) ||
+    0;
+
+  const calculatedCuotapartes =
+    effectiveFciDeposit > 0 && effectiveFciVcp > 0
+      ? effectiveFciDeposit / effectiveFciVcp
+      : 0;
+
+  const handleApplyCalculatedCuotapartes = () => {
+    if (calculatedCuotapartes <= 0 || effectiveFciVcp <= 0) return;
+    triggerHaptic(8);
+    setValuationMode("units");
+    setQuantity(calculatedCuotapartes.toFixed(4));
+    setManualPrice(String(effectiveFciVcp));
+    if (!buyPrice || parseFloat(buyPrice.replace(",", ".")) === effectiveFciDeposit) {
+      setBuyPrice(String(effectiveFciVcp));
     }
   };
 
@@ -957,6 +1006,106 @@ export function PersonalInvestmentModal({
                           maximumFractionDigits: 4,
                         })}
                       </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Calculadora Inteligente de Cuotapartes desde Monto en Pesos */}
+            {assetType === "FCI" && (
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-purple-950/30 to-zinc-900 border border-indigo-500/30 space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-extrabold text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    Calcular Cuotapartes desde tu Depósito
+                  </span>
+                  <span className="text-[10px] text-zinc-400">
+                    ¿No sabés cuántas cuotapartes tenés?
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                      Monto Depositado ($)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-2 text-zinc-400 text-xs font-bold">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        step="any"
+                        value={
+                          fciDepositAmount ||
+                          (valuationMode === "total" ? manualPrice : "")
+                        }
+                        onChange={(e) => {
+                          setFciDepositAmount(e.target.value);
+                          if (valuationMode === "total") {
+                            setManualPrice(e.target.value);
+                          }
+                        }}
+                        placeholder="Ej: 500000"
+                        className="w-full bg-black/60 border border-white/[0.12] rounded-xl pl-6 pr-2.5 py-1.5 text-xs font-mono font-bold text-white focus:outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                      Valor Cuotaparte (VCP)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-2 text-zinc-400 text-xs font-bold">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        step="any"
+                        value={
+                          fciCustomVcp ||
+                          (fciLiveQuote
+                            ? String(
+                                fciLiveQuote.recommendedVcp ||
+                                  fciLiveQuote.vcpUnit
+                              )
+                            : "")
+                        }
+                        onChange={(e) => setFciCustomVcp(e.target.value)}
+                        placeholder="Ej: 2.4567"
+                        className="w-full bg-black/60 border border-white/[0.12] rounded-xl pl-6 pr-2.5 py-1.5 text-xs font-mono font-bold text-white focus:outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {calculatedCuotapartes > 0 && (
+                  <div className="flex items-center justify-between gap-2 bg-black/50 p-2.5 rounded-xl border border-emerald-500/30 animate-fade-in">
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-zinc-400 block truncate">
+                        ${Math.round(effectiveFciDeposit).toLocaleString("es-AR")}{" "}
+                        ÷ $
+                        {effectiveFciVcp.toLocaleString("es-AR", {
+                          maximumFractionDigits: 4,
+                        })}
+                        :
+                      </span>
+                      <span className="text-sm font-black font-mono text-emerald-400 block truncate">
+                        {calculatedCuotapartes.toLocaleString("es-AR", {
+                          maximumFractionDigits: 4,
+                        })}{" "}
+                        cuotapartes
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleApplyCalculatedCuotapartes}
+                      className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0 shadow-md shadow-emerald-600/30 flex items-center gap-1 active:scale-95 transition"
+                    >
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>Aplicar</span>
                     </button>
                   </div>
                 )}

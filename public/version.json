@@ -1,7 +1,7 @@
 {
-  "version": "1.28.4",
-  "build": 2026111601,
-  "releasedAt": "2026-11-16T12:56:00Z",
-  "title": "Sincronización multi-dispositivo garantizada de metas y prioridades de fondos",
-  "description": "Corrección en la extracción de metas de notas y adición de sincronización maestra persistida en base de datos para ver metas en PC y móvil instantáneamente."
+  "version": "1.28.5",
+  "build": 2026111602,
+  "releasedAt": "2026-11-16T13:21:00Z",
+  "title": "Calculadora y conversor automático de saldo en pesos a cuotapartes FCI",
+  "description": "Permite calcular cuotapartes exactas a partir del monto en pesos depositado usando el VCP oficial de CAFCI, con opción de revisar y editar antes de guardar."
 }
