@@ -1,7 +1,7 @@
 {
-  "version": "1.29.0",
-  "build": 2026111603,
-  "releasedAt": "2026-11-16T15:15:00Z",
-  "title": "Gráfica interactiva de evolución de inversiones estilo iOS / Broker",
-  "description": "Visualización continua del patrimonio con curva Bezier fluida, área con gradiente dinámico, scrubber táctil con respuesta háptica y selector multi-temporal y por bolsas de inversión."
+  "version": "1.29.1",
+  "build": 2026111604,
+  "releasedAt": "2026-11-16T18:56:00Z",
+  "title": "Equivalente en USD (Dólar MEP) en la gráfica interactiva de inversiones",
+  "description": "Se integró la cotización MEP y el cálculo en tiempo real del equivalente en dólares tanto en el balance principal como en la variación del período y en el scrubber táctil."
 }

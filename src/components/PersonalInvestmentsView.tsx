@@ -980,6 +980,7 @@ export function PersonalInvestmentsView({
         availablePockets={availablePockets}
         selectedPocketId={selectedPocketId}
         onSelectPocket={(pocketId) => setSelectedPocketId(pocketId)}
+        mepRate={mepRate}
       />
 
       {/* HUB / RESUMEN DE TODAS LAS BOLSAS (Solo visible en vista "Todas") */}

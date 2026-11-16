@@ -33,6 +33,7 @@ interface InvestmentEvolutionChartProps {
   availablePockets: InvestmentPocket[];
   selectedPocketId: string | "ALL";
   onSelectPocket?: (pocketId: string | "ALL") => void;
+  mepRate?: number;
 }
 
 const TIMEFRAMES: Array<{ id: TimeframeOption; label: string; days: number }> = [
@@ -77,6 +78,7 @@ export function InvestmentEvolutionChart({
   availablePockets,
   selectedPocketId,
   onSelectPocket,
+  mepRate = 1530,
 }: InvestmentEvolutionChartProps) {
   const [timeframe, setTimeframe] = useState<TimeframeOption>("1M");
   const [scrubIndex, setScrubIndex] = useState<number | null>(null);
@@ -291,6 +293,11 @@ export function InvestmentEvolutionChart({
     initialPoint.value > 0 ? (periodDiff / initialPoint.value) * 100 : periodDiff > 0 ? 100 : 0;
   const isPositive = periodDiff >= 0;
 
+  // Conversión equivalente a USD (Dólar MEP)
+  const effectiveMep = mepRate > 0 ? mepRate : 1530;
+  const displayedValuationUsd = displayedPoint.value / effectiveMep;
+  const periodDiffUsd = periodDiff / effectiveMep;
+
   // Coordenadas activas del scrubber
   const activeCoord =
     scrubIndex !== null && coordinates[scrubIndex]
@@ -402,10 +409,15 @@ export function InvestmentEvolutionChart({
           })}
         </div>
 
-        {/* Indicador de activo seleccionado */}
-        <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider shrink-0 hidden sm:inline">
-          {activePocket ? activePocket.name : "Portfolio Total"}
-        </span>
+        {/* Indicador de cotización MEP y activo seleccionado */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/[0.08] text-zinc-300 font-bold">
+            MEP ${Math.round(effectiveMep).toLocaleString("es-AR")}
+          </span>
+          <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider hidden sm:inline">
+            {activePocket ? activePocket.name : "Portfolio Total"}
+          </span>
+        </div>
       </div>
 
       {/* VALOR HERO / DISPLAY CON NÚMEROS MONOSPACE TIPO BROKER */}
@@ -443,16 +455,27 @@ export function InvestmentEvolutionChart({
           </div>
         </div>
 
-        {/* Balance grande con efecto dinámico al deslizar */}
-        <div className="flex items-baseline gap-2">
-          <h3 className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white drop-shadow-sm select-none">
-            ${Math.round(displayedPoint.value).toLocaleString("es-AR")}
-          </h3>
-          <span className="text-xs font-semibold text-zinc-400 font-mono">ARS</span>
+        {/* Balance grande con efecto dinámico al deslizar + Equivalente en USD */}
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <div className="flex items-baseline gap-1.5">
+            <h3 className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white drop-shadow-sm select-none">
+              ${Math.round(displayedPoint.value).toLocaleString("es-AR")}
+            </h3>
+            <span className="text-xs font-semibold text-zinc-400 font-mono">ARS</span>
+          </div>
+
+          {/* Badge Equivalente en USD */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.06] border border-white/[0.1] text-xs font-mono font-bold text-zinc-300 shadow-sm backdrop-blur-sm">
+            <span className="text-emerald-400 font-extrabold text-[11px]">≈ u$s</span>
+            <span className="text-sm sm:text-base font-black text-white">
+              {Math.round(displayedValuationUsd).toLocaleString("es-AR")}
+            </span>
+            <span className="text-[10px] text-zinc-400 font-normal">USD</span>
+          </div>
         </div>
 
         {/* Variación en el período / scrubber */}
-        <div className="flex items-center gap-2 pt-0.5">
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
           <div
             className={`inline-flex items-center gap-1 text-xs font-mono font-bold px-2 py-0.5 rounded-lg border transition ${
               isPositive
@@ -473,6 +496,11 @@ export function InvestmentEvolutionChart({
               {periodPct.toFixed(2)}%)
             </span>
           </div>
+
+          {/* Variación en USD */}
+          <span className="text-[11px] font-mono font-bold text-zinc-400">
+            ≈ {isPositive ? "+" : ""}u$s {Math.round(periodDiffUsd).toLocaleString("es-AR")}
+          </span>
 
           <span className="text-[11px] text-zinc-500">
             {isScrubbing
@@ -625,15 +653,19 @@ export function InvestmentEvolutionChart({
           )}
         </svg>
 
-        {/* Pill flotante indicadora de fecha sobre la línea al hacer scrubbing */}
+        {/* Pill flotante indicadora de fecha y valor USD sobre la línea al hacer scrubbing */}
         {isScrubbing && activeCoord && (
           <div
-            className="absolute pointer-events-none transform -translate-x-1/2 -top-2 px-2 py-0.5 rounded-lg bg-zinc-900/95 border border-white/20 text-[10px] font-mono font-bold text-white shadow-xl backdrop-blur-md"
+            className="absolute pointer-events-none transform -translate-x-1/2 -top-2.5 px-2.5 py-1 rounded-xl bg-zinc-900/95 border border-white/20 text-[10px] font-mono font-bold text-white shadow-xl backdrop-blur-md flex items-center gap-1.5"
             style={{
               left: `${(activeCoord.x / width) * 100}%`,
             }}
           >
-            {displayedPoint.shortDate}
+            <span>{displayedPoint.shortDate}</span>
+            <span className="text-zinc-500">•</span>
+            <span className="text-emerald-400 font-extrabold">
+              u$s {Math.round(displayedValuationUsd).toLocaleString("es-AR")}
+            </span>
           </div>
         )}
       </div>
